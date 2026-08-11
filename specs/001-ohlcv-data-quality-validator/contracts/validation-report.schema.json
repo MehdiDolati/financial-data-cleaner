@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://financial-data-cleaner.local/contracts/validation-report.schema.json",
+  "title": "OHLCV Validation Report",
+  "description": "Machine-readable result of one structurally successful OHLCV CSV validation run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sourceFile",
+    "detectedTimeframe",
+    "totalRecords",
+    "dateRange",
+    "summary",
+    "isClean",
+    "findings"
+  ],
+  "properties": {
+    "sourceFile": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Safe source label, normally the input base file name rather than an absolute path."
+    },
+    "detectedTimeframe": {
+      "oneOf": [
+        { "$ref": "#/$defs/timeframeCode" },
+        { "type": "null" }
+      ],
+      "description": "Explicit or inferred timeframe; null when fewer than two applicable records make sequence checks inapplicable."
+    },
+    "totalRecords": {
+      "$ref": "#/$defs/nonNegativeInteger"
+    },
+    "dateRange": {
+      "oneOf": [
+        { "$ref": "#/$defs/dateRange" },
+        { "type": "null" }
+      ]
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "isClean": {
+      "type": "boolean",
+      "description": "True exactly when every summary count is zero."
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" },
+      "description": "Complete findings in canonical category/timestamp/line order."
+    }
+  },
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$",
+      "description": "ISO 8601 timestamp normalized to UTC and ending in Z."
+    },
+    "timeframeCode": {
+      "type": "string",
+      "pattern": "^(M|H|D)[1-9][0-9]*$"
+    },
+    "dateRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "$ref": "#/$defs/utcTimestamp" },
+        "to": { "$ref": "#/$defs/utcTimestamp" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missingCandles",
+        "duplicateRecords",
+        "invalidOhlc",
+        "weekendRecords",
+        "timeGaps",
+        "malformedRows"
+      ],
+      "properties": {
+        "missingCandles": { "$ref": "#/$defs/nonNegativeInteger" },
+        "duplicateRecords": { "$ref": "#/$defs/nonNegativeInteger" },
+        "invalidOhlc": { "$ref": "#/$defs/nonNegativeInteger" },
+        "weekendRecords": { "$ref": "#/$defs/nonNegativeInteger" },
+        "timeGaps": { "$ref": "#/$defs/nonNegativeInteger" },
+        "malformedRows": { "$ref": "#/$defs/nonNegativeInteger" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "timestamp", "line", "message"],
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": [
+            "MissingCandle",
+            "DuplicateRecord",
+            "InvalidOhlc",
+            "WeekendRecord",
+            "TimeGap",
+            "MalformedRow"
+          ]
+        },
+        "timestamp": {
+          "oneOf": [
+            { "$ref": "#/$defs/utcTimestamp" },
+            { "type": "null" }
+          ]
+        },
+        "line": {
+          "oneOf": [
+            { "$ref": "#/$defs/positiveInteger" },
+            { "type": "null" }
+          ],
+          "description": "Primary physical source line, or null for expected-but-absent timestamps. Duplicate-group messages list every participating line."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

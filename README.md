@@ -18,7 +18,7 @@ Specification phase. No implementation code yet.
 | --- | --- |
 | Project constitution (non-negotiable principles) | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) |
 | Feature specs | [`specs/`](specs/) |
-| First spec — OHLCV data-quality validator | [`specs/001-ohlcv-data-quality-validator-spec.md`](specs/001-ohlcv-data-quality-validator-spec.md) |
+| First spec — OHLCV data-quality validator | [`specs/001-ohlcv-data-quality-validator/spec.md`](specs/001-ohlcv-data-quality-validator/spec.md) |
 
 ## Core principles
 
