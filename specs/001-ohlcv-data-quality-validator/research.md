@@ -78,15 +78,17 @@ unnecessary persistent infrastructure for a one-file offline tool.
 **Decision**: Explicit timeframe codes parse as positive `M<n>`, `H<n>`, or
 `D<n>` durations. Auto-detection counts positive deltas between adjacent distinct
 open-market records only when the interval does not traverse a closed session;
-the unique statistical mode wins. If no delta exists, sequence checks are not
-applicable and the reported timeframe is null. If multiple deltas tie for mode,
-validation fails with an actionable request for `--timeframe`.
+the unique statistical mode wins. If no delta exists or multiple deltas tie for
+mode, validation fails with an actionable request for `--timeframe`.
 
 Expected timestamps are generated within calendar open sessions, aligned to the
 session opening instant and clipped to the earliest and latest open-market source
 records. Always-open crypto uses the earliest open record as its phase anchor.
 Closed-period records are excluded from sequence bounds and matching, ensuring
 they neither create nor close gaps. Open intervals use `[open, close)` semantics.
+If no delta exists, or if the modal delta is tied, validation fails without an
+explicit `--timeframe`; an explicit override allows empty and single-record
+inputs to complete with sequence checks not applicable.
 
 **Rationale**: Two passes over the replayable spool resolve timeframe before gap
 analysis. Unique-mode failure is deterministic and safer than a hidden tie-break.
@@ -94,7 +96,9 @@ Session alignment handles equity DST transitions and the forex weekend boundary.
 Clipping prevents inventing missing candles before the observed dataset begins.
 
 **Alternatives considered**: Selecting the smallest tied delta was rejected as
-guessing. Advancing a single UTC anchor forever was rejected because New York
+guessing. Treating an empty or single-record input as a complete validation
+without an explicit timeframe was rejected because it would hide unavailable
+sequence checks. Advancing a single UTC anchor forever was rejected because New York
 session opens move in UTC across DST. Including weekend records as bounds would
 contradict FR-018.
 
@@ -105,7 +109,7 @@ Application calendar contract. Forex is the fixed Sunday 22:00 UTC through
 Friday 22:00 UTC session. Crypto is always open. Equities and custom schedules
 use local weekly sessions plus a pinned NodaTime/TZDB adapter; equities defaults
 to `America/New_York` Monday-Friday 09:30-16:00. Add
-`--calendar-config <path>` for the custom profile and optional equities-hours
+`--calendar <path>` for the custom profile and optional equities-hours
 override. Holidays remain unsupported.
 
 **Rationale**: A bundled, pinned TZDB gives consistent IANA-zone behavior across

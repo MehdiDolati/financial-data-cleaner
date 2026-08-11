@@ -110,12 +110,15 @@ public interface IValidationRule
 public sealed record ValidationContext(
     IReplayableCandleData Data,
     IMarketCalendar Calendar,
-    Timeframe? Timeframe);
+    Timeframe Timeframe);
 ```
 
 Rule implementations are independently registered and tested. A rule emits
-findings only for its declared category. Sequence rules are skipped when the
-timeframe is null. Rule registration order must not affect report ordering.
+findings only for its declared category. The use case resolves a non-null
+timeframe before creating this context; sequence rules therefore run normally
+and simply emit no findings when an explicitly overridden timeframe is applied
+to empty or single-record data. Rule registration order must not affect report
+ordering.
 
 ## Finding Store Port
 
@@ -193,8 +196,11 @@ contain no `ValidationReport`; the Presentation layer maps every kind to exit 2.
 2. Row parsing failures are malformed findings; file grammar/layout failures are
    fatal and cannot coexist with a report.
 3. Duplicate count is the sum of `group size - 1`, not group count.
-4. Closed-period records are evaluated for `WeekendRecord` but excluded from
+4. Closed-period records are evaluated for `ClosedMarketRecord` but excluded from
    timeframe deltas and expected-sequence matching.
-5. Report generation is deterministic for equal input bytes and options.
-6. Application and Domain never read files, environment variables, console,
+5. A malformed row with a parseable timestamp reserves its expected candle slot
+   but contributes only to `MalformedRow`; a row with an unparseable timestamp
+   reserves no slot.
+6. Report generation is deterministic for equal input bytes and options.
+7. Application and Domain never read files, environment variables, console,
    current culture, wall-clock time, or host time-zone state directly.

@@ -21,11 +21,8 @@
       "description": "Safe source label, normally the input base file name rather than an absolute path."
     },
     "detectedTimeframe": {
-      "oneOf": [
-        { "$ref": "#/$defs/timeframeCode" },
-        { "type": "null" }
-      ],
-      "description": "Explicit or inferred timeframe; null when fewer than two applicable records make sequence checks inapplicable."
+      "$ref": "#/$defs/timeframeCode",
+      "description": "Explicit or uniquely inferred timeframe; every successful report has a resolved timeframe."
     },
     "totalRecords": {
       "$ref": "#/$defs/nonNegativeInteger"
@@ -84,7 +81,7 @@
         "missingCandles",
         "duplicateRecords",
         "invalidOhlc",
-        "weekendRecords",
+        "closedMarketRecords",
         "timeGaps",
         "malformedRows"
       ],
@@ -92,7 +89,7 @@
         "missingCandles": { "$ref": "#/$defs/nonNegativeInteger" },
         "duplicateRecords": { "$ref": "#/$defs/nonNegativeInteger" },
         "invalidOhlc": { "$ref": "#/$defs/nonNegativeInteger" },
-        "weekendRecords": { "$ref": "#/$defs/nonNegativeInteger" },
+        "closedMarketRecords": { "$ref": "#/$defs/nonNegativeInteger" },
         "timeGaps": { "$ref": "#/$defs/nonNegativeInteger" },
         "malformedRows": { "$ref": "#/$defs/nonNegativeInteger" }
       }
@@ -108,7 +105,7 @@
             "MissingCandle",
             "DuplicateRecord",
             "InvalidOhlc",
-            "WeekendRecord",
+            "ClosedMarketRecord",
             "TimeGap",
             "MalformedRow"
           ]

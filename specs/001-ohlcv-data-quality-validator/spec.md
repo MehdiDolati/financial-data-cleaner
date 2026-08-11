@@ -27,15 +27,15 @@ Non-Functional Requirements §4.1).
 ### 3.1 Input & Parsing
 
 - **FR-001**: The system MUST accept the path to one CSV file as input (positional CLI argument).
-- **FR-002**: The system MUST read, at minimum, seven physical columns per record, in the standard MT4/MetaTrader History Center export layout: `Date`, `Time`, `Open`, `High`, `Low`, `Close`, `Volume`.
+- **FR-002**: The system MUST read, at minimum, seven physical columns per record in the default MT4/MetaTrader History Center export layout: `Date`, `Time`, `Open`, `High`, `Low`, `Close`, `Volume`. When combined-timestamp mode is selected under FR-004, the minimum layout is six physical columns: the selected timestamp column followed by `Open`, `High`, `Low`, `Close`, `Volume`.
 - **FR-003**: The system MUST, by default, treat the file as headerless with columns in the fixed order from FR-002, comma-delimited — the shape of a raw MT4 History Center export. A `--header` flag MUST opt into header-based column matching (case-insensitive by name) for sources that add one.
-- **FR-004**: The system MUST parse `Date` as `yyyy.MM.dd` and `Time` as `HH:mm` or `HH:mm:ss` (auto-detected by colon count), combining them into a single Timestamp. Both patterns MUST be overridable (`--date-format` / `--time-format`) for non-MT4 sources, and a single combined `--timestamp-format` MAY be supplied instead when the source uses one column rather than two.
+- **FR-004**: The system MUST parse `Date` as `yyyy.MM.dd` and `Time` as `HH:mm` or `HH:mm:ss` (auto-detected by colon count), combining them into a single Timestamp. Both patterns MUST be overridable (`--date-format` / `--time-format`) for non-MT4 sources. A source with one timestamp column MUST instead supply both `--timestamp-format <fmt>` and `--timestamp-column <name-or-index>`; the selector is a case-insensitive header name when `--header` is active or a one-based physical column index with either layout. In a headerless combined-timestamp layout, the five columns immediately following the selected timestamp column MUST be `Open`, `High`, `Low`, `Close`, `Volume` in that order. Supplying only one of the two combined-timestamp options, or a name selector without `--header`, MUST fail argument validation.
 - **FR-004a**: Source timestamps MUST be interpreted at a fixed UTC+2 offset by default, with no daylight-saving adjustment, overridable via `--tz-offset <±HH:mm>`, and converted to true UTC internally for all processing and reporting. (A fixed, non-DST offset avoids the spring-forward/fall-back artifacts noted in §8. Confirmed with the requester that, specifically at +2, this also makes the weekend boundary land on the calendar Saturday/Sunday — see the derivation under FR-019.)
 - **FR-005**: The system MUST parse numeric fields (Open, High, Low, Close, Volume) using the invariant culture (`.` as decimal separator) regardless of the host machine's regional settings.
 - **FR-006**: The system MUST auto-detect the field delimiter among comma, semicolon, and tab, with an explicit `--delimiter` override.
 - **FR-007**: The system MUST normalize records into chronological order before running any sequence-dependent check (duplicates, gaps, missing candles), regardless of the order rows appear in the file.
 - **FR-008**: If the file is structurally invalid (wrong column count for the active layout, file unreadable, not valid CSV), the system MUST stop and report a **fatal ingestion error** — distinct from a data-quality finding — and MUST NOT emit a data-quality report. This maps to its own exit code (see FR-033).
-- **FR-009**: If an individual row fails to parse (e.g. non-numeric price field) while the file as a whole is structurally valid, the system MUST skip that row, continue processing the remainder of the file, and count it under a sixth top-line report category, **malformed rows** (line number + reason recorded for verbose mode).
+- **FR-009**: If an individual row fails to parse (e.g. non-numeric price field) while the file as a whole is structurally valid, the system MUST exclude its invalid OHLCV values, continue processing the remainder of the file, and count it under a sixth top-line report category, **malformed rows** (line number + reason recorded for verbose mode). If the row's timestamp parsed successfully, that timestamp MUST still occupy its expected candle slot and MUST NOT also produce a missing-candle or time-gap finding; the invalid values remain excluded from duplicate, OHLC, and closed-market checks. A row whose timestamp cannot be parsed reserves no candle slot and MAY therefore leave an expected timestamp missing based on the surrounding valid data.
 
 ### 3.2 Data-Quality Checks
 
@@ -49,16 +49,17 @@ Non-Functional Requirements §4.1).
 
   Each offending row is counted **once** regardless of how many of the above it violates.
 - **FR-013** (verbose mode): For each invalid row, the system MUST list which specific rule(s) it violated and the offending values.
-- **FR-014**: The system MUST determine a nominal **timeframe** (candle interval — e.g. M1, M5, M15, M30, H1, H4, D1) either from an explicit `--timeframe` override, or by auto-detecting the statistical mode of the time delta between chronologically consecutive records observed during open-market periods.
+- **FR-014**: The system MUST determine a nominal **timeframe** (candle interval — e.g. M1, M5, M15, M30, H1, H4, D1) either from an explicit `--timeframe` override, or by auto-detecting the statistical mode of the time delta between chronologically consecutive records observed during open-market periods. If no unique timeframe can be inferred and no `--timeframe` override was supplied, the system MUST fail with exit code `2`, report an actionable error, and MUST NOT emit a data-quality report.
 - **FR-015**: Using the timeframe from FR-014 and the active market calendar (FR-019), the system MUST construct the full sequence of timestamps expected between the first and last record, excluding any period the calendar marks as closed.
 - **FR-016**: Every expected timestamp from FR-015 that has no matching record MUST be counted under **missing candles**.
 - **FR-017**: A maximal *contiguous* run of one or more consecutive missing expected timestamps MUST be counted as exactly one **time gap**. ("Missing candles" is the sum of gap lengths; "time gaps" is the number of distinct gap runs — a file with a 10-candle hole and a separate 2-candle hole reports 12 missing candles across 2 time gaps.)
-- **FR-018**: A record whose UTC-normalized timestamp (FR-004a) falls inside a period the active market calendar marks as closed MUST be counted under **weekend records**. This check is independent of FR-016/017: a weekend record neither closes a gap nor creates one, and a missing weekend timestamp is never counted as a missing candle.
+- **FR-018**: A record whose UTC-normalized timestamp (FR-004a) falls inside a period the active market calendar marks as closed MUST be counted under **closed-market records** (formerly referred to as "weekend records"). This check is independent of FR-016/017: a closed-market record neither closes a gap nor creates one, and a missing closed-market timestamp is never counted as a missing candle.
 - **FR-019**: The market calendar MUST be selectable via `--market <profile>`. v1 ships with:
   - `forex` (default): open continuously from Sunday 22:00 UTC to Friday 22:00 UTC; closed ("weekend") from Friday 22:00 UTC to Sunday 22:00 UTC. The rule itself stays UTC-based so it remains correct if `--tz-offset` is ever changed. *Confirmed with the requester: at the default fixed +2 offset specifically, 22:00 UTC lands exactly on local midnight at both ends (Fri 22:00 UTC = Sat 00:00 local; Sun 22:00 UTC = Mon 00:00 local), so for this data source the closed window coincides exactly with calendar Saturday + calendar Sunday, with no fractional-day spillover.*
-  - `equities`: Mon–Fri 09:30–16:00 America/New_York (illustrative default; exchange hours are configurable).
+  - `equities`: Mon–Fri 09:30–16:00 America/New_York by default; `--calendar <path>` MAY override these hours.
   - `crypto`: always open (no weekend/closed concept; FR-018 never fires).
-  - `custom`: caller supplies trading days/hours explicitly.
+  - `custom`: caller MUST supply trading days/hours through `--calendar <path>`.
+- **FR-019a**: `--calendar <path>` MUST load a versioned JSON market-calendar definition containing its time zone and weekly trading sessions. It MUST be accepted with `--market custom` or `--market equities`; it is required for `custom` and optional for `equities`. An unreadable, malformed, unsupported-version, or semantically invalid calendar MUST fail fast as an argument/configuration error before CSV parsing begins.
 - **FR-020**: Market-calendar holiday exclusions are **not** part of v1 (see §9) — a holiday will surface as an ordinary time gap.
 
 ### 3.3 Reporting
@@ -68,7 +69,7 @@ Non-Functional Requirements §4.1).
   Missing candles: 12
   Duplicate records: 0
   Invalid OHLC: 3
-  Weekend records: 48
+  Closed-market records: 48
   Time gaps: 2
   Malformed rows: 0
   ```
@@ -83,7 +84,7 @@ Non-Functional Requirements §4.1).
       "missingCandles": 12,
       "duplicateRecords": 0,
       "invalidOhlc": 3,
-      "weekendRecords": 48,
+      "closedMarketRecords": 48,
       "timeGaps": 2,
       "malformedRows": 0
     },
@@ -94,7 +95,7 @@ Non-Functional Requirements §4.1).
   }
   ```
 - **FR-032**: The system MUST support a `--verbose` flag that adds the per-finding detail above to the text report as well.
-- **FR-033**: The system MUST return one of three process exit codes: `0` — clean run, zero findings; `1` — successful run with one or more findings; `2` — fatal ingestion error (FR-008). (No existing CI convention to match, per requester — this is the tool's own convention.)
+- **FR-033**: The system MUST return one of three process exit codes: `0` — clean run, zero findings; `1` — successful run with one or more findings; `2` — fatal ingestion or validation-configuration error, including FR-008 and failure to determine a timeframe without an override. (No existing CI convention to match, per requester — this is the tool's own convention.)
 - **FR-034**: The system MUST support `--output <path>` to write the report to a file; when supplied, the system SHOULD still print a one-line human summary to stdout.
 
 ### 3.4 CLI
@@ -109,9 +110,11 @@ Non-Functional Requirements §4.1).
 | `<input-file>` | Path to the CSV to validate (positional) | required |
 | `--timeframe <code>` | Override auto-detected interval (M1, M5, M15, M30, H1, H4, D1, …) | auto-detect |
 | `--market <profile>` | `forex` \| `equities` \| `crypto` \| `custom` | `forex` |
+| `--calendar <path>` | Versioned JSON calendar; required for `custom`, optional equities-hours override | — |
 | `--date-format <fmt>` | Format of the `Date` column | `yyyy.MM.dd` (MT4) |
 | `--time-format <fmt>` | Format of the `Time` column | `HH:mm[:ss]` (MT4) |
 | `--timestamp-format <fmt>` | Format for a single combined column, if used instead of Date+Time | — |
+| `--timestamp-column <name-or-index>` | Combined timestamp header name or one-based physical column index; requires `--timestamp-format` | — |
 | `--tz-offset <±HH:mm>` | Fixed offset the source timestamps are in | `+02:00` |
 | `--delimiter <char>` | CSV field delimiter | auto-detect |
 | `--header` | Treat the first row as a header and match columns by name | headerless MT4 layout assumed |
@@ -183,33 +186,36 @@ tests/
 | `ValidationFinding` | One reported issue | Category, Timestamp(s), SourceLine(s), Message |
 | `ValidationReport` | Aggregate result of a run | SourceFile, DetectedTimeframe, DateRange, the six summary counts, Findings, IsClean |
 | `MarketCalendar` | Defines open/closed periods | Profile name, trading days/hours, closed-period rule |
-| `ValidationOptions` | Run configuration | InputPath, TimeframeOverride, MarketProfile, TimestampFormat, Delimiter, OutputFormat, Verbose |
+| `ValidationOptions` | Run configuration | InputPath, TimeframeOverride, MarketProfile, CalendarPath, TimestampFormat, TimestampColumn, Delimiter, OutputFormat, Verbose |
 
 ## 6. Success Criteria
 
-- Running the validator against a hand-built fixture file with known, deliberately injected defects (N duplicates, N invalid-OHLC rows, N missing candles across N gaps, N weekend rows, N malformed rows) reproduces those exact counts.
+- Running the validator against a hand-built fixture file with known, deliberately injected defects (N duplicates, N invalid-OHLC rows, N missing candles across N gaps, N closed-market rows, N malformed rows) reproduces those exact counts.
 - Running the validator against a verified-clean fixture file reports all-zero counts and exits with the "clean" code.
 - A throwaway minimal ASP.NET Core Web API project can reference the Domain + Application assemblies and reproduce a validation run with zero source changes to either assembly (proves NFR-003).
 - CI fails the build whenever Domain or Application coverage drops below 100%.
 
 ## 7. Acceptance Scenarios
 
-- **AS-01 Clean file**: Given gapless, weekday-only H1 candles with valid OHLC and no duplicates, when validated, then all five counts are 0 and the process exits with the "clean" code.
+- **AS-01 Clean file**: Given gapless, weekday-only H1 candles with valid OHLC and no duplicates or malformed rows, when validated, then all six counts are 0 and the process exits with the "clean" code.
 - **AS-02 Duplicate**: Given one timestamp appearing in two rows, when validated, then Duplicate records = 1, and verbose output lists both line numbers.
 - **AS-03 Invalid OHLC**: Given a row with High < Low, when validated, then Invalid OHLC = 1 and verbose output names the violated rule.
 - **AS-04 Single missing candle**: Given H1 data that jumps from 09:00 straight to 11:00 on a weekday, when validated, then Missing candles = 1 and Time gaps = 1.
 - **AS-05 Multiple gaps**: Given one weekday run missing 13:00–15:00 (3 candles) and a separate weekday missing 09:00 (1 candle), when validated, then Missing candles = 4 and Time gaps = 2.
-- **AS-06 Weekend data present**: Given a file that contains 48 hourly rows across a Saturday and Sunday, when validated, then Weekend records = 48, and those rows do not additionally affect Missing candles or Time gaps.
+- **AS-06 Closed-market data present**: Given a forex file that contains 48 hourly rows across its closed Saturday and Sunday period, when validated, then Closed-market records = 48, and those rows do not additionally affect Missing candles or Time gaps.
 - **AS-07 Fatal ingestion error**: Given a CSV missing the Close column, when validated, then the system reports a fatal ingestion error, produces no data-quality counts, and exits with the fatal-error code.
 - **AS-08 Timeframe auto-detection**: Given an M15 file with no `--timeframe` override, when validated, then the system infers a 15-minute interval from the modal gap between consecutive weekday timestamps.
 - **AS-09 JSON output**: Given `--format json`, when validated, then stdout contains exactly one valid JSON document shaped as in FR-031, and nothing else.
 - **AS-10 Unsorted input**: Given a file whose rows are not chronologically ordered, when validated, then the result is identical to running the equivalent pre-sorted file.
-- **AS-11 Malformed row**: Given a file where one row has a non-numeric value in the Close column, when validated, then Malformed rows = 1, that row is excluded from all other checks, and the run completes normally over the remaining rows.
+- **AS-11 Malformed row**: Given a file where one row has a valid expected timestamp and a non-numeric value in the Close column, when validated, then Malformed rows = 1, the timestamp prevents a missing-candle or time-gap finding for that slot, the invalid values are excluded from all other checks, and the run completes normally over the remaining rows.
+- **AS-12 Custom calendar**: Given `--market custom --calendar <path>` with a valid versioned JSON calendar, when validated, then missing-candle, time-gap, and closed-period findings use that calendar's time zone and weekly trading sessions; omitting the calendar or supplying an invalid definition fails before CSV parsing.
+- **AS-13 Combined timestamp**: Given a headerless CSV whose first column contains combined timestamps, when invoked with a matching `--timestamp-format` and `--timestamp-column 1`, then the six-column layout is parsed successfully; supplying either option without the other fails before CSV parsing.
+- **AS-14 Timeframe inference failure**: Given an empty, single-row, or ambiguous-interval file without a `--timeframe` override, when validated, then the system reports an actionable timeframe error, emits no data-quality report, and exits with code `2`; supplying a valid override permits processing, subject to the edge-case rules below.
 
 ## 8. Edge Cases
 
-- Empty file or header-only file — no data rows to evaluate.
-- Single-row file — timeframe cannot be inferred; sequence-based checks (missing candles/time gaps) are not applicable.
+- Empty/header-only, single-row, or ambiguous-interval file without `--timeframe` — fatal timeframe-inference error as specified in FR-014 and AS-14. With a valid `--timeframe` override, these files produce a normal report with sequence-based checks not applicable and no inferred date range beyond available rows.
+- Malformed row with a parseable timestamp — counted only as malformed and reserves its candle slot; malformed row with an unparseable timestamp — reserves no slot and may coincide with a missing candle inferred from surrounding valid timestamps.
 - Mixed/irregular intervals within one file (e.g. M1 rows spliced into an H1 file) — auto-detected timeframe follows the modal spacing; gap counts against a minority interval are a known limitation.
 - A timestamp sitting exactly on the configured weekend boundary — behavior must be deterministic and covered by an explicit boundary test.
 - Local, DST-observing timestamps rather than UTC — spring-forward/fall-back can fabricate an apparent missing or duplicate hour; the default UTC assumption exists specifically to avoid this class of bug.
@@ -239,3 +245,11 @@ tests/
 - **Q (performance target)** → **A**: Not a priority; soft target of a few million rows without unbounded memory growth, no hard latency requirement. → NFR-020.
 
 All items from the original Open Questions list are resolved; none remain outstanding for this feature.
+
+### Session 2026-08-11
+
+- Q: How should callers configure non-default market trading hours in v1? → A: Add a `--calendar <path>` versioned JSON option for custom calendars and equities overrides.
+- Q: How should the validator identify the combined timestamp column when `--timestamp-format` is used? → A: Add `--timestamp-column <name-or-index>` so both headered and headerless files work.
+- Q: What should the report call records that occur while the selected market calendar is closed? → A: Rename the category to `Closed-market records` in text, JSON, findings, and contracts.
+- Q: What should happen when no unique timeframe can be inferred and the caller did not supply `--timeframe`? → A: Fail with exit code `2` and no data-quality report unless `--timeframe` is supplied.
+- Q: Should a malformed row with a valid timestamp also cause a missing-candle finding for that timestamp? → A: Count it only as malformed; a parseable timestamp occupies its expected candle slot.

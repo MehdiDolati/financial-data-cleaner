@@ -73,6 +73,7 @@ range causes a fatal configuration error rather than an inferred resolution.
 | Field | Type | Rules |
 |---|---|---|
 | `Profile` | `MarketProfile` | Required. |
+| `Version` | integer | Required; exactly `1` for the v1 JSON calendar contract. |
 | `Name` | string | Non-empty stable display identifier. |
 | `TimeZoneId` | string? | IANA zone required for local weekly sessions; null for fixed-UTC forex and always-open crypto. |
 | `Sessions` | list of `WeeklySession` | Non-empty for equities/custom; empty for crypto; forex uses its built-in UTC closure. |
@@ -101,13 +102,13 @@ Canonical order and JSON names:
 1. `MissingCandle`
 2. `DuplicateRecord`
 3. `InvalidOhlc`
-4. `WeekendRecord`
+4. `ClosedMarketRecord`
 5. `TimeGap`
 6. `MalformedRow`
 
-The public text summary uses the corresponding labels from FR-030. The term
-`WeekendRecord` is retained for the contract even when the selected profile's
-closed interval is not literally a weekend.
+The public text summary uses the corresponding labels from FR-030. The
+canonical term is `ClosedMarketRecord` because a closed interval may be a
+weekend, an overnight equity closure, or a custom session closure.
 
 ### `ValidationFinding`
 
@@ -127,7 +128,7 @@ closed interval is not literally a weekend.
 | `MissingCandle` | One absent expected timestamp | 1 |
 | `DuplicateRecord` | One timestamp group of size `n >= 2`; message says exact or conflicting | `n - 1` |
 | `InvalidOhlc` | One parsed row violating one or more OHLCV rules | 1 |
-| `WeekendRecord` | One parsed row in a closed calendar interval | 1 |
+| `ClosedMarketRecord` | One parsed row in a closed calendar interval | 1 |
 | `TimeGap` | One maximal contiguous run of missing expected timestamps | 1 |
 | `MalformedRow` | One structurally present row with value parsing failure | 1 |
 
@@ -157,7 +158,7 @@ whole file structurally invalid and terminate ingestion.
 | `MissingCandles` | `long` | Sum of `MissingCandle.CountContribution`. |
 | `DuplicateRecords` | `long` | Sum of `DuplicateRecord.CountContribution`. |
 | `InvalidOhlc` | `long` | Sum of `InvalidOhlc.CountContribution`. |
-| `WeekendRecords` | `long` | Sum of `WeekendRecord.CountContribution`. |
+| `ClosedMarketRecords` | `long` | Sum of `ClosedMarketRecord.CountContribution`. |
 | `TimeGaps` | `long` | Sum of `TimeGap.CountContribution`. |
 | `MalformedRows` | `long` | Sum of `MalformedRow.CountContribution`. |
 
@@ -175,7 +176,7 @@ does not include malformed rows whose timestamp happened to parse.
 | Field | Type | Rules |
 |---|---|---|
 | `SourceFile` | string | Base file name or caller-provided safe source label; never an absolute machine path. |
-| `DetectedTimeframe` | `Timeframe?` | Explicit override when supplied; otherwise unique detected mode; null if not inferable because fewer than two applicable records exist. |
+| `DetectedTimeframe` | `Timeframe` | Explicit override when supplied; otherwise unique detected mode. Without an override, failure to infer a unique timeframe is fatal and produces no report. Every successful report has a resolved timeframe, including reports for empty or single-record data processed with an explicit override. |
 | `TotalRecords` | `long` | Successfully parsed physical records; includes duplicate and closed-period records; excludes malformed rows and a header. |
 | `DateRange` | `DateRange?` | Null when `TotalRecords == 0`. |
 | `Summary` | `ValidationSummary` | Required. |
@@ -185,10 +186,11 @@ does not include malformed rows whose timestamp happened to parse.
 `ValidationReport` exists only after structurally successful ingestion and
 completed validation. Fatal errors never produce this aggregate.
 
-A zero-byte headerless file is structurally successful with `TotalRecords == 0`,
-a null date range/timeframe, and a clean summary. With `--header`, the header is
-required; a valid required-header-only file is successful with the same empty
-report shape.
+A zero-byte headerless file and a valid required-header-only file are
+structurally successful, but without `--timeframe` they fail timeframe
+resolution and produce no report. With a valid timeframe override, they produce
+`TotalRecords == 0`, a null date range, and a clean summary; a single-record
+file behaves analogously with no sequence findings.
 
 ## Configuration Models
 
@@ -199,20 +201,21 @@ report shape.
 | `HasHeader` | bool | `false`. |
 | `DateFormat` | string | `yyyy.MM.dd`; incompatible with combined timestamp mode when explicitly set. |
 | `TimeFormat` | string? | Auto-select exact `HH:mm` or `HH:mm:ss` by colon count; explicit override allowed. |
-| `TimestampFormat` | string? | Enables one-column timestamp mode; incompatible with explicit date/time format options. |
+| `TimestampFormat` | string? | Enables one-column timestamp mode; requires `TimestampColumn` and is incompatible with explicit date/time format options. |
+| `TimestampColumn` | string? | Header name or one-based physical index; names require header mode. |
 | `SourceOffset` | fixed offset | `+02:00`; exact `+HH:mm`/`-HH:mm`, within ±14:00. |
 | `Delimiter` | character? | Comma, semicolon, or tab; null means deterministic auto-detection. |
 
 In header mode, required names are case-insensitive and unique. Separate mode
 requires `Date`, `Time`, `Open`, `High`, `Low`, `Close`, `Volume`; combined mode
-requires `Timestamp`, `Open`, `High`, `Low`, `Close`, `Volume`. Extra columns
-are ignored.
+requires the selected timestamp column plus `Open`, `High`, `Low`, `Close`, and
+`Volume`. Extra columns are ignored.
 
 ### `ValidationOptions`
 
 | Field | Type | Rules |
 |---|---|---|
-| `TimeframeOverride` | `Timeframe?` | Null means detect. |
+| `TimeframeOverride` | `Timeframe?` | Null means detect; a valid override is required for empty or single-record data. |
 | `MarketCalendar` | `MarketCalendarDefinition` | Required; default resolved forex definition. |
 | `Csv` | `CsvInputOptions` | Required. |
 
@@ -250,8 +253,10 @@ Created
                                                                                          └─ findings ─> exit 1
 ```
 
-`*` No safe mode means a tied mode with enough records. Empty/single-applicable-
-record data is not fatal: timeframe is null and sequence checks are skipped.
+`*` Without an explicit override, no safe mode includes empty, single-applicable-
+record, and tied-mode data; these paths are fatal. An explicit valid override
+resolves the timeframe and allows empty/single-record validation with sequence
+checks not applicable.
 
 Temporary sort and finding artifacts exist only between `Ingesting` and final
 disposal. Every terminal path attempts cleanup; cleanup failure is diagnostic

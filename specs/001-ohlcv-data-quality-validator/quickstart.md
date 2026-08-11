@@ -48,7 +48,8 @@ process-level tests all pass. Required boundary cases include:
 - New York equity sessions on both sides of DST changes
 - one missing candle, multiple contiguous missing candles, and separate gaps
 - malformed value rows versus fatal short-column rows
-- empty, header-only, single-record, unsorted, mixed-interval, and tied-mode files
+- empty, header-only, single-record, unsorted, mixed-interval, and tied-mode files;
+  no-override timeframe failures and valid-override empty/single-record paths
 - invalid UTF-8, quoted delimiters, extra columns, and reordered case-insensitive headers
 - clean/finding/fatal exit codes and JSON stdout purity
 
@@ -100,7 +101,7 @@ Expected stdout:
 Missing candles: 0
 Duplicate records: 0
 Invalid OHLC: 0
-Weekend records: 0
+Closed-market records: 0
 Time gaps: 0
 Malformed rows: 0
 ```
@@ -121,8 +122,9 @@ Expected:
 - A duplicate group of three contributes two duplicate records.
 - Missing-candle total equals all absent expected timestamps.
 - Time-gap total equals maximal contiguous runs, not missing-candle count.
-- Weekend records neither close nor create gaps.
-- A malformed row contributes only to malformed rows and no other category.
+- Closed-market records neither close nor create gaps.
+- A malformed row with a parseable timestamp contributes only to malformed rows;
+  its timestamp reserves the expected candle slot.
 - Exit code is `1`.
 
 The fixture's expected numbers belong in a small adjacent manifest or named E2E
@@ -171,7 +173,8 @@ dotnet $validator tests/Validator.Cli.Tests/Fixtures/header-semicolon.csv `
   --header --delimiter semicolon
 
 dotnet $validator tests/Validator.Cli.Tests/Fixtures/combined-timestamp.csv `
-  --header --timestamp-format "yyyy-MM-dd HH:mm:ss" --tz-offset +00:00
+  --header --timestamp-format "yyyy-MM-dd HH:mm:ss" --timestamp-column Timestamp `
+  --tz-offset +00:00
 ```
 
 Expected: both complete normally, parse invariantly under any host culture, and
@@ -183,6 +186,7 @@ Example `custom-market.json`:
 
 ```json
 {
+  "version": 1,
   "name": "Weekday UTC Session",
   "timeZone": "UTC",
   "sessions": [
@@ -199,11 +203,11 @@ Run:
 
 ```powershell
 dotnet $validator tests/Validator.Cli.Tests/Fixtures/custom-session.csv `
-  --market custom --calendar-config custom-market.json --timeframe H1
+  --market custom --calendar custom-market.json --timeframe H1
 ```
 
 Expected: only timestamps inside `[09:00, 17:00)` are expected; a 17:00 record is
-counted under weekend/closed records. Missing closed timestamps are ignored.
+counted under closed-market records. Missing closed timestamps are ignored.
 The config validates against
 [`contracts/market-calendar.schema.json`](contracts/market-calendar.schema.json).
 

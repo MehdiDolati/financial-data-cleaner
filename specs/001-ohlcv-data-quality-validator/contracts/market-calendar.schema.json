@@ -5,8 +5,13 @@
   "description": "Recurring weekly trading sessions without holiday exclusions.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["name", "timeZone", "sessions"],
+  "required": ["version", "name", "timeZone", "sessions"],
   "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of the v1 weekly-calendar file contract."
+    },
     "name": {
       "type": "string",
       "minLength": 1,
