@@ -17,10 +17,15 @@ namespace Validator.Application.Ingestion
             if (string.IsNullOrEmpty(Delimiter))
                 throw new ArgumentException("Delimiter cannot be empty", nameof(Delimiter));
 
-            if (!string.IsNullOrEmpty(TimestampColumn) && !HasHeader)
+            if (!string.IsNullOrWhiteSpace(TimestampColumn) && !HasHeader)
                 throw new ArgumentException("TimestampColumn provided but HasHeader is false");
 
-            if (!string.IsNullOrEmpty(TimestampFormat) && !string.IsNullOrEmpty(DateFormat) && !string.IsNullOrEmpty(TimeFormat))
+            var hasDateTimePair = !string.IsNullOrWhiteSpace(DateFormat) || !string.IsNullOrWhiteSpace(TimeFormat);
+
+            if (hasDateTimePair && (!string.IsNullOrWhiteSpace(DateFormat) != !string.IsNullOrWhiteSpace(TimeFormat)))
+                throw new ArgumentException("DateFormat and TimeFormat must be provided together.");
+
+            if (!string.IsNullOrWhiteSpace(TimestampFormat) && hasDateTimePair)
                 throw new ArgumentException("Specify either TimestampFormat OR DateFormat+TimeFormat, not both.");
 
             if (TzOffset is not null)

@@ -8,6 +8,8 @@ namespace Validator.Domain.Findings
         public int CountContribution { get; init; }
         public bool StableSequence { get; init; }
         public string Message { get; init; } = string.Empty;
+        public DateTimeOffset? Timestamp { get; init; }
+        public int? Line { get; init; }
 
         public ValidationFinding(FindingCategory category, int countContribution, bool stableSequence, string message)
         {

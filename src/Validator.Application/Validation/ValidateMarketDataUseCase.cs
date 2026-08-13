@@ -42,10 +42,26 @@ namespace Validator.Application.Validation
 
             var minTs = candles.Min(c => c.Timestamp);
             var maxTs = candles.Max(c => c.Timestamp);
+
+            // Detect OHLC problems
+            var invalidOhlcCount = candles.Count(c => c.High < c.Low || c.High == c.Low || c.Volume < 0m || c.Close <= 0m);
+
+            // Run closed-market rule with optional calendar from request
+            var closedRule = new Validator.Application.Validation.Rules.ClosedMarketRecordRule(validationRequest.MarketCalendar);
+            var closedFindings = closedRule.Evaluate(candles);
+            var closedCount = closedFindings.Length;
+
+            var totalFindings = invalidOhlcCount + closedCount;
+
             var summary = new ValidationSummary(
-                TotalFindings: candles.Count(c => c.High < c.Low || c.High == c.Low || c.Volume < 0m || c.Close <= 0m),
+                TotalFindings: totalFindings,
                 MalformedRows: 0,
-                ValidRows: candles.Count);
+                ValidRows: candles.Count,
+                MissingCandles: 0,
+                DuplicateRecords: 0,
+                InvalidOhlc: invalidOhlcCount,
+                ClosedMarketRecords: closedCount,
+                TimeGaps: 0);
 
             var report = new ValidationReport(summary, new DateRange(minTs, maxTs), validationRequest.InputPath);
             await _reportWriter.WriteReportAsync(report);

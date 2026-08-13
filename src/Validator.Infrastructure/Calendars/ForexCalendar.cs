@@ -4,7 +4,7 @@ using Validator.Domain.Calendars;
 
 namespace Validator.Infrastructure.Calendars
 {
-    public sealed class ForexCalendar : IMarketCalendar
+    public sealed class ForexCalendar : Validator.Application.Abstractions.IMarketCalendar
     {
         public MarketProfile Profile => MarketProfile.Forex;
 

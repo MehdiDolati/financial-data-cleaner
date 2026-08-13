@@ -97,12 +97,12 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 - [X] T034 [US1] Implement `MissingCandleRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/MissingCandleRule.cs`
 - [X] T035 [US1] Implement `TimeGapRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/TimeGapRule.cs`
 - [X] T036 [US1] Implement CSV ingestion adapter for default MT4 headerless comma layout with invariant `decimal`/date parsing and malformed-vs-fatal classification in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
-- [ ] T037 [US1] Implement bounded external merge sort with Application-owned temporary-storage port + adapter in `src/Validator.Infrastructure/Sorting/ExternalMergeSort.cs` and `src/Validator.Infrastructure/Sorting/TempStorage.cs`
-- [ ] T038 [US1] Implement streaming finding spool adapter (`IFindingSink`/`IFindingReader`, canonical read order) in `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
+- [X] T037 [US1] Implement bounded external merge sort with Application-owned temporary-storage port + adapter in `src/Validator.Infrastructure/Sorting/ExternalMergeSort.cs` and `src/Validator.Infrastructure/Sorting/TempStorage.cs`
+- [X] T038 [US1] Implement streaming finding spool adapter (`IFindingSink`/`IFindingReader`, canonical read order) in `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
 - [X] T039 [US1] Implement text report writer (six summary lines) in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
 - [X] T040 [US1] Implement `IValidateMarketDataUseCase` orchestrator (ingest → resolve timeframe → run registered rules → aggregate report) in `src/Validator.Application/Validation/ValidateMarketDataUseCase.cs`
 - [X] T041 [US1] Implement CLI positional `<input-file>` + `--timeframe`, argument validation, exit-code mapping, and DI composition root in `src/Validator.Cli/Commands/ValidateCommand.cs` and `src/Validator.Cli/Program.cs`
-- [ ] T042 [P] [US1] Add fixtures `clean-forex-h1.csv`, `known-defects.csv` (+ adjacent counts manifest), and `missing-close-column.csv` in `tests/Validator.Cli.Tests/Fixtures/`
+- [X] T042 [P] [US1] Add fixtures `clean-forex-h1.csv`, `known-defects.csv` (+ adjacent counts manifest), and `missing-close-column.csv` in `tests/Validator.Cli.Tests/Fixtures/`
 
 **Checkpoint**: MVP complete — core forex CSV validation works end-to-end and is independently testable
 
@@ -116,15 +116,15 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 2 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T043 [P] [US2] JSON report writer contract test validating output against `contracts/validation-report.schema.json` (all six counts, metadata, canonical findings) in `tests/Validator.Infrastructure.Tests/Reporting/JsonReportWriterTests.cs`
-- [ ] T044 [P] [US2] CLI E2E tests for JSON stdout purity (AS-09), `--output` one-line summary, and `--verbose` text detail in `tests/Validator.Cli.Tests/OutputFormatE2ETests.cs`
+- [X] T043 [P] [US2] JSON report writer contract test validating output against `contracts/validation-report.schema.json` (all six counts, metadata, canonical findings) in `tests/Validator.Infrastructure.Tests/Reporting/JsonReportWriterTests.cs`
+- [X] T044 [P] [US2] CLI E2E tests for JSON stdout purity (AS-09), `--output` one-line summary, and `--verbose` text detail in `tests/Validator.Cli.Tests/OutputFormatE2ETests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T045 [US2] Implement streaming JSON report writer conforming to `validation-report.schema.json` in `src/Validator.Infrastructure/Reporting/JsonReportWriter.cs`
-- [ ] T046 [US2] Add verbose finding-detail rendering to the text writer in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
-- [ ] T047 [US2] Add `--format`, `--output` (atomic write + one-line summary), and `--verbose` options with report-writer selection to `src/Validator.Cli/Commands/ValidateCommand.cs`
-- [ ] T048 [P] [US2] Wire a local (no-network) JSON Schema test dependency and shared schema-assertion helper in `tests/Validator.Cli.Tests/Support/SchemaValidation.cs`
+- [X] T045 [US2] Implement streaming JSON report writer conforming to `validation-report.schema.json` in `src/Validator.Infrastructure/Reporting/JsonReportWriter.cs`
+- [X] T046 [US2] Add verbose finding-detail rendering to the text writer in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
+- [X] T047 [US2] Add `--format`, `--output` (atomic write + one-line summary), and `--verbose` options with report-writer selection to `src/Validator.Cli/Commands/ValidateCommand.cs`
+- [X] T048 [P] [US2] Wire a local (no-network) JSON Schema test dependency and shared schema-assertion helper in `tests/Validator.Cli.Tests/Support/SchemaValidation.cs`
 
 **Checkpoint**: JSON + file + verbose output work; US1 and US2 both independently testable
 
@@ -138,19 +138,19 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 3 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T049 [P] [US3] Delimiter auto-detection tests (comma/semicolon/tab, quoted delimiters, zero/multiple candidates → fatal) in `tests/Validator.Infrastructure.Tests/Csv/DelimiterDetectionTests.cs`
-- [ ] T050 [P] [US3] Header-mode tests (case-insensitive, reordered columns, extra columns ignored, missing/duplicate → fatal) in `tests/Validator.Infrastructure.Tests/Csv/HeaderLayoutTests.cs`
-- [ ] T051 [P] [US3] Combined-timestamp and conflicting-option validation tests (index/name selector, missing pair → fatal) in `tests/Validator.Application.Tests/Options/CsvOptionValidationTests.cs`
-- [ ] T052 [P] [US3] `--tz-offset` conversion tests (fixed offset, ±14:00 bound, correct UTC normalization) in `tests/Validator.Infrastructure.Tests/Csv/TimeZoneOffsetTests.cs`
+- [X] T049 [P] [US3] Delimiter auto-detection tests (comma/semicolon/tab, quoted delimiters, zero/multiple candidates → fatal) in `tests/Validator.Infrastructure.Tests/Csv/DelimiterDetectionTests.cs`
+- [X] T050 [P] [US3] Header-mode tests (case-insensitive, reordered columns, extra columns ignored, missing/duplicate → fatal) in `tests/Validator.Infrastructure.Tests/Csv/HeaderLayoutTests.cs`
+- [X] T051 [P] [US3] Combined-timestamp and conflicting-option validation tests (index/name selector, missing pair → fatal) in `tests/Validator.Application.Tests/Options/CsvOptionValidationTests.cs`
+- [X] T052 [P] [US3] `--tz-offset` conversion tests (fixed offset, ±14:00 bound, correct UTC normalization) in `tests/Validator.Infrastructure.Tests/Csv/TimeZoneOffsetTests.cs`
 
 ### Implementation for User Story 3
 
-- [ ] T053 [US3] Implement deterministic delimiter detection in `src/Validator.Infrastructure/Csv/DelimiterDetector.cs`
-- [ ] T054 [US3] Implement header-name layout matching (case-insensitive, order-independent) in `src/Validator.Infrastructure/Csv/HeaderLayoutResolver.cs`
-- [ ] T055 [US3] Implement combined-timestamp column selection plus `--date-format`/`--time-format`/`--timestamp-format` overrides in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
-- [ ] T056 [US3] Implement `--tz-offset` parsing and UTC normalization in `src/Validator.Infrastructure/Csv/SourceOffsetConverter.cs`
-- [ ] T057 [US3] Add `--header`, `--delimiter`, `--date-format`, `--time-format`, `--timestamp-format`, `--timestamp-column`, `--tz-offset` options with cross-option conflict validation to `src/Validator.Cli/Commands/ValidateCommand.cs`
-- [ ] T058 [P] [US3] Add fixtures `header-semicolon.csv` and `combined-timestamp.csv` (+ manifests) in `tests/Validator.Cli.Tests/Fixtures/`
+- [X] T053 [US3] Implement deterministic delimiter detection in `src/Validator.Infrastructure/Csv/DelimiterDetector.cs`
+- [X] T054 [US3] Implement header-name layout matching (case-insensitive, order-independent) in `src/Validator.Infrastructure/Csv/HeaderLayoutResolver.cs`
+- [X] T055 [US3] Implement combined-timestamp column selection plus `--date-format`/`--time-format`/`--timestamp-format` overrides in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
+- [X] T056 [US3] Implement `--tz-offset` parsing and UTC normalization in `src/Validator.Infrastructure/Csv/SourceOffsetConverter.cs`
+- [X] T057 [US3] Add `--header`, `--delimiter`, `--date-format`, `--time-format`, `--timestamp-format`, `--timestamp-column`, `--tz-offset` options with cross-option conflict validation to `src/Validator.Cli/Commands/ValidateCommand.cs`
+- [X] T058 [P] [US3] Add fixtures `header-semicolon.csv` and `combined-timestamp.csv` (+ manifests) in `tests/Validator.Cli.Tests/Fixtures/`
 
 **Checkpoint**: Non-MT4 layouts supported; US1–US3 independently testable
 
