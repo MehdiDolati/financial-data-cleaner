@@ -19,10 +19,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Restore
-              run: dotnet restore FinancialDataCleaner.slnx
+        run: dotnet restore FinancialDataCleaner.slnx
       - name: Build
-              run: dotnet build FinancialDataCleaner.slnx --configuration Release --no-restore
+        run: dotnet build FinancialDataCleaner.slnx --configuration Release --no-restore
       - name: Run tests
-              run: dotnet test FinancialDataCleaner.slnx --configuration Release --no-build --verbosity normal
+        run: dotnet test FinancialDataCleaner.slnx --configuration Release --no-build --verbosity normal
       - name: Generate coverage (Domain+Application gate handled separately in CI tooling)
         run: echo "Coverage collection and gating to be implemented in CI as required"
