@@ -31,12 +31,12 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create `FinancialDataCleaner.sln`, `Directory.Build.props` (net10.0, C# 14, nullable enable, warnings-as-errors, invariant globalization), and empty `Directory.Packages.props` at repository root
-- [ ] T002 Create the four production projects `src/Validator.Domain/Validator.Domain.csproj`, `src/Validator.Application/Validator.Application.csproj`, `src/Validator.Infrastructure/Validator.Infrastructure.csproj`, `src/Validator.Cli/Validator.Cli.csproj` with inward-only project references (Application→Domain, Infrastructure→Application, Cli→Application) and add them to the solution
-- [ ] T003 Create the four test projects `tests/Validator.Domain.Tests/`, `tests/Validator.Application.Tests/`, `tests/Validator.Infrastructure.Tests/` (with `Fixtures/`), `tests/Validator.Cli.Tests/` (with `Fixtures/`), each referencing its target project and add them to the solution
-- [ ] T004 [P] Configure central package management in `Directory.Packages.props` with pinned versions for CsvHelper, System.CommandLine, Microsoft.Extensions.DependencyInjection, NodaTime (pinned TZDB), xUnit, FluentAssertions, Coverlet, and ReportGenerator
-- [ ] T005 [P] Add `.editorconfig` and analyzer/style configuration at repository root enforcing invariant-culture and treat-warnings-as-errors rules across all projects
-- [ ] T006 [P] Add CI workflow `.github/workflows/ci.yml` running restore/build/test on Windows, Linux, and macOS with Coverlet 100% line+branch gate scoped to `[Validator.Domain]*` and `[Validator.Application]*`
+- [X] T001 Create `FinancialDataCleaner.sln`, `Directory.Build.props` (net10.0, C# 14, nullable enable, warnings-as-errors, invariant globalization), and empty `Directory.Packages.props` at repository root
+- [X] T002 Create the four production projects `src/Validator.Domain/Validator.Domain.csproj`, `src/Validator.Application/Validator.Application.csproj`, `src/Validator.Infrastructure/Validator.Infrastructure.csproj`, `src/Validator.Cli/Validator.Cli.csproj` with inward-only project references (Application→Domain, Infrastructure→Application, Cli→Application) and add them to the solution
+- [X] T003 Create the four test projects `tests/Validator.Domain.Tests/`, `tests/Validator.Application.Tests/`, `tests/Validator.Infrastructure.Tests/` (with `Fixtures/`), `tests/Validator.Cli.Tests/` (with `Fixtures/`), each referencing its target project and add them to the solution
+- [X] T004 [P] Configure central package management in `Directory.Packages.props` with pinned versions for CsvHelper, System.CommandLine, Microsoft.Extensions.DependencyInjection, NodaTime (pinned TZDB), xUnit, FluentAssertions, Coverlet, and ReportGenerator
+- [X] T005 [P] Add `.editorconfig` and analyzer/style configuration at repository root enforcing invariant-culture and treat-warnings-as-errors rules across all projects
+- [X] T006 [P] Add CI workflow `.github/workflows/ci.yml` running restore/build/test on Windows, Linux, and macOS with Coverlet 100% line+branch gate scoped to `[Validator.Domain]*` and `[Validator.Application]*`
 
 ---
 

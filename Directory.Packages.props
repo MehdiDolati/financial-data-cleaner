@@ -1,0 +1,13 @@
+<Project>
+  <ItemGroup>
+    <!-- Central package version management -->
+    <PackageVersion Include="CsvHelper" Version="30.0.0" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageVersion Include="NodaTime" Version="3.0.10" />
+    <PackageVersion Include="xunit" Version="2.6.0" />
+    <PackageVersion Include="FluentAssertions" Version="6.11.0" />
+    <PackageVersion Include="coverlet.collector" Version="4.0.0" />
+    <PackageVersion Include="ReportGenerator" Version="5.1.17" />
+  </ItemGroup>
+</Project>
