@@ -75,27 +75,27 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 1 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T018 [P] [US1] Duplicate-record rule theory tests (group sizes 2 and 3, exact vs conflicting, `n-1` counting) in `tests/Validator.Application.Tests/Rules/DuplicateRecordRuleTests.cs`
-- [ ] T019 [P] [US1] Invalid-OHLC rule theory tests (High<Low, `High==Low` boundary, zero/negative prices, negative volume, one count per row) in `tests/Validator.Application.Tests/Rules/InvalidOhlcRuleTests.cs`
-- [ ] T020 [P] [US1] Closed-market-record rule tests (Friday 21:59:59/22:00 and Sunday 21:59:59/22:00 UTC forex boundaries, independence from gaps) in `tests/Validator.Application.Tests/Rules/ClosedMarketRecordRuleTests.cs`
-- [ ] T021 [P] [US1] Missing-candle + expected-sequence tests (single missing, multiple contiguous, closed periods excluded, malformed-with-timestamp reserves slot) in `tests/Validator.Application.Tests/Rules/MissingCandleRuleTests.cs`
-- [ ] T022 [P] [US1] Time-gap rule tests (one gap per maximal contiguous run; 12 missing across 2 gaps) in `tests/Validator.Application.Tests/Rules/TimeGapRuleTests.cs`
-- [ ] T023 [P] [US1] Timeframe-detection tests (modal delta over open-market records, tie/no-delta → fatal, override wins) in `tests/Validator.Application.Tests/Timeframes/TimeframeDetectorTests.cs`
-- [ ] T024 [P] [US1] Text report writer contract test (exact six `Label: value` lines and order) in `tests/Validator.Infrastructure.Tests/Reporting/TextReportWriterTests.cs`
-- [ ] T025 [P] [US1] CSV ingestion integration test for default MT4 headerless layout, invariant parsing, and malformed-vs-fatal split in `tests/Validator.Infrastructure.Tests/Csv/CsvIngestionTests.cs`
-- [ ] T026 [P] [US1] External-sort/replay integration test proving unsorted input yields identical canonical order to pre-sorted input (AS-10) in `tests/Validator.Infrastructure.Tests/Sorting/ExternalSortReplayTests.cs`
-- [ ] T027 [P] [US1] Use-case integration tests (clean, defects, fatal ingestion, timeframe-inference failure) using in-memory doubles in `tests/Validator.Application.Tests/UseCases/ValidateMarketDataUseCaseTests.cs`
-- [ ] T028 [P] [US1] CLI end-to-end tests asserting stdout six lines and exit codes 0/1/2 against fixtures in `tests/Validator.Cli.Tests/CoreValidationE2ETests.cs`
+- [X] T018 [P] [US1] Duplicate-record rule theory tests (group sizes 2 and 3, exact vs conflicting, `n-1` counting) in `tests/Validator.Application.Tests/Rules/DuplicateRecordRuleTests.cs`
+- [X] T019 [P] [US1] Invalid-OHLC rule theory tests (High<Low, `High==Low` boundary, zero/negative prices, negative volume, one count per row) in `tests/Validator.Application.Tests/Rules/InvalidOhlcRuleTests.cs`
+- [X] T020 [P] [US1] Closed-market-record rule tests (Friday 21:59:59/22:00 and Sunday 21:59:59/22:00 UTC forex boundaries, independence from gaps) in `tests/Validator.Application.Tests/Rules/ClosedMarketRecordRuleTests.cs`
+- [X] T021 [P] [US1] Missing-candle + expected-sequence tests (single missing, multiple contiguous, closed periods excluded, malformed-with-timestamp reserves slot) in `tests/Validator.Application.Tests/Rules/MissingCandleRuleTests.cs`
+- [X] T022 [P] [US1] Time-gap rule tests (one gap per maximal contiguous run; 12 missing across 2 gaps) in `tests/Validator.Application.Tests/Rules/TimeGapRuleTests.cs`
+- [X] T023 [P] [US1] Timeframe-detection tests (modal delta over open-market records, tie/no-delta → fatal, override wins) in `tests/Validator.Application.Tests/Timeframes/TimeframeDetectorTests.cs`
+- [X] T024 [P] [US1] Text report writer contract test (exact six `Label: value` lines and order) in `tests/Validator.Infrastructure.Tests/Reporting/TextReportWriterTests.cs`
+- [X] T025 [P] [US1] CSV ingestion integration test for default MT4 headerless layout, invariant parsing, and malformed-vs-fatal split in `tests/Validator.Infrastructure.Tests/Csv/CsvIngestionTests.cs`
+- [X] T026 [P] [US1] External-sort/replay integration test proving unsorted input yields identical canonical order to pre-sorted input (AS-10) in `tests/Validator.Infrastructure.Tests/Sorting/ExternalSortReplayTests.cs`
+- [X] T027 [P] [US1] Use-case integration tests (clean, defects, fatal ingestion, timeframe-inference failure) using in-memory doubles in `tests/Validator.Application.Tests/UseCases/ValidateMarketDataUseCaseTests.cs`
+- [X] T028 [P] [US1] CLI end-to-end tests asserting stdout six lines and exit codes 0/1/2 against fixtures in `tests/Validator.Cli.Tests/CoreValidationE2ETests.cs`
 
 ### Implementation for User Story 1
 
-- [ ] T029 [US1] Implement timeframe-detection service (modal open-market delta; fatal on tie/none) in `src/Validator.Application/Validation/TimeframeDetector.cs`
+- [X] T029 [US1] Implement timeframe-detection service (modal open-market delta; fatal on tie/none) in `src/Validator.Application/Validation/TimeframeDetector.cs`
 - [ ] T030 [US1] Implement built-in forex calendar (`IMarketCalendar`, Sun 22:00–Fri 22:00 UTC) and expected-session/candle generator in `src/Validator.Application/Validation/ExpectedSequenceGenerator.cs` and `src/Validator.Infrastructure/Calendars/ForexCalendar.cs`
-- [ ] T031 [P] [US1] Implement `DuplicateRecordRule` in `src/Validator.Application/Validation/Rules/DuplicateRecordRule.cs`
-- [ ] T032 [P] [US1] Implement `InvalidOhlcRule` in `src/Validator.Application/Validation/Rules/InvalidOhlcRule.cs`
-- [ ] T033 [P] [US1] Implement `ClosedMarketRecordRule` in `src/Validator.Application/Validation/Rules/ClosedMarketRecordRule.cs`
-- [ ] T034 [US1] Implement `MissingCandleRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/MissingCandleRule.cs`
-- [ ] T035 [US1] Implement `TimeGapRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/TimeGapRule.cs`
+- [X] T031 [P] [US1] Implement `DuplicateRecordRule` in `src/Validator.Application/Validation/Rules/DuplicateRecordRule.cs`
+- [X] T032 [P] [US1] Implement `InvalidOhlcRule` in `src/Validator.Application/Validation/Rules/InvalidOhlcRule.cs`
+- [X] T033 [P] [US1] Implement `ClosedMarketRecordRule` in `src/Validator.Application/Validation/Rules/ClosedMarketRecordRule.cs`
+- [X] T034 [US1] Implement `MissingCandleRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/MissingCandleRule.cs`
+- [X] T035 [US1] Implement `TimeGapRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/TimeGapRule.cs`
 - [ ] T036 [US1] Implement CSV ingestion adapter for default MT4 headerless comma layout with invariant `decimal`/date parsing and malformed-vs-fatal classification in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
 - [ ] T037 [US1] Implement bounded external merge sort with Application-owned temporary-storage port + adapter in `src/Validator.Infrastructure/Sorting/ExternalMergeSort.cs` and `src/Validator.Infrastructure/Sorting/TempStorage.cs`
 - [ ] T038 [US1] Implement streaming finding spool adapter (`IFindingSink`/`IFindingReader`, canonical read order) in `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
