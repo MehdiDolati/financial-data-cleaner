@@ -31,12 +31,12 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create `FinancialDataCleaner.sln`, `Directory.Build.props` (net10.0, C# 14, nullable enable, warnings-as-errors, invariant globalization), and empty `Directory.Packages.props` at repository root
-- [ ] T002 Create the four production projects `src/Validator.Domain/Validator.Domain.csproj`, `src/Validator.Application/Validator.Application.csproj`, `src/Validator.Infrastructure/Validator.Infrastructure.csproj`, `src/Validator.Cli/Validator.Cli.csproj` with inward-only project references (Application→Domain, Infrastructure→Application, Cli→Application) and add them to the solution
-- [ ] T003 Create the four test projects `tests/Validator.Domain.Tests/`, `tests/Validator.Application.Tests/`, `tests/Validator.Infrastructure.Tests/` (with `Fixtures/`), `tests/Validator.Cli.Tests/` (with `Fixtures/`), each referencing its target project and add them to the solution
-- [ ] T004 [P] Configure central package management in `Directory.Packages.props` with pinned versions for CsvHelper, System.CommandLine, Microsoft.Extensions.DependencyInjection, NodaTime (pinned TZDB), xUnit, FluentAssertions, Coverlet, and ReportGenerator
-- [ ] T005 [P] Add `.editorconfig` and analyzer/style configuration at repository root enforcing invariant-culture and treat-warnings-as-errors rules across all projects
-- [ ] T006 [P] Add CI workflow `.github/workflows/ci.yml` running restore/build/test on Windows, Linux, and macOS with Coverlet 100% line+branch gate scoped to `[Validator.Domain]*` and `[Validator.Application]*`
+- [X] T001 Create `FinancialDataCleaner.sln`, `Directory.Build.props` (net10.0, C# 14, nullable enable, warnings-as-errors, invariant globalization), and empty `Directory.Packages.props` at repository root
+- [X] T002 Create the four production projects `src/Validator.Domain/Validator.Domain.csproj`, `src/Validator.Application/Validator.Application.csproj`, `src/Validator.Infrastructure/Validator.Infrastructure.csproj`, `src/Validator.Cli/Validator.Cli.csproj` with inward-only project references (Application→Domain, Infrastructure→Application, Cli→Application) and add them to the solution
+- [X] T003 Create the four test projects `tests/Validator.Domain.Tests/`, `tests/Validator.Application.Tests/`, `tests/Validator.Infrastructure.Tests/` (with `Fixtures/`), `tests/Validator.Cli.Tests/` (with `Fixtures/`), each referencing its target project and add them to the solution
+- [X] T004 [P] Configure central package management in `Directory.Packages.props` with pinned versions for CsvHelper, System.CommandLine, Microsoft.Extensions.DependencyInjection, NodaTime (pinned TZDB), xUnit, FluentAssertions, Coverlet, and ReportGenerator
+- [X] T005 [P] Add `.editorconfig` and analyzer/style configuration at repository root enforcing invariant-culture and treat-warnings-as-errors rules across all projects
+- [X] T006 [P] Add CI workflow `.github/workflows/ci.yml` running restore/build/test on Windows, Linux, and macOS with Coverlet 100% line+branch gate scoped to `[Validator.Domain]*` and `[Validator.Application]*`
 
 ---
 
@@ -46,8 +46,13 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T007 Add architecture dependency-direction tests in `tests/Validator.Domain.Tests/Architecture/DependencyRulesTests.cs` asserting Domain has no non-BCL references and Application references only Domain (per NFR-002)
-- [ ] T008 [P] Create `PriceCandle` immutable record with UTC-offset guard in `src/Validator.Domain/Candles/PriceCandle.cs` and theory tests in `tests/Validator.Domain.Tests/Candles/PriceCandleTests.cs`
+- [X] T007 Add architecture dependency-direction tests in `tests/Validator.Domain.Tests/Architecture/DependencyRulesTests.cs` asserting Domain has no non-BCL references and Application references only Domain (per NFR-002)
+- [X] T008 [P] Create `PriceCandle` immutable record with UTC-offset guard in `src/Validator.Domain/Candles/PriceCandle.cs` and theory tests in `tests/Validator.Domain.Tests/Candles/PriceCandleTests.cs`
+- [X] T009 [P] Create `Timeframe` value object (parse/validate canonical `M<n>`/`H<n>`/`D<n>`, reject zero/negative/fractional/overflow) in `src/Validator.Domain/Timeframes/Timeframe.cs` and theory tests in `tests/Validator.Domain.Tests/Timeframes/TimeframeTests.cs`
+- [X] T010 [P] Create `FindingCategory` enum with canonical order in `src/Validator.Domain/Findings/FindingCategory.cs` and ordering tests in `tests/Validator.Domain.Tests/Findings/FindingCategoryTests.cs`
+- [X] T011 [P] Create `ValidationFinding` (with `CountContribution`, `StableSequence`) and `MalformedRow` records in `src/Validator.Domain/Findings/ValidationFinding.cs` and `src/Validator.Domain/Findings/MalformedRow.cs` with tests in `tests/Validator.Domain.Tests/Findings/ValidationFindingTests.cs`
+- [X] T012 [P] Create `MarketProfile`, `WeeklySession` (non-overlap + strict ordering guard), `MarketCalendarDefinition`, and `UtcSession` (`[open, close)`) in `src/Validator.Domain/Calendars/` with tests in `tests/Validator.Domain.Tests/Calendars/MarketCalendarTests.cs`
+- [X] T013 Define Application ports in `src/Validator.Application/Abstractions/` — `ICandleSource`, `IReplayableCandleData`, `PreparedCandleData`, `CandleDataStatistics`, `IValidationRule`, `ValidationContext`, `IFindingSink`, `IFindingReader`, `IReportWriter`, `IMarketCalendar`, `IMarketCalendarFactory`, `ITimeZoneScheduleExpander`, and `IValidateMarketDataUseCase` (interfaces only, per contracts/application-api.md)
 - [ ] T009 [P] Create `Timeframe` value object (parse/validate canonical `M<n>`/`H<n>`/`D<n>`, reject zero/negative/fractional/overflow) in `src/Validator.Domain/Timeframes/Timeframe.cs` and theory tests in `tests/Validator.Domain.Tests/Timeframes/TimeframeTests.cs`
 - [ ] T010 [P] Create `FindingCategory` enum with canonical order in `src/Validator.Domain/Findings/FindingCategory.cs` and ordering tests in `tests/Validator.Domain.Tests/Findings/FindingCategoryTests.cs`
 - [ ] T011 [P] Create `ValidationFinding` (with `CountContribution`, `StableSequence`) and `MalformedRow` records in `src/Validator.Domain/Findings/ValidationFinding.cs` and `src/Validator.Domain/Findings/MalformedRow.cs` with tests in `tests/Validator.Domain.Tests/Findings/ValidationFindingTests.cs`
@@ -70,34 +75,34 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 1 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T018 [P] [US1] Duplicate-record rule theory tests (group sizes 2 and 3, exact vs conflicting, `n-1` counting) in `tests/Validator.Application.Tests/Rules/DuplicateRecordRuleTests.cs`
-- [ ] T019 [P] [US1] Invalid-OHLC rule theory tests (High<Low, `High==Low` boundary, zero/negative prices, negative volume, one count per row) in `tests/Validator.Application.Tests/Rules/InvalidOhlcRuleTests.cs`
-- [ ] T020 [P] [US1] Closed-market-record rule tests (Friday 21:59:59/22:00 and Sunday 21:59:59/22:00 UTC forex boundaries, independence from gaps) in `tests/Validator.Application.Tests/Rules/ClosedMarketRecordRuleTests.cs`
-- [ ] T021 [P] [US1] Missing-candle + expected-sequence tests (single missing, multiple contiguous, closed periods excluded, malformed-with-timestamp reserves slot) in `tests/Validator.Application.Tests/Rules/MissingCandleRuleTests.cs`
-- [ ] T022 [P] [US1] Time-gap rule tests (one gap per maximal contiguous run; 12 missing across 2 gaps) in `tests/Validator.Application.Tests/Rules/TimeGapRuleTests.cs`
-- [ ] T023 [P] [US1] Timeframe-detection tests (modal delta over open-market records, tie/no-delta → fatal, override wins) in `tests/Validator.Application.Tests/Timeframes/TimeframeDetectorTests.cs`
-- [ ] T024 [P] [US1] Text report writer contract test (exact six `Label: value` lines and order) in `tests/Validator.Infrastructure.Tests/Reporting/TextReportWriterTests.cs`
-- [ ] T025 [P] [US1] CSV ingestion integration test for default MT4 headerless layout, invariant parsing, and malformed-vs-fatal split in `tests/Validator.Infrastructure.Tests/Csv/CsvIngestionTests.cs`
-- [ ] T026 [P] [US1] External-sort/replay integration test proving unsorted input yields identical canonical order to pre-sorted input (AS-10) in `tests/Validator.Infrastructure.Tests/Sorting/ExternalSortReplayTests.cs`
-- [ ] T027 [P] [US1] Use-case integration tests (clean, defects, fatal ingestion, timeframe-inference failure) using in-memory doubles in `tests/Validator.Application.Tests/UseCases/ValidateMarketDataUseCaseTests.cs`
-- [ ] T028 [P] [US1] CLI end-to-end tests asserting stdout six lines and exit codes 0/1/2 against fixtures in `tests/Validator.Cli.Tests/CoreValidationE2ETests.cs`
+- [X] T018 [P] [US1] Duplicate-record rule theory tests (group sizes 2 and 3, exact vs conflicting, `n-1` counting) in `tests/Validator.Application.Tests/Rules/DuplicateRecordRuleTests.cs`
+- [X] T019 [P] [US1] Invalid-OHLC rule theory tests (High<Low, `High==Low` boundary, zero/negative prices, negative volume, one count per row) in `tests/Validator.Application.Tests/Rules/InvalidOhlcRuleTests.cs`
+- [X] T020 [P] [US1] Closed-market-record rule tests (Friday 21:59:59/22:00 and Sunday 21:59:59/22:00 UTC forex boundaries, independence from gaps) in `tests/Validator.Application.Tests/Rules/ClosedMarketRecordRuleTests.cs`
+- [X] T021 [P] [US1] Missing-candle + expected-sequence tests (single missing, multiple contiguous, closed periods excluded, malformed-with-timestamp reserves slot) in `tests/Validator.Application.Tests/Rules/MissingCandleRuleTests.cs`
+- [X] T022 [P] [US1] Time-gap rule tests (one gap per maximal contiguous run; 12 missing across 2 gaps) in `tests/Validator.Application.Tests/Rules/TimeGapRuleTests.cs`
+- [X] T023 [P] [US1] Timeframe-detection tests (modal delta over open-market records, tie/no-delta → fatal, override wins) in `tests/Validator.Application.Tests/Timeframes/TimeframeDetectorTests.cs`
+- [X] T024 [P] [US1] Text report writer contract test (exact six `Label: value` lines and order) in `tests/Validator.Infrastructure.Tests/Reporting/TextReportWriterTests.cs`
+- [X] T025 [P] [US1] CSV ingestion integration test for default MT4 headerless layout, invariant parsing, and malformed-vs-fatal split in `tests/Validator.Infrastructure.Tests/Csv/CsvIngestionTests.cs`
+- [X] T026 [P] [US1] External-sort/replay integration test proving unsorted input yields identical canonical order to pre-sorted input (AS-10) in `tests/Validator.Infrastructure.Tests/Sorting/ExternalSortReplayTests.cs`
+- [X] T027 [P] [US1] Use-case integration tests (clean, defects, fatal ingestion, timeframe-inference failure) using in-memory doubles in `tests/Validator.Application.Tests/UseCases/ValidateMarketDataUseCaseTests.cs`
+- [X] T028 [P] [US1] CLI end-to-end tests asserting stdout six lines and exit codes 0/1/2 against fixtures in `tests/Validator.Cli.Tests/CoreValidationE2ETests.cs`
 
 ### Implementation for User Story 1
 
-- [ ] T029 [US1] Implement timeframe-detection service (modal open-market delta; fatal on tie/none) in `src/Validator.Application/Validation/TimeframeDetector.cs`
-- [ ] T030 [US1] Implement built-in forex calendar (`IMarketCalendar`, Sun 22:00–Fri 22:00 UTC) and expected-session/candle generator in `src/Validator.Application/Validation/ExpectedSequenceGenerator.cs` and `src/Validator.Infrastructure/Calendars/ForexCalendar.cs`
-- [ ] T031 [P] [US1] Implement `DuplicateRecordRule` in `src/Validator.Application/Validation/Rules/DuplicateRecordRule.cs`
-- [ ] T032 [P] [US1] Implement `InvalidOhlcRule` in `src/Validator.Application/Validation/Rules/InvalidOhlcRule.cs`
-- [ ] T033 [P] [US1] Implement `ClosedMarketRecordRule` in `src/Validator.Application/Validation/Rules/ClosedMarketRecordRule.cs`
-- [ ] T034 [US1] Implement `MissingCandleRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/MissingCandleRule.cs`
-- [ ] T035 [US1] Implement `TimeGapRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/TimeGapRule.cs`
-- [ ] T036 [US1] Implement CSV ingestion adapter for default MT4 headerless comma layout with invariant `decimal`/date parsing and malformed-vs-fatal classification in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
-- [ ] T037 [US1] Implement bounded external merge sort with Application-owned temporary-storage port + adapter in `src/Validator.Infrastructure/Sorting/ExternalMergeSort.cs` and `src/Validator.Infrastructure/Sorting/TempStorage.cs`
-- [ ] T038 [US1] Implement streaming finding spool adapter (`IFindingSink`/`IFindingReader`, canonical read order) in `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
-- [ ] T039 [US1] Implement text report writer (six summary lines) in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
-- [ ] T040 [US1] Implement `IValidateMarketDataUseCase` orchestrator (ingest → resolve timeframe → run registered rules → aggregate report) in `src/Validator.Application/Validation/ValidateMarketDataUseCase.cs`
-- [ ] T041 [US1] Implement CLI positional `<input-file>` + `--timeframe`, argument validation, exit-code mapping, and DI composition root in `src/Validator.Cli/Commands/ValidateCommand.cs` and `src/Validator.Cli/Program.cs`
-- [ ] T042 [P] [US1] Add fixtures `clean-forex-h1.csv`, `known-defects.csv` (+ adjacent counts manifest), and `missing-close-column.csv` in `tests/Validator.Cli.Tests/Fixtures/`
+- [X] T029 [US1] Implement timeframe-detection service (modal open-market delta; fatal on tie/none) in `src/Validator.Application/Validation/TimeframeDetector.cs`
+- [X] T030 [US1] Implement built-in forex calendar (`IMarketCalendar`, Sun 22:00–Fri 22:00 UTC) and expected-session/candle generator in `src/Validator.Application/Validation/ExpectedSequenceGenerator.cs` and `src/Validator.Infrastructure/Calendars/ForexCalendar.cs`
+- [X] T031 [P] [US1] Implement `DuplicateRecordRule` in `src/Validator.Application/Validation/Rules/DuplicateRecordRule.cs`
+- [X] T032 [P] [US1] Implement `InvalidOhlcRule` in `src/Validator.Application/Validation/Rules/InvalidOhlcRule.cs`
+- [X] T033 [P] [US1] Implement `ClosedMarketRecordRule` in `src/Validator.Application/Validation/Rules/ClosedMarketRecordRule.cs`
+- [X] T034 [US1] Implement `MissingCandleRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/MissingCandleRule.cs`
+- [X] T035 [US1] Implement `TimeGapRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/TimeGapRule.cs`
+- [X] T036 [US1] Implement CSV ingestion adapter for default MT4 headerless comma layout with invariant `decimal`/date parsing and malformed-vs-fatal classification in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
+- [X] T037 [US1] Implement bounded external merge sort with Application-owned temporary-storage port + adapter in `src/Validator.Infrastructure/Sorting/ExternalMergeSort.cs` and `src/Validator.Infrastructure/Sorting/TempStorage.cs`
+- [X] T038 [US1] Implement streaming finding spool adapter (`IFindingSink`/`IFindingReader`, canonical read order) in `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
+- [X] T039 [US1] Implement text report writer (six summary lines) in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
+- [X] T040 [US1] Implement `IValidateMarketDataUseCase` orchestrator (ingest → resolve timeframe → run registered rules → aggregate report) in `src/Validator.Application/Validation/ValidateMarketDataUseCase.cs`
+- [X] T041 [US1] Implement CLI positional `<input-file>` + `--timeframe`, argument validation, exit-code mapping, and DI composition root in `src/Validator.Cli/Commands/ValidateCommand.cs` and `src/Validator.Cli/Program.cs`
+- [X] T042 [P] [US1] Add fixtures `clean-forex-h1.csv`, `known-defects.csv` (+ adjacent counts manifest), and `missing-close-column.csv` in `tests/Validator.Cli.Tests/Fixtures/`
 
 **Checkpoint**: MVP complete — core forex CSV validation works end-to-end and is independently testable
 
@@ -111,15 +116,15 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 2 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T043 [P] [US2] JSON report writer contract test validating output against `contracts/validation-report.schema.json` (all six counts, metadata, canonical findings) in `tests/Validator.Infrastructure.Tests/Reporting/JsonReportWriterTests.cs`
-- [ ] T044 [P] [US2] CLI E2E tests for JSON stdout purity (AS-09), `--output` one-line summary, and `--verbose` text detail in `tests/Validator.Cli.Tests/OutputFormatE2ETests.cs`
+- [X] T043 [P] [US2] JSON report writer contract test validating output against `contracts/validation-report.schema.json` (all six counts, metadata, canonical findings) in `tests/Validator.Infrastructure.Tests/Reporting/JsonReportWriterTests.cs`
+- [X] T044 [P] [US2] CLI E2E tests for JSON stdout purity (AS-09), `--output` one-line summary, and `--verbose` text detail in `tests/Validator.Cli.Tests/OutputFormatE2ETests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T045 [US2] Implement streaming JSON report writer conforming to `validation-report.schema.json` in `src/Validator.Infrastructure/Reporting/JsonReportWriter.cs`
-- [ ] T046 [US2] Add verbose finding-detail rendering to the text writer in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
-- [ ] T047 [US2] Add `--format`, `--output` (atomic write + one-line summary), and `--verbose` options with report-writer selection to `src/Validator.Cli/Commands/ValidateCommand.cs`
-- [ ] T048 [P] [US2] Wire a local (no-network) JSON Schema test dependency and shared schema-assertion helper in `tests/Validator.Cli.Tests/Support/SchemaValidation.cs`
+- [X] T045 [US2] Implement streaming JSON report writer conforming to `validation-report.schema.json` in `src/Validator.Infrastructure/Reporting/JsonReportWriter.cs`
+- [X] T046 [US2] Add verbose finding-detail rendering to the text writer in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
+- [X] T047 [US2] Add `--format`, `--output` (atomic write + one-line summary), and `--verbose` options with report-writer selection to `src/Validator.Cli/Commands/ValidateCommand.cs`
+- [X] T048 [P] [US2] Wire a local (no-network) JSON Schema test dependency and shared schema-assertion helper in `tests/Validator.Cli.Tests/Support/SchemaValidation.cs`
 
 **Checkpoint**: JSON + file + verbose output work; US1 and US2 both independently testable
 
@@ -133,19 +138,19 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 3 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T049 [P] [US3] Delimiter auto-detection tests (comma/semicolon/tab, quoted delimiters, zero/multiple candidates → fatal) in `tests/Validator.Infrastructure.Tests/Csv/DelimiterDetectionTests.cs`
-- [ ] T050 [P] [US3] Header-mode tests (case-insensitive, reordered columns, extra columns ignored, missing/duplicate → fatal) in `tests/Validator.Infrastructure.Tests/Csv/HeaderLayoutTests.cs`
-- [ ] T051 [P] [US3] Combined-timestamp and conflicting-option validation tests (index/name selector, missing pair → fatal) in `tests/Validator.Application.Tests/Options/CsvOptionValidationTests.cs`
-- [ ] T052 [P] [US3] `--tz-offset` conversion tests (fixed offset, ±14:00 bound, correct UTC normalization) in `tests/Validator.Infrastructure.Tests/Csv/TimeZoneOffsetTests.cs`
+- [X] T049 [P] [US3] Delimiter auto-detection tests (comma/semicolon/tab, quoted delimiters, zero/multiple candidates → fatal) in `tests/Validator.Infrastructure.Tests/Csv/DelimiterDetectionTests.cs`
+- [X] T050 [P] [US3] Header-mode tests (case-insensitive, reordered columns, extra columns ignored, missing/duplicate → fatal) in `tests/Validator.Infrastructure.Tests/Csv/HeaderLayoutTests.cs`
+- [X] T051 [P] [US3] Combined-timestamp and conflicting-option validation tests (index/name selector, missing pair → fatal) in `tests/Validator.Application.Tests/Options/CsvOptionValidationTests.cs`
+- [X] T052 [P] [US3] `--tz-offset` conversion tests (fixed offset, ±14:00 bound, correct UTC normalization) in `tests/Validator.Infrastructure.Tests/Csv/TimeZoneOffsetTests.cs`
 
 ### Implementation for User Story 3
 
-- [ ] T053 [US3] Implement deterministic delimiter detection in `src/Validator.Infrastructure/Csv/DelimiterDetector.cs`
-- [ ] T054 [US3] Implement header-name layout matching (case-insensitive, order-independent) in `src/Validator.Infrastructure/Csv/HeaderLayoutResolver.cs`
-- [ ] T055 [US3] Implement combined-timestamp column selection plus `--date-format`/`--time-format`/`--timestamp-format` overrides in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
-- [ ] T056 [US3] Implement `--tz-offset` parsing and UTC normalization in `src/Validator.Infrastructure/Csv/SourceOffsetConverter.cs`
-- [ ] T057 [US3] Add `--header`, `--delimiter`, `--date-format`, `--time-format`, `--timestamp-format`, `--timestamp-column`, `--tz-offset` options with cross-option conflict validation to `src/Validator.Cli/Commands/ValidateCommand.cs`
-- [ ] T058 [P] [US3] Add fixtures `header-semicolon.csv` and `combined-timestamp.csv` (+ manifests) in `tests/Validator.Cli.Tests/Fixtures/`
+- [X] T053 [US3] Implement deterministic delimiter detection in `src/Validator.Infrastructure/Csv/DelimiterDetector.cs`
+- [X] T054 [US3] Implement header-name layout matching (case-insensitive, order-independent) in `src/Validator.Infrastructure/Csv/HeaderLayoutResolver.cs`
+- [X] T055 [US3] Implement combined-timestamp column selection plus `--date-format`/`--time-format`/`--timestamp-format` overrides in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
+- [X] T056 [US3] Implement `--tz-offset` parsing and UTC normalization in `src/Validator.Infrastructure/Csv/SourceOffsetConverter.cs`
+- [X] T057 [US3] Add `--header`, `--delimiter`, `--date-format`, `--time-format`, `--timestamp-format`, `--timestamp-column`, `--tz-offset` options with cross-option conflict validation to `src/Validator.Cli/Commands/ValidateCommand.cs`
+- [X] T058 [P] [US3] Add fixtures `header-semicolon.csv` and `combined-timestamp.csv` (+ manifests) in `tests/Validator.Cli.Tests/Fixtures/`
 
 **Checkpoint**: Non-MT4 layouts supported; US1–US3 independently testable
 

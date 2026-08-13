@@ -1,0 +1,17 @@
+{
+  "clean": {
+    "expectedMissingCloseColumn": 0,
+    "expectedDuplicateRecord": 0,
+    "expectedInvalidOhlc": 0
+  },
+  "knownDefects": {
+    "expectedMissingCloseColumn": 0,
+    "expectedDuplicateRecord": 1,
+    "expectedInvalidOhlc": 1
+  },
+  "missingCloseColumn": {
+    "expectedMissingCloseColumn": 1,
+    "expectedDuplicateRecord": 0,
+    "expectedInvalidOhlc": 0
+  }
+}

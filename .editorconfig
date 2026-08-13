@@ -1,0 +1,17 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# C# rules
+[*.{cs,vb}]
+indent_style = space
+indent_size = 4
+dotnet_style_qualification_for_field = false:suggestion
+
+# Treat files under tests/ as test code
+[tests/**]
+indent_size = 2

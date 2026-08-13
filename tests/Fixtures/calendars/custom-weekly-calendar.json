@@ -1,0 +1,7 @@
+{
+  "type": "weekly",
+  "openDays": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
+  "openHour": 9,
+  "closeHour": 17,
+  "timezone": "UTC"
+}
