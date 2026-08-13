@@ -10,7 +10,7 @@ namespace Validator.Infrastructure.Tests.Calendars
         [Fact]
         public void CalendarJsonLoader_LoadsWeeklyCalendarFromJson()
         {
-            var fixture = Path.Combine("Tests", "Fixtures", "calendars", "custom-weekly-calendar.json");
+            var fixture = Path.Combine("tests", "Fixtures", "calendars", "custom-weekly-calendar.json");
             // Normalize path relative to repo root during test runtime
             var fullPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..\\..\\..\\..\\..\\", fixture));
 
