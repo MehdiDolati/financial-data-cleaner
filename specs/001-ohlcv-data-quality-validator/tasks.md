@@ -90,18 +90,18 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 ### Implementation for User Story 1
 
 - [X] T029 [US1] Implement timeframe-detection service (modal open-market delta; fatal on tie/none) in `src/Validator.Application/Validation/TimeframeDetector.cs`
-- [ ] T030 [US1] Implement built-in forex calendar (`IMarketCalendar`, Sun 22:00–Fri 22:00 UTC) and expected-session/candle generator in `src/Validator.Application/Validation/ExpectedSequenceGenerator.cs` and `src/Validator.Infrastructure/Calendars/ForexCalendar.cs`
+- [X] T030 [US1] Implement built-in forex calendar (`IMarketCalendar`, Sun 22:00–Fri 22:00 UTC) and expected-session/candle generator in `src/Validator.Application/Validation/ExpectedSequenceGenerator.cs` and `src/Validator.Infrastructure/Calendars/ForexCalendar.cs`
 - [X] T031 [P] [US1] Implement `DuplicateRecordRule` in `src/Validator.Application/Validation/Rules/DuplicateRecordRule.cs`
 - [X] T032 [P] [US1] Implement `InvalidOhlcRule` in `src/Validator.Application/Validation/Rules/InvalidOhlcRule.cs`
 - [X] T033 [P] [US1] Implement `ClosedMarketRecordRule` in `src/Validator.Application/Validation/Rules/ClosedMarketRecordRule.cs`
 - [X] T034 [US1] Implement `MissingCandleRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/MissingCandleRule.cs`
 - [X] T035 [US1] Implement `TimeGapRule` (consumes expected sequence from T030) in `src/Validator.Application/Validation/Rules/TimeGapRule.cs`
-- [ ] T036 [US1] Implement CSV ingestion adapter for default MT4 headerless comma layout with invariant `decimal`/date parsing and malformed-vs-fatal classification in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
+- [X] T036 [US1] Implement CSV ingestion adapter for default MT4 headerless comma layout with invariant `decimal`/date parsing and malformed-vs-fatal classification in `src/Validator.Infrastructure/Csv/CsvCandleSource.cs`
 - [ ] T037 [US1] Implement bounded external merge sort with Application-owned temporary-storage port + adapter in `src/Validator.Infrastructure/Sorting/ExternalMergeSort.cs` and `src/Validator.Infrastructure/Sorting/TempStorage.cs`
 - [ ] T038 [US1] Implement streaming finding spool adapter (`IFindingSink`/`IFindingReader`, canonical read order) in `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
-- [ ] T039 [US1] Implement text report writer (six summary lines) in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
-- [ ] T040 [US1] Implement `IValidateMarketDataUseCase` orchestrator (ingest → resolve timeframe → run registered rules → aggregate report) in `src/Validator.Application/Validation/ValidateMarketDataUseCase.cs`
-- [ ] T041 [US1] Implement CLI positional `<input-file>` + `--timeframe`, argument validation, exit-code mapping, and DI composition root in `src/Validator.Cli/Commands/ValidateCommand.cs` and `src/Validator.Cli/Program.cs`
+- [X] T039 [US1] Implement text report writer (six summary lines) in `src/Validator.Infrastructure/Reporting/TextReportWriter.cs`
+- [X] T040 [US1] Implement `IValidateMarketDataUseCase` orchestrator (ingest → resolve timeframe → run registered rules → aggregate report) in `src/Validator.Application/Validation/ValidateMarketDataUseCase.cs`
+- [X] T041 [US1] Implement CLI positional `<input-file>` + `--timeframe`, argument validation, exit-code mapping, and DI composition root in `src/Validator.Cli/Commands/ValidateCommand.cs` and `src/Validator.Cli/Program.cs`
 - [ ] T042 [P] [US1] Add fixtures `clean-forex-h1.csv`, `known-defects.csv` (+ adjacent counts manifest), and `missing-close-column.csv` in `tests/Validator.Cli.Tests/Fixtures/`
 
 **Checkpoint**: MVP complete — core forex CSV validation works end-to-end and is independently testable

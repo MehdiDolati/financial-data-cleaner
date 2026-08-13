@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Validator.Application\Validator.Application.csproj" />
+    <ProjectReference Include="..\Validator.Infrastructure\Validator.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
