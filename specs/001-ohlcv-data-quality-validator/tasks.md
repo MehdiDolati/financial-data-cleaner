@@ -46,8 +46,8 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T007 Add architecture dependency-direction tests in `tests/Validator.Domain.Tests/Architecture/DependencyRulesTests.cs` asserting Domain has no non-BCL references and Application references only Domain (per NFR-002)
-- [ ] T008 [P] Create `PriceCandle` immutable record with UTC-offset guard in `src/Validator.Domain/Candles/PriceCandle.cs` and theory tests in `tests/Validator.Domain.Tests/Candles/PriceCandleTests.cs`
+- [X] T007 Add architecture dependency-direction tests in `tests/Validator.Domain.Tests/Architecture/DependencyRulesTests.cs` asserting Domain has no non-BCL references and Application references only Domain (per NFR-002)
+- [X] T008 [P] Create `PriceCandle` immutable record with UTC-offset guard in `src/Validator.Domain/Candles/PriceCandle.cs` and theory tests in `tests/Validator.Domain.Tests/Candles/PriceCandleTests.cs`
 - [ ] T009 [P] Create `Timeframe` value object (parse/validate canonical `M<n>`/`H<n>`/`D<n>`, reject zero/negative/fractional/overflow) in `src/Validator.Domain/Timeframes/Timeframe.cs` and theory tests in `tests/Validator.Domain.Tests/Timeframes/TimeframeTests.cs`
 - [ ] T010 [P] Create `FindingCategory` enum with canonical order in `src/Validator.Domain/Findings/FindingCategory.cs` and ordering tests in `tests/Validator.Domain.Tests/Findings/FindingCategoryTests.cs`
 - [ ] T011 [P] Create `ValidationFinding` (with `CountContribution`, `StableSequence`) and `MalformedRow` records in `src/Validator.Domain/Findings/ValidationFinding.cs` and `src/Validator.Domain/Findings/MalformedRow.cs` with tests in `tests/Validator.Domain.Tests/Findings/ValidationFindingTests.cs`
