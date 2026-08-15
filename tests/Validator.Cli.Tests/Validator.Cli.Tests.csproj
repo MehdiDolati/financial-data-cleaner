@@ -22,4 +22,10 @@
     <ProjectReference Include="..\..\src\Validator.Cli\Validator.Cli.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

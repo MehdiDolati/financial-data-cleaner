@@ -1,79 +1,107 @@
-using System;
-using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Validator.Cli.Commands;
 
-namespace Validator.Cli.Tests
+namespace Validator.Cli.Tests;
+
+public sealed class CalendarE2ETests
 {
-    public class CalendarE2ETests
+    [Fact]
+    public async Task CustomCalendar_UsesHalfOpenSessionBoundaries()
     {
-        [Fact]
-        public async Task MarketFlag_Equities_MarksSunday23AsClosed()
+        using var fixture = CalendarFixture.Create(validCalendar: true);
+
+        var exitCode = await ValidateCommand.RunAsync(
+        [
+            fixture.InputPath,
+            "--market", "custom",
+            "--calendar", fixture.CalendarPath,
+            "--timeframe", "H1",
+            "--tz-offset", "+00:00",
+            "--format", "json",
+            "--output", fixture.OutputPath
+        ]);
+
+        Assert.Equal(1, exitCode);
+        using var report = JsonDocument.Parse(File.ReadAllText(fixture.OutputPath));
+        Assert.Equal(1, report.RootElement.GetProperty("summary").GetProperty("closedMarketRecords").GetInt32());
+    }
+
+    [Fact]
+    public async Task CustomMarket_WithoutCalendar_FailsBeforeCsvParsing()
+    {
+        var missingInput = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.csv");
+
+        var exitCode = await ValidateCommand.RunAsync([missingInput, "--market", "custom"]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task InvalidCalendar_FailsBeforeCsvParsing()
+    {
+        using var fixture = CalendarFixture.Create(validCalendar: false, createInput: false);
+
+        var exitCode = await ValidateCommand.RunAsync(
+            [fixture.InputPath, "--market", "custom", "--calendar", fixture.CalendarPath]);
+
+        Assert.Equal(2, exitCode);
+        Assert.False(File.Exists(fixture.OutputPath));
+    }
+
+    private sealed class CalendarFixture : IDisposable
+    {
+        private CalendarFixture(string directory, string inputPath, string calendarPath, string outputPath)
         {
-            var dir = Path.Combine(Path.GetTempPath(), $"validator-cli-cal-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(dir);
-
-            var input = Path.Combine(dir, "input.csv");
-            var output = Path.Combine(dir, "report.json");
-
-            // Legacy date+time columns (no header) - Sunday 2026-02-08 23:00 UTC
-            File.WriteAllText(input, "2026-02-08,23:00,1,1,1,1,100\n");
-
-            var exit = await ValidateCommand.RunAsync(new[] { input, "--format", "json", "--output", output, "--market", "equities", "--date-format", "yyyy-MM-dd", "--time-format", "HH:mm" });
-            Assert.True(exit == 0 || exit == 1);
-            Assert.True(File.Exists(output));
-
-            using var doc = JsonDocument.Parse(File.ReadAllText(output));
-            var root = doc.RootElement;
-            var closed = root.GetProperty("summary").GetProperty("closedMarketRecords").GetInt32();
-            Assert.Equal(1, closed);
+            Directory = directory;
+            InputPath = inputPath;
+            CalendarPath = calendarPath;
+            OutputPath = outputPath;
         }
 
-        [Fact]
-        public async Task MarketFlag_Forex_DoesNotMarkSunday23AsClosed()
+        public string Directory { get; }
+        public string InputPath { get; }
+        public string CalendarPath { get; }
+        public string OutputPath { get; }
+
+        public static CalendarFixture Create(bool validCalendar, bool createInput = true)
         {
-            var dir = Path.Combine(Path.GetTempPath(), $"validator-cli-cal-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(dir);
+            var directory = Path.Combine(Path.GetTempPath(), $"validator-cli-calendar-{Guid.NewGuid():N}");
+            System.IO.Directory.CreateDirectory(directory);
+            var inputPath = Path.Combine(directory, "custom-session.csv");
+            var calendarPath = Path.Combine(directory, "custom-market.json");
+            var outputPath = Path.Combine(directory, "report.json");
 
-            var input = Path.Combine(dir, "input.csv");
-            var output = Path.Combine(dir, "report.json");
+            if (createInput)
+            {
+                File.WriteAllText(
+                    inputPath,
+                    "2026.02.04,09:00,1,2,0.5,1.5,10\n" +
+                    "2026.02.04,10:00,1,2,0.5,1.5,10\n" +
+                    "2026.02.04,17:00,1,2,0.5,1.5,10\n");
+            }
 
-            // Legacy date+time columns (no header) - Sunday 2026-02-08 23:00 UTC
-            File.WriteAllText(input, "2026-02-08,23:00,1,1,1,1,100\n");
+            File.WriteAllText(calendarPath, validCalendar
+                ? """
+                  {
+                    "version": 1,
+                    "name": "Custom UTC Session",
+                    "timeZone": "UTC",
+                    "sessions": [
+                      { "openDay": "Wednesday", "openTime": "09:00", "closeDay": "Wednesday", "closeTime": "17:00" }
+                    ]
+                  }
+                  """
+                : "{\"version\":2}");
 
-            var exit = await ValidateCommand.RunAsync(new[] { input, "--format", "json", "--output", output, "--market", "forex", "--date-format", "yyyy-MM-dd", "--time-format", "HH:mm" });
-            Assert.True(exit == 0 || exit == 1);
-            Assert.True(File.Exists(output));
-
-            var content = File.ReadAllText(output);
-            using var doc = JsonDocument.Parse(content);
-            var root = doc.RootElement;
-            var closed = root.GetProperty("summary").GetProperty("closedMarketRecords").GetInt32();
-            Assert.True(closed == 0, content);
+            return new CalendarFixture(directory, inputPath, calendarPath, outputPath);
         }
 
-        [Fact]
-        public async Task CalendarFlag_CustomWeeklyCalendar_PathWorksLikeEquities()
+        public void Dispose()
         {
-            var dir = Path.Combine(Path.GetTempPath(), $"validator-cli-cal-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(dir);
-
-            var input = Path.Combine(dir, "input.csv");
-            var output = Path.Combine(dir, "report.json");
-            var cal = Path.Combine(dir, "weekly.json");
-
-            File.WriteAllText(input, "2026-02-08,23:00,1,1,1,1,100\n");
-            File.WriteAllText(cal, "{\n  \"type\": \"weekly\",\n  \"openDays\": [\"Monday\",\"Tuesday\",\"Wednesday\",\"Thursday\",\"Friday\"],\n  \"openHour\": 9,\n  \"closeHour\": 17,\n  \"timezone\": \"UTC\"\n}\n");
-
-            var exit = await ValidateCommand.RunAsync(new[] { input, "--format", "json", "--output", output, "--calendar", cal, "--date-format", "yyyy-MM-dd", "--time-format", "HH:mm" });
-            Assert.True(exit == 0 || exit == 1);
-            Assert.True(File.Exists(output));
-
-            using var doc = JsonDocument.Parse(File.ReadAllText(output));
-            var root = doc.RootElement;
-            var closed = root.GetProperty("summary").GetProperty("closedMarketRecords").GetInt32();
-            Assert.Equal(1, closed);
+            if (System.IO.Directory.Exists(Directory))
+            {
+                System.IO.Directory.Delete(Directory, recursive: true);
+            }
         }
     }
 }

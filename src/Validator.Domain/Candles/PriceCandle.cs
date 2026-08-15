@@ -11,11 +11,27 @@ namespace Validator.Domain.Candles
         public decimal Low { get; init; }
         public decimal Close { get; init; }
         public decimal Volume { get; init; }
+        public long SourceLine { get; init; }
 
         public PriceCandle(DateTimeOffset timestamp, decimal open, decimal high, decimal low, decimal close, decimal volume)
+            : this(timestamp, open, high, low, close, volume, 1)
+        {
+        }
+
+        public PriceCandle(
+            DateTimeOffset timestamp,
+            decimal open,
+            decimal high,
+            decimal low,
+            decimal close,
+            decimal volume,
+            long sourceLine)
         {
             if (timestamp.Offset != TimeSpan.Zero)
                 throw new ArgumentException("Timestamp must be in UTC (zero offset).", nameof(timestamp));
+
+            if (sourceLine <= 0)
+                throw new ArgumentOutOfRangeException(nameof(sourceLine), "Source line must be positive.");
 
             Timestamp = timestamp;
             Open = open;
@@ -23,6 +39,7 @@ namespace Validator.Domain.Candles
             Low = low;
             Close = close;
             Volume = volume;
+            SourceLine = sourceLine;
         }
     }
 }

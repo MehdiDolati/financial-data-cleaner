@@ -13,10 +13,24 @@ namespace Validator.Infrastructure.Csv
                 throw new ArgumentNullException(nameof(headers));
             }
 
-            var index = headers
+            var items = headers
                 .Select((header, idx) => new { Header = header?.Trim() ?? string.Empty, Index = idx })
                 .Where(item => !string.IsNullOrWhiteSpace(item.Header))
-                .ToDictionary(item => item.Header, item => item.Index, StringComparer.OrdinalIgnoreCase);
+                .ToArray();
+
+            var duplicate = items
+                .GroupBy(item => item.Header, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(group => group.Count() > 1);
+            if (duplicate is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate header '{duplicate.Key}' was found in the CSV input.");
+            }
+
+            var index = items.ToDictionary(
+                item => item.Header,
+                item => item.Index,
+                StringComparer.OrdinalIgnoreCase);
 
             var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var required in requiredColumns)

@@ -27,5 +27,27 @@ namespace Validator.Domain.Tests.Timeframes
         {
             Assert.ThrowsAny<Exception>(() => Timeframe.Parse(input));
         }
+
+        [Theory]
+        [InlineData("M15", 15)]
+        [InlineData("H4", 240)]
+        [InlineData("D2", 2880)]
+        public void Duration_And_ToString_AreCanonical(string input, double expectedMinutes)
+        {
+            var timeframe = Timeframe.Parse(input.ToLowerInvariant());
+
+            Assert.Equal(expectedMinutes, timeframe.Duration.TotalMinutes);
+            Assert.Equal(input, timeframe.ToString());
+        }
+
+        [Fact]
+        public void TryParse_ReturnsValueOrFalseWithoutThrowing()
+        {
+            Assert.True(Timeframe.TryParse("H2", out var valid));
+            Assert.Equal("H2", valid!.ToString());
+
+            Assert.False(Timeframe.TryParse("X1", out var invalid));
+            Assert.Null(invalid);
+        }
     }
 }

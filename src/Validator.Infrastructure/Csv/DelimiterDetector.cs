@@ -36,7 +36,27 @@ namespace Validator.Infrastructure.Csv
 
         private static int CountOccurrences(string text, char candidate)
         {
-            return text.Count(ch => ch == candidate);
+            var count = 0;
+            var inQuotes = false;
+            for (var index = 0; index < text.Length; index++)
+            {
+                if (text[index] == '"')
+                {
+                    if (inQuotes && index + 1 < text.Length && text[index + 1] == '"')
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    inQuotes = !inQuotes;
+                }
+                else if (!inQuotes && text[index] == candidate)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
     }
 }

@@ -1,7 +1,12 @@
 {
-  "type": "weekly",
-  "openDays": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
-  "openHour": 9,
-  "closeHour": 17,
-  "timezone": "UTC"
+  "version": 1,
+  "name": "Weekday UTC Session",
+  "timeZone": "UTC",
+  "sessions": [
+    { "openDay": "Monday", "openTime": "09:00", "closeDay": "Monday", "closeTime": "17:00" },
+    { "openDay": "Tuesday", "openTime": "09:00", "closeDay": "Tuesday", "closeTime": "17:00" },
+    { "openDay": "Wednesday", "openTime": "09:00", "closeDay": "Wednesday", "closeTime": "17:00" },
+    { "openDay": "Thursday", "openTime": "09:00", "closeDay": "Thursday", "closeTime": "17:00" },
+    { "openDay": "Friday", "openTime": "09:00", "closeDay": "Friday", "closeTime": "17:00" }
+  ]
 }

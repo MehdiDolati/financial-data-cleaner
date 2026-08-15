@@ -1,33 +1,45 @@
-using System;
-using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
-using Validator.Cli.Commands;
 
-namespace Validator.Cli.Tests
+namespace Validator.Cli.Tests;
+
+public sealed class OutputFormatE2ETests
 {
-    public class OutputFormatE2ETests
+    [Fact]
+    public async Task JsonStdout_IsExactlyOneSchemaShapedDocument()
     {
-        [Fact]
-        public async Task RunAsync_WithJsonOutput_WritesSchemaDocumentToFile()
-        {
-            var directory = Path.Combine(Path.GetTempPath(), $"validator-cli-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(directory);
+        var input = Path.Combine(AppContext.BaseDirectory, "Fixtures", "known-defects.csv");
 
-            var inputPath = Path.Combine(directory, "input.csv");
-            var outputPath = Path.Combine(directory, "report.json");
+        var result = await CoreValidationE2ETests.InvokeAsync(
+            [input, "--timeframe", "H1", "--format", "json"]);
 
-            File.WriteAllText(inputPath, "timestamp,open,high,low,close,volume\n2026-01-01T00:00:00Z,1.1,1.2,1.0,1.1,100\n2026-01-01T01:00:00Z,1.1,1.2,1.0,1.1,100\n");
+        Assert.Equal(1, result.ExitCode);
+        Assert.Equal(string.Empty, CoreValidationE2ETests.Normalize(result.StdErr));
+        using var document = JsonDocument.Parse(result.StdOut);
+        Assert.Equal(2, document.RootElement.GetProperty("summary").GetProperty("missingCandles").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("summary").GetProperty("duplicateRecords").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("summary").GetProperty("invalidOhlc").GetInt32());
+    }
 
-            var exitCode = await ValidateCommand.RunAsync(new[] { inputPath, "--format", "json", "--output", outputPath, "--verbose" });
+    [Fact]
+    public async Task OutputFile_WritesReportAtomicallyAndPrintsOneLineSummaryWithoutMutatingSource()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"validator-cli-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var sourceFixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "clean-forex-h1.csv");
+        var input = Path.Combine(directory, "input.csv");
+        var output = Path.Combine(directory, "report.json");
+        File.Copy(sourceFixture, input);
+        var before = File.ReadAllBytes(input);
 
-            Assert.Equal(0, exitCode);
-            Assert.True(File.Exists(outputPath));
+        var result = await CoreValidationE2ETests.InvokeAsync(
+            [input, "--format", "json", "--output", output]);
 
-            using var document = JsonDocument.Parse(File.ReadAllText(outputPath));
-            var root = document.RootElement;
-            Assert.Equal("H1", root.GetProperty("detectedTimeframe").GetString());
-            Assert.Equal("input.csv", root.GetProperty("sourceFile").GetString());
-        }
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(output));
+        JsonDocument.Parse(File.ReadAllText(output)).Dispose();
+        Assert.Equal(before, File.ReadAllBytes(input));
+        Assert.Equal(
+            $"Validation complete: findings=0; clean=true; report={output}",
+            CoreValidationE2ETests.Normalize(result.StdOut));
     }
 }

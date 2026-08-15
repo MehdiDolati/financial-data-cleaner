@@ -1,183 +1,311 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using CsvHelper;
+using CsvHelper.Configuration;
 using Validator.Application.Abstractions;
 using Validator.Application.Ingestion;
 using Validator.Domain.Candles;
+using Validator.Domain.Findings;
 
-namespace Validator.Infrastructure.Csv
+namespace Validator.Infrastructure.Csv;
+
+public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
 {
-    public sealed class CsvCandleSource : ICandleSource
+    private readonly string _path;
+    private readonly CsvInputOptions _options;
+    private readonly List<MalformedRow> _malformedRows = [];
+
+    public CsvCandleSource(string path)
+        : this(path, new CsvInputOptions())
     {
-        private readonly string _path;
-        private readonly CsvInputOptions _options;
+    }
 
-        public CsvCandleSource(string path)
-            : this(path, new CsvInputOptions())
+    public CsvCandleSource(string path, CsvInputOptions? options)
+    {
+        _path = path ?? throw new ArgumentNullException(nameof(path));
+        _options = options ?? new CsvInputOptions();
+        _options.Validate();
+    }
+
+    public IReadOnlyList<MalformedRow> MalformedRows => _malformedRows;
+
+    public async IAsyncEnumerable<PriceCandle> ReadAllAsync()
+    {
+        _malformedRows.Clear();
+        if (!File.Exists(_path))
         {
+            throw new FileNotFoundException($"CSV input file not found: {_path}", _path);
         }
 
-        public CsvCandleSource(string path, CsvInputOptions? options)
+        var delimiter = await ResolveDelimiterAsync().ConfigureAwait(false);
+        var configuration = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            _path = path ?? throw new ArgumentNullException(nameof(path));
-            _options = options ?? new CsvInputOptions();
-            _options.Validate();
-        }
+            Delimiter = delimiter.ToString(),
+            HasHeaderRecord = false,
+            BadDataFound = args => throw new InvalidDataException(
+                $"Invalid CSV data near row {args.Context.Parser.Row}."),
+            MissingFieldFound = null,
+            TrimOptions = TrimOptions.Trim,
+            DetectColumnCountChanges = false
+        };
 
-        public async IAsyncEnumerable<PriceCandle> ReadAllAsync()
+        using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var textReader = new StreamReader(
+            stream,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
+            detectEncodingFromByteOrderMarks: true);
+        using var csv = new CsvReader(textReader, configuration);
+
+        Layout? layout = null;
+        while (await csv.ReadAsync().ConfigureAwait(false))
         {
-            if (!File.Exists(_path))
-                throw new FileNotFoundException($"CSV input file not found: {_path}", _path);
-
-            using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-
-            var headerIndices = default(Dictionary<string, int>);
-            var delimiter = ParseDelimiter(_options.Delimiter);
-
-            string? line;
-            var headerRead = false;
-            while ((line = await reader.ReadLineAsync()) is not null)
+            var row = csv.Parser.Record ?? Array.Empty<string>();
+            var sourceLine = csv.Parser.RawRow;
+            if (layout is null && _options.HasHeader)
             {
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-
-                var columns = SplitLine(line, delimiter);
-                if (!headerRead && _options.HasHeader)
-                {
-                    headerIndices = HeaderLayoutResolver.Resolve(columns, "timestamp", "open", "high", "low", "close", "volume");
-                    headerRead = true;
-                    continue;
-                }
-
-                if (!headerRead && !_options.HasHeader)
-                {
-                    headerRead = true;
-                }
-
-                if (columns.Length < 6)
-                    continue;
-
-                PriceCandle? candle = null;
-                if (_options.HasHeader && headerIndices is not null)
-                {
-                    candle = ParseHeaderRow(columns, headerIndices, _options);
-                }
-                else
-                {
-                    candle = ParseLegacyRow(columns, _options); 
-                }
-
-                if (candle is not null)
-                    yield return candle;
+                layout = ResolveHeaderLayout(row);
+                continue;
             }
-        }
 
-        private static char ParseDelimiter(string delimiter)
-        {
-            return delimiter.Trim() switch
-            {
-                ";" or "semicolon" => ';',
-                "\t" or "tab" => '\t',
-                "," or "comma" => ',',
-                _ => delimiter.Length == 1 ? delimiter[0] : throw new InvalidOperationException($"Unsupported delimiter '{delimiter}'.")
-            };
-        }
+            layout ??= ResolveHeaderlessLayout(row.Length);
+            EnsureRequiredColumns(row, layout, sourceLine);
 
-        private static string[] SplitLine(string line, char delimiter)
-        {
-            return line.Split(delimiter);
-        }
-
-        private static PriceCandle? ParseHeaderRow(string[] columns, Dictionary<string, int> headerIndices, CsvInputOptions options)
-        {
+            DateTimeOffset? timestamp = null;
+            PriceCandle? candle = null;
             try
             {
-                var timestampIndex = headerIndices["timestamp"];
-                var openIndex = headerIndices["open"];
-                var highIndex = headerIndices["high"];
-                var lowIndex = headerIndices["low"];
-                var closeIndex = headerIndices["close"];
-                var volumeIndex = headerIndices["volume"];
-
-                var timestamp = ParseTimestamp(columns[timestampIndex], options);
-                return new PriceCandle(
-                    timestamp,
-                    decimal.Parse(columns[openIndex].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[highIndex].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[lowIndex].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[closeIndex].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[volumeIndex].Trim(), CultureInfo.InvariantCulture));
+                timestamp = ParseTimestamp(row, layout);
+                candle = new PriceCandle(
+                    timestamp.Value,
+                    ParseDecimal(row[layout.Open], "Open"),
+                    ParseDecimal(row[layout.High], "High"),
+                    ParseDecimal(row[layout.Low], "Low"),
+                    ParseDecimal(row[layout.Close], "Close"),
+                    ParseDecimal(row[layout.Volume], "Volume"),
+                    sourceLine);
             }
-            catch
+            catch (Exception exception) when (
+                exception is FormatException or OverflowException or ArgumentException)
             {
-                return null;
+                _malformedRows.Add(new MalformedRow(
+                    sourceLine,
+                    string.Empty,
+                    exception.Message,
+                    timestamp));
+            }
+
+            if (candle is not null)
+            {
+                yield return candle;
             }
         }
 
-        private static PriceCandle? ParseLegacyRow(string[] columns, CsvInputOptions options)
+        if (_options.HasHeader && layout is null)
         {
-            if (columns.Length < 7)
-            {
-                return null;
-            }
-
-            try
-            {
-                var date = columns[0].Trim();
-                var time = columns[1].Trim();
-                var timestamp = ParseTimestamp(date, time, options);
-
-                return new PriceCandle(
-                    timestamp,
-                    decimal.Parse(columns[2].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[3].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[4].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[5].Trim(), CultureInfo.InvariantCulture),
-                    decimal.Parse(columns[6].Trim(), CultureInfo.InvariantCulture));
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static DateTimeOffset ParseTimestamp(string value, CsvInputOptions options)
-        {
-            if (!string.IsNullOrWhiteSpace(options.TimestampFormat) && !string.IsNullOrWhiteSpace(options.TimestampColumn))
-            {
-                var parsed = DateTimeOffset.ParseExact(value.Trim(), options.TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
-                if (options.TzOffset is not null)
-                {
-                    return SourceOffsetConverter.NormalizeToUtc(parsed.DateTime, options.TzOffset.Value);
-                }
-
-                return parsed;
-            }
-
-            if (!string.IsNullOrWhiteSpace(options.TimestampFormat))
-            {
-                var parsed = DateTimeOffset.ParseExact(value.Trim(), options.TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
-                return options.TzOffset is null ? parsed : SourceOffsetConverter.NormalizeToUtc(parsed.DateTime, options.TzOffset.Value);
-            }
-
-            throw new InvalidOperationException("Timestamp parsing requires a valid combined timestamp specification.");
-        }
-
-        private static DateTimeOffset ParseTimestamp(string date, string time, CsvInputOptions options)
-        {
-            var dateFormat = options.DateFormat ?? "yyyy.MM.dd";
-            var timeFormat = options.TimeFormat ?? "HH:mm";
-            var offset = options.TzOffset ?? TimeSpan.Zero;
-
-            var dateValue = DateTime.ParseExact(date.Trim(), dateFormat, CultureInfo.InvariantCulture);
-            var timeValue = DateTime.ParseExact(time.Trim(), timeFormat, CultureInfo.InvariantCulture);
-            var timestamp = new DateTime(dateValue.Year, dateValue.Month, dateValue.Day, timeValue.Hour, timeValue.Minute, 0);
-            return SourceOffsetConverter.NormalizeToUtc(timestamp, offset);
+            throw new InvalidDataException("Header mode requires a physical CSV header row.");
         }
     }
+
+    private async Task<char> ResolveDelimiterAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_options.Delimiter))
+        {
+            return ParseDelimiter(_options.Delimiter);
+        }
+
+        using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var reader = new StreamReader(
+            stream,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
+            detectEncodingFromByteOrderMarks: true);
+        var sample = await reader.ReadLineAsync().ConfigureAwait(false);
+        return string.IsNullOrWhiteSpace(sample) ? ',' : DelimiterDetector.Detect(sample);
+    }
+
+    private Layout ResolveHeaderLayout(IReadOnlyList<string> headers)
+    {
+        var hasTimestampHeader = headers.Any(header =>
+            string.Equals(header?.Trim(), "Timestamp", StringComparison.OrdinalIgnoreCase));
+        if (IsCombinedTimestampMode || hasTimestampHeader)
+        {
+            var timestamp = IsCombinedTimestampMode
+                ? ResolveTimestampColumn(headers)
+                : HeaderLayoutResolver.Resolve(headers, "timestamp")["timestamp"];
+            var indexes = HeaderLayoutResolver.Resolve(
+                headers,
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume");
+            return new Layout(
+                Timestamp: timestamp,
+                Date: null,
+                Time: null,
+                Open: indexes["open"],
+                High: indexes["high"],
+                Low: indexes["low"],
+                Close: indexes["close"],
+                Volume: indexes["volume"]);
+        }
+
+        var separate = HeaderLayoutResolver.Resolve(
+            headers,
+            "date",
+            "time",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume");
+        return new Layout(
+            Timestamp: null,
+            Date: separate["date"],
+            Time: separate["time"],
+            Open: separate["open"],
+            High: separate["high"],
+            Low: separate["low"],
+            Close: separate["close"],
+            Volume: separate["volume"]);
+    }
+
+    private Layout ResolveHeaderlessLayout(int columnCount)
+    {
+        if (IsCombinedTimestampMode)
+        {
+            var timestamp = int.Parse(_options.TimestampColumn!, CultureInfo.InvariantCulture) - 1;
+            if (columnCount < timestamp + 6)
+            {
+                throw new InvalidDataException(
+                    "Combined-timestamp rows require the timestamp plus five following OHLCV columns.");
+            }
+
+            return new Layout(
+                Timestamp: timestamp,
+                Date: null,
+                Time: null,
+                Open: timestamp + 1,
+                High: timestamp + 2,
+                Low: timestamp + 3,
+                Close: timestamp + 4,
+                Volume: timestamp + 5);
+        }
+
+        if (columnCount < 7)
+        {
+            throw new InvalidDataException(
+                "Default MT4 rows require Date, Time, Open, High, Low, Close, and Volume columns.");
+        }
+
+        return new Layout(null, 0, 1, 2, 3, 4, 5, 6);
+    }
+
+    private DateTimeOffset ParseTimestamp(IReadOnlyList<string> row, Layout layout)
+    {
+        DateTime local;
+        if (layout.Timestamp is int timestampIndex)
+        {
+            var timestampText = row[timestampIndex];
+            if (!string.IsNullOrWhiteSpace(_options.TimestampFormat))
+            {
+                local = DateTime.ParseExact(
+                    timestampText,
+                    _options.TimestampFormat,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None);
+            }
+            else
+            {
+                local = DateTime.ParseExact(
+                    timestampText,
+                    ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm:ss'Z'", "O"],
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None);
+            }
+        }
+        else
+        {
+            var dateFormat = _options.DateFormat ?? "yyyy.MM.dd";
+            var timeText = row[layout.Time!.Value];
+            var timeFormat = _options.TimeFormat ??
+                (timeText.Count(character => character == ':') == 1 ? "HH:mm" : "HH:mm:ss");
+            local = DateTime.ParseExact(
+                $"{row[layout.Date!.Value]} {timeText}",
+                $"{dateFormat} {timeFormat}",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None);
+        }
+
+        return SourceOffsetConverter.NormalizeToUtc(local, _options.TzOffset);
+    }
+
+    private int ResolveTimestampColumn(IReadOnlyList<string> headers)
+    {
+        if (int.TryParse(_options.TimestampColumn, out var oneBasedIndex))
+        {
+            var zeroBasedIndex = oneBasedIndex - 1;
+            if (zeroBasedIndex < 0 || zeroBasedIndex >= headers.Count)
+            {
+                throw new InvalidDataException("Timestamp column index is outside the CSV header.");
+            }
+
+            return zeroBasedIndex;
+        }
+
+        return HeaderLayoutResolver.Resolve(headers, _options.TimestampColumn!)[_options.TimestampColumn!];
+    }
+
+    private static decimal ParseDecimal(string value, string fieldName)
+    {
+        if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new FormatException($"{fieldName} value '{value}' is not an invariant decimal.");
+        }
+
+        return parsed;
+    }
+
+    private static void EnsureRequiredColumns(IReadOnlyList<string> row, Layout layout, long sourceLine)
+    {
+        var highestRequired = new int?[]
+        {
+            layout.Timestamp,
+            layout.Date,
+            layout.Time,
+            layout.Open,
+            layout.High,
+            layout.Low,
+            layout.Close,
+            layout.Volume
+        }.Max()!.Value;
+
+        if (row.Count <= highestRequired)
+        {
+            throw new InvalidDataException(
+                $"CSV row {sourceLine} has too few columns for the active layout.");
+        }
+    }
+
+    private static char ParseDelimiter(string delimiter) => delimiter.Trim().ToLowerInvariant() switch
+    {
+        "," or "comma" => ',',
+        ";" or "semicolon" => ';',
+        "\\t" or "tab" or "\t" => '\t',
+        { Length: 1 } value => value[0],
+        _ => throw new ArgumentException($"Unsupported delimiter '{delimiter}'.")
+    };
+
+    private bool IsCombinedTimestampMode =>
+        !string.IsNullOrWhiteSpace(_options.TimestampFormat) &&
+        !string.IsNullOrWhiteSpace(_options.TimestampColumn);
+
+    private sealed record Layout(
+        int? Timestamp,
+        int? Date,
+        int? Time,
+        int Open,
+        int High,
+        int Low,
+        int Close,
+        int Volume);
 }

@@ -11,16 +11,28 @@ namespace Validator.Application.Validation.Rules
         {
             var findings = new List<ValidationFinding>();
 
-            foreach (var group in candles.GroupBy(c => new { c.Timestamp, c.Open, c.High, c.Low, c.Close, c.Volume }))
+            foreach (var group in candles.GroupBy(c => c.Timestamp).OrderBy(group => group.Key))
             {
                 var duplicateCount = group.Count() - 1;
                 if (duplicateCount > 0)
                 {
+                    var rows = group.OrderBy(candle => candle.SourceLine).ToArray();
+                    var exact = rows.Skip(1).All(candle =>
+                        candle.Open == rows[0].Open &&
+                        candle.High == rows[0].High &&
+                        candle.Low == rows[0].Low &&
+                        candle.Close == rows[0].Close &&
+                        candle.Volume == rows[0].Volume);
                     findings.Add(new ValidationFinding(
-                        FindingCategory.Major,
+                        FindingCategory.DuplicateRecord,
                         duplicateCount,
                         stableSequence: true,
-                        $"Duplicate candle at {group.Key.Timestamp:O} ({duplicateCount} duplicates)"));
+                        $"{(exact ? "Exact" : "Conflicting")} duplicate at {group.Key:O}; lines={string.Join(',', rows.Select(candle => candle.SourceLine))}")
+                    {
+                        Timestamp = group.Key,
+                        Line = checked((int)rows[0].SourceLine),
+                        SourceLines = rows.Select(candle => candle.SourceLine).ToArray()
+                    });
                 }
             }
 

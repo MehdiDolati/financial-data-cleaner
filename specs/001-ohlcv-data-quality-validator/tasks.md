@@ -53,15 +53,10 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 - [X] T011 [P] Create `ValidationFinding` (with `CountContribution`, `StableSequence`) and `MalformedRow` records in `src/Validator.Domain/Findings/ValidationFinding.cs` and `src/Validator.Domain/Findings/MalformedRow.cs` with tests in `tests/Validator.Domain.Tests/Findings/ValidationFindingTests.cs`
 - [X] T012 [P] Create `MarketProfile`, `WeeklySession` (non-overlap + strict ordering guard), `MarketCalendarDefinition`, and `UtcSession` (`[open, close)`) in `src/Validator.Domain/Calendars/` with tests in `tests/Validator.Domain.Tests/Calendars/MarketCalendarTests.cs`
 - [X] T013 Define Application ports in `src/Validator.Application/Abstractions/` — `ICandleSource`, `IReplayableCandleData`, `PreparedCandleData`, `CandleDataStatistics`, `IValidationRule`, `ValidationContext`, `IFindingSink`, `IFindingReader`, `IReportWriter`, `IMarketCalendar`, `IMarketCalendarFactory`, `ITimeZoneScheduleExpander`, and `IValidateMarketDataUseCase` (interfaces only, per contracts/application-api.md)
-- [ ] T009 [P] Create `Timeframe` value object (parse/validate canonical `M<n>`/`H<n>`/`D<n>`, reject zero/negative/fractional/overflow) in `src/Validator.Domain/Timeframes/Timeframe.cs` and theory tests in `tests/Validator.Domain.Tests/Timeframes/TimeframeTests.cs`
-- [ ] T010 [P] Create `FindingCategory` enum with canonical order in `src/Validator.Domain/Findings/FindingCategory.cs` and ordering tests in `tests/Validator.Domain.Tests/Findings/FindingCategoryTests.cs`
-- [ ] T011 [P] Create `ValidationFinding` (with `CountContribution`, `StableSequence`) and `MalformedRow` records in `src/Validator.Domain/Findings/ValidationFinding.cs` and `src/Validator.Domain/Findings/MalformedRow.cs` with tests in `tests/Validator.Domain.Tests/Findings/ValidationFindingTests.cs`
-- [ ] T012 [P] Create `MarketProfile`, `WeeklySession` (non-overlap + strict ordering guard), `MarketCalendarDefinition`, and `UtcSession` (`[open, close)`) in `src/Validator.Domain/Calendars/` with tests in `tests/Validator.Domain.Tests/Calendars/MarketCalendarTests.cs`
-- [ ] T013 Define Application ports in `src/Validator.Application/Abstractions/` — `ICandleSource`, `IReplayableCandleData`, `PreparedCandleData`, `CandleDataStatistics`, `IValidationRule`, `ValidationContext`, `IFindingSink`, `IFindingReader`, `IReportWriter`, `IMarketCalendar`, `IMarketCalendarFactory`, `ITimeZoneScheduleExpander`, and `IValidateMarketDataUseCase` (interfaces only, per contracts/application-api.md)
-- [ ] T014 [P] Create `CsvInputOptions` and `ValidationOptions` records in `src/Validator.Application/Ingestion/CsvInputOptions.cs` and `src/Validator.Application/Validation/ValidationOptions.cs` with default/validation tests in `tests/Validator.Application.Tests/Options/OptionsTests.cs`
-- [ ] T015 [P] Create `ValidationSummary`, `DateRange`, and `ValidationReport` (with derived `IsClean`) in `src/Validator.Application/Reporting/` with derivation tests in `tests/Validator.Application.Tests/Reporting/ValidationReportTests.cs`
-- [ ] T016 [P] Create `FatalValidationError`, `FatalErrorKind`, `ReportFormat`, `ReportWriteOptions`, `ValidationRequest`, and `ValidationExecution` (Succeeded/Failed) in `src/Validator.Application/Abstractions/` per contracts/application-api.md
-- [ ] T017 Create in-memory test doubles (`InMemoryCandleSource`, `InMemoryReplayableCandleData`, `InMemoryFindingSink`/`Reader`) in `tests/Validator.Application.Tests/Doubles/` to drive Application unit tests without Infrastructure
+- [X] T014 [P] Create `CsvInputOptions` and `ValidationOptions` records in `src/Validator.Application/Ingestion/CsvInputOptions.cs` and `src/Validator.Application/Validation/ValidationOptions.cs` with default/validation tests in `tests/Validator.Application.Tests/Options/OptionsTests.cs`
+- [X] T015 [P] Create `ValidationSummary`, `DateRange`, and `ValidationReport` (with derived `IsClean`) in `src/Validator.Application/Reporting/` with derivation tests in `tests/Validator.Application.Tests/Reporting/ValidationReportTests.cs`
+- [X] T016 [P] Create `FatalValidationError`, `FatalErrorKind`, `ReportFormat`, `ReportWriteOptions`, `ValidationRequest`, and `ValidationExecution` (Succeeded/Failed) in `src/Validator.Application/Abstractions/` per contracts/application-api.md
+- [X] T017 Create in-memory test doubles (`InMemoryCandleSource`, `InMemoryReplayableCandleData`, `InMemoryFindingSink`/`Reader`) in `tests/Validator.Application.Tests/Doubles/` to drive Application unit tests without Infrastructure
 
 **Checkpoint**: Foundation ready — user story implementation can now begin
 
@@ -164,18 +159,18 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 4 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T059 [P] [US4] Equities session tests on both sides of a NodaTime/TZDB DST change (`America/New_York` 09:30–16:00) in `tests/Validator.Infrastructure.Tests/Calendars/EquitiesCalendarTests.cs`
-- [ ] T060 [P] [US4] Crypto always-open tests (FR-018 never fires) in `tests/Validator.Application.Tests/Calendars/CryptoCalendarTests.cs`
-- [ ] T061 [P] [US4] Custom-calendar loader tests (schema conformance, unsupported version, overlapping/ambiguous session → fatal config error) in `tests/Validator.Infrastructure.Tests/Calendars/CustomCalendarLoaderTests.cs`
-- [ ] T062 [P] [US4] CLI E2E custom-calendar test (valid run + invalid/omitted calendar fails pre-parse) in `tests/Validator.Cli.Tests/CalendarE2ETests.cs`
+- [X] T059 [P] [US4] Equities session tests on both sides of a NodaTime/TZDB DST change (`America/New_York` 09:30–16:00) in `tests/Validator.Infrastructure.Tests/Calendars/EquitiesCalendarTests.cs`
+- [X] T060 [P] [US4] Crypto always-open tests (FR-018 never fires) in `tests/Validator.Application.Tests/Calendars/CryptoCalendarTests.cs`
+- [X] T061 [P] [US4] Custom-calendar loader tests (schema conformance, unsupported version, overlapping/ambiguous session → fatal config error) in `tests/Validator.Infrastructure.Tests/Calendars/CalendarJsonLoaderTests.cs`
+- [X] T062 [P] [US4] CLI E2E custom-calendar test (valid run + invalid/omitted calendar fails pre-parse) in `tests/Validator.Cli.Tests/CalendarE2ETests.cs`
 
 ### Implementation for User Story 4
 
-- [ ] T063 [US4] Implement NodaTime `ITimeZoneScheduleExpander` adapter (pinned TZDB) in `src/Validator.Infrastructure/Calendars/NodaTimeScheduleExpander.cs`
-- [ ] T064 [US4] Implement equities, crypto, and custom `IMarketCalendar` resolution via `IMarketCalendarFactory` in `src/Validator.Infrastructure/Calendars/MarketCalendarFactory.cs`
-- [ ] T065 [US4] Implement custom-calendar JSON loader with schema + semantic validation against `market-calendar.schema.json` in `src/Validator.Infrastructure/Calendars/CalendarJsonLoader.cs`
-- [ ] T066 [US4] Add `--market` and `--calendar` options with profile/calendar compatibility validation to `src/Validator.Cli/Commands/ValidateCommand.cs`
-- [ ] T067 [P] [US4] Add fixtures `custom-session.csv` and `custom-market.json` in `tests/Validator.Cli.Tests/Fixtures/`
+- [X] T063 [US4] Implement NodaTime `ITimeZoneScheduleExpander` adapter (pinned TZDB) in `src/Validator.Infrastructure/Calendars/NodaTimeScheduleExpander.cs`
+- [X] T064 [US4] Implement equities, crypto, and custom `IMarketCalendar` resolution via `IMarketCalendarFactory` in `src/Validator.Infrastructure/Calendars/MarketCalendarFactory.cs`
+- [X] T065 [US4] Implement custom-calendar JSON loader with schema + semantic validation against `market-calendar.schema.json` in `src/Validator.Infrastructure/Calendars/CalendarJsonLoader.cs`
+- [X] T066 [US4] Add `--market` and `--calendar` options with profile/calendar compatibility validation to `src/Validator.Cli/Commands/ValidateCommand.cs`
+- [X] T067 [P] [US4] Add fixtures `custom-session.csv` and `custom-market.json` in `tests/Validator.Cli.Tests/Fixtures/`
 
 **Checkpoint**: All four market profiles work; US1–US4 independently testable
 
@@ -189,13 +184,13 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 ### Tests for User Story 5 (write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T068 [P] [US5] Alternate front-end harness test referencing only Application+Domain and calling `IValidateMarketDataUseCase` in `tests/Validator.Application.Tests/AlternateFrontEndProofTests.cs`
-- [ ] T069 [P] [US5] Bounded-memory large-fixture replay test asserting sorted-equivalence, chunk-size invariant, and temp-artifact cleanup in `tests/Validator.Infrastructure.Tests/Sorting/BoundedMemoryTests.cs`
+- [X] T068 [P] [US5] Alternate front-end harness test referencing only Application+Domain and calling `IValidateMarketDataUseCase` in `tests/Validator.Application.Tests/AlternateFrontEndProofTests.cs`
+- [X] T069 [P] [US5] Bounded-memory large-fixture replay test asserting sorted-equivalence, chunk-size invariant, and temp-artifact cleanup in `tests/Validator.Infrastructure.Tests/Sorting/BoundedMemoryTests.cs`
 
 ### Implementation for User Story 5
 
-- [ ] T070 [US5] Implement large unsorted M1 fixture generator (writes outside the repo) in `tests/Validator.Infrastructure.Tests/Fixtures/LargeFixtureGenerator.cs`
-- [ ] T071 [US5] Ensure deterministic temp sort/finding artifact cleanup across clean, finding, fatal, and cancellation terminal paths in `src/Validator.Infrastructure/Sorting/TempStorage.cs` and `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
+- [X] T070 [US5] Implement large unsorted M1 fixture generator (writes outside the repo) in `tests/Validator.Infrastructure.Tests/Fixtures/LargeFixtureGenerator.cs`
+- [X] T071 [US5] Ensure deterministic temp sort/finding artifact cleanup across clean, finding, fatal, and cancellation terminal paths in `src/Validator.Infrastructure/Sorting/TempStorage.cs` and `src/Validator.Infrastructure/Findings/SpoolingFindingStore.cs`
 
 **Checkpoint**: Library reusability and bounded-memory guarantees proven
 
@@ -205,12 +200,12 @@ Four-project Clean Architecture layout from plan.md, rooted at the repository ro
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T072 [P] Verify and enforce 100% line+branch coverage for `Validator.Domain` and `Validator.Application` in CI per quickstart §3
-- [ ] T073 [P] Complete `--help` text with every option and required example invocations in `src/Validator.Cli/Commands/ValidateCommand.cs` (contracts/cli.md §Required Help Examples)
-- [ ] T074 Run the full `quickstart.md` scenario walkthrough end-to-end and reconcile any gaps
-- [ ] T075 [P] Update `README.md` with usage, options table, and exit-code documentation
-- [ ] T076 [P] Confirm cross-platform CI matrix (Windows/Linux/macOS) passes all suites in `.github/workflows/ci.yml`
-- [ ] T077 Add determinism regression test asserting reordered-input count equality and canonical line ordering in `tests/Validator.Cli.Tests/DeterminismTests.cs`
+- [X] T072 [P] Verify and enforce 100% line+branch coverage for `Validator.Domain` and `Validator.Application` in CI per quickstart §3
+- [X] T073 [P] Complete `--help` text with every option and required example invocations in `src/Validator.Cli/Commands/ValidateCommand.cs` (contracts/cli.md §Required Help Examples)
+- [X] T074 Run the full `quickstart.md` scenario walkthrough end-to-end and reconcile any gaps
+- [X] T075 [P] Update `README.md` with usage, options table, and exit-code documentation
+- [X] T076 [P] Confirm cross-platform CI matrix (Windows/Linux/macOS) passes all suites in `.github/workflows/ci.yml`
+- [X] T077 Add determinism regression test asserting reordered-input count equality and canonical line ordering in `tests/Validator.Cli.Tests/DeterminismTests.cs`
 
 ---
 

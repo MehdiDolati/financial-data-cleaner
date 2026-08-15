@@ -1,17 +1,21 @@
 {
   "clean": {
-    "expectedMissingCloseColumn": 0,
-    "expectedDuplicateRecord": 0,
-    "expectedInvalidOhlc": 0
+    "missingCandles": 0,
+    "duplicateRecords": 0,
+    "invalidOhlc": 0,
+    "closedMarketRecords": 0,
+    "timeGaps": 0,
+    "malformedRows": 0
   },
   "knownDefects": {
-    "expectedMissingCloseColumn": 0,
-    "expectedDuplicateRecord": 1,
-    "expectedInvalidOhlc": 1
+    "missingCandles": 2,
+    "duplicateRecords": 1,
+    "invalidOhlc": 1,
+    "closedMarketRecords": 0,
+    "timeGaps": 2,
+    "malformedRows": 0
   },
   "missingCloseColumn": {
-    "expectedMissingCloseColumn": 1,
-    "expectedDuplicateRecord": 0,
-    "expectedInvalidOhlc": 0
+    "fatal": true
   }
 }

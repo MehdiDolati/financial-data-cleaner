@@ -34,14 +34,14 @@ namespace Validator.Application.Validation.Rules
             if (missing.Count == 0)
                 return Array.Empty<ValidationFinding>();
 
-            return new[]
+            return missing.Select(timestamp => new ValidationFinding(
+                FindingCategory.MissingCandle,
+                1,
+                stableSequence: false,
+                $"Missing expected candle at {timestamp:O}")
             {
-                new ValidationFinding(
-                    FindingCategory.Major,
-                    missing.Count,
-                    stableSequence: false,
-                    $"Missing {missing.Count} candle(s) in expected sequence")
-            };
+                Timestamp = timestamp
+            }).ToArray();
         }
     }
 }

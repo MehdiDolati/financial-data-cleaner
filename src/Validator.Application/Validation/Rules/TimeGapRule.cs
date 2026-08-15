@@ -34,7 +34,7 @@ namespace Validator.Application.Validation.Rules
             return new[]
             {
                 new ValidationFinding(
-                    FindingCategory.Major,
+                    FindingCategory.TimeGap,
                     gapRuns,
                     stableSequence: false,
                     $"Detected {gapRuns} time gap run(s)")

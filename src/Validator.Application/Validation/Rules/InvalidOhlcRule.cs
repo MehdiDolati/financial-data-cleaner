@@ -12,21 +12,30 @@ namespace Validator.Application.Validation.Rules
 
             foreach (var candle in candles)
             {
-                var invalid = candle.High < candle.Low
-                    || candle.High == candle.Low
-                    || candle.Open <= 0m
-                    || candle.High <= 0m
-                    || candle.Low <= 0m
-                    || candle.Close <= 0m
-                    || candle.Volume < 0m;
+                var violations = new List<string>();
+                if (candle.High < candle.Open) violations.Add("High < Open");
+                if (candle.High < candle.Close) violations.Add("High < Close");
+                if (candle.High < candle.Low) violations.Add("High < Low");
+                if (candle.Low > candle.Open) violations.Add("Low > Open");
+                if (candle.Low > candle.Close) violations.Add("Low > Close");
+                if (candle.Open <= 0m) violations.Add("Open <= 0");
+                if (candle.High <= 0m) violations.Add("High <= 0");
+                if (candle.Low <= 0m) violations.Add("Low <= 0");
+                if (candle.Close <= 0m) violations.Add("Close <= 0");
+                if (candle.Volume < 0m) violations.Add("Volume < 0");
 
-                if (invalid)
+                if (violations.Count > 0)
                 {
                     findings.Add(new ValidationFinding(
-                        FindingCategory.Critical,
+                        FindingCategory.InvalidOhlc,
                         1,
                         stableSequence: true,
-                        $"Invalid OHLCV values at {candle.Timestamp:O}"));
+                        $"{string.Join("; ", violations)}; O={candle.Open}; H={candle.High}; L={candle.Low}; C={candle.Close}; V={candle.Volume}")
+                    {
+                        Timestamp = candle.Timestamp,
+                        Line = checked((int)candle.SourceLine),
+                        SourceLines = [candle.SourceLine]
+                    });
                 }
             }
 

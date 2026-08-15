@@ -6,6 +6,11 @@ namespace Validator.Domain.Timeframes
     {
         public char Unit { get; }
         public int Value { get; }
+        public TimeSpan Duration => Unit == 'M'
+            ? TimeSpan.FromMinutes(Value)
+            : Unit == 'H'
+                ? TimeSpan.FromHours(Value)
+                : TimeSpan.FromDays(Value);
 
         private Timeframe(char unit, int value)
         {

@@ -39,7 +39,14 @@ namespace Validator.Infrastructure.Sorting
         {
             if (Directory.Exists(_rootDirectory))
             {
-                Directory.Delete(_rootDirectory, recursive: true);
+                try
+                {
+                    Directory.Delete(_rootDirectory, recursive: true);
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    // Another owner already completed cleanup.
+                }
             }
         }
     }

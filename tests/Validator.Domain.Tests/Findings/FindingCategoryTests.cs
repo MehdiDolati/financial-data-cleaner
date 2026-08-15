@@ -12,5 +12,21 @@ namespace Validator.Domain.Tests.Findings
             Assert.True((int)FindingCategory.Minor < (int)FindingCategory.Major);
             Assert.True((int)FindingCategory.Major < (int)FindingCategory.Critical);
         }
+
+        [Fact]
+        public void CanonicalCategories_HaveContractOrder()
+        {
+            Assert.Equal(
+                new[]
+                {
+                    FindingCategory.MissingCandle,
+                    FindingCategory.DuplicateRecord,
+                    FindingCategory.InvalidOhlc,
+                    FindingCategory.ClosedMarketRecord,
+                    FindingCategory.TimeGap,
+                    FindingCategory.MalformedRow
+                },
+                Enum.GetValues<FindingCategory>().Take(6));
+        }
     }
 }

@@ -19,5 +19,11 @@ namespace Validator.Infrastructure.Tests.Csv
         {
             Assert.Throws<InvalidOperationException>(() => DelimiterDetector.Detect("alpha|beta|gamma"));
         }
+
+        [Fact]
+        public void Detect_IgnoresSupportedDelimitersInsideQuotedFields()
+        {
+            Assert.Equal(',', DelimiterDetector.Detect("timestamp,open,\"vendor;note;value\",close"));
+        }
     }
 }

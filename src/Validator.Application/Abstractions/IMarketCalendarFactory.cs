@@ -7,5 +7,5 @@ namespace Validator.Application.Abstractions
         IMarketCalendar Create(LocalCalendarRequest request);
     }
 
-    public sealed record LocalCalendarRequest(string PathOrProfile);
+    public sealed record LocalCalendarRequest(MarketProfile Profile, string? CalendarPath = null);
 }

@@ -30,7 +30,7 @@ namespace Validator.Infrastructure.Tests.Reporting
                 TotalRecords = 3,
                 Findings = new List<ValidationFinding>
                 {
-                    new ValidationFinding(FindingCategory.Major, 1, true, "Missing candle from 01:00Z")
+                    new ValidationFinding(FindingCategory.MissingCandle, 1, true, "Missing candle from 01:00Z")
                     {
                         Timestamp = new DateTimeOffset(2026, 1, 1, 1, 0, 0, TimeSpan.Zero),
                         Line = 2

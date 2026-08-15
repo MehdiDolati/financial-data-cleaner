@@ -1,29 +1,33 @@
-using System;
-using System.IO;
+using Validator.Application.Abstractions;
+using Validator.Domain.Calendars;
 
-namespace Validator.Infrastructure.Calendars
+namespace Validator.Infrastructure.Calendars;
+
+public sealed class MarketCalendarFactory : IMarketCalendarFactory
 {
-    public class MarketCalendarFactory
+    private readonly CalendarJsonLoader _loader;
+
+    public MarketCalendarFactory(CalendarJsonLoader? loader = null)
     {
-            public Validator.Application.Abstractions.IMarketCalendar Create(string nameOrPath)
+        _loader = loader ?? new CalendarJsonLoader();
+    }
+
+    public Validator.Application.Abstractions.IMarketCalendar Create(LocalCalendarRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request.Profile switch
         {
-            if (string.IsNullOrWhiteSpace(nameOrPath))
-                throw new ArgumentException("Calendar name or path must be provided", nameof(nameOrPath));
-
-            // If it's a file path, attempt to load JSON calendar
-            if (File.Exists(nameOrPath))
-            {
-                var loader = new CalendarJsonLoader();
-                return loader.Load(nameOrPath);
-            }
-
-            if (string.Equals(nameOrPath, "equities", StringComparison.OrdinalIgnoreCase))
-                return new EquitiesCalendar();
-
-            if (string.Equals(nameOrPath, "forex", StringComparison.OrdinalIgnoreCase))
-                return new ForexCalendar();
-
-            throw new ArgumentException($"Unknown market calendar: {nameOrPath}", nameof(nameOrPath));
-        }
+            MarketProfile.Forex when request.CalendarPath is null => new ForexCalendar(),
+            MarketProfile.Crypto when request.CalendarPath is null => new CryptoCalendar(),
+            MarketProfile.Equities when request.CalendarPath is null => new EquitiesCalendar(),
+            MarketProfile.Equities => _loader.Load(request.CalendarPath!, MarketProfile.Equities),
+            MarketProfile.Custom when !string.IsNullOrWhiteSpace(request.CalendarPath) =>
+                _loader.Load(request.CalendarPath, MarketProfile.Custom),
+            MarketProfile.Custom => throw new ArgumentException(
+                "--calendar <path> is required when --market custom is selected."),
+            _ => throw new ArgumentException(
+                $"--calendar cannot be used with the {request.Profile.ToString().ToLowerInvariant()} market profile.")
+        };
     }
 }

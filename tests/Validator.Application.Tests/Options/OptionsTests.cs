@@ -12,7 +12,8 @@ namespace Validator.Application.Tests.Options
         {
             var opt = new CsvInputOptions();
             Assert.False(opt.HasHeader);
-            Assert.Equal(",", opt.Delimiter);
+            Assert.Null(opt.Delimiter);
+            Assert.Equal(TimeSpan.FromHours(2), opt.TzOffset);
         }
 
         [Fact]

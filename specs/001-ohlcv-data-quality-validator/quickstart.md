@@ -22,8 +22,8 @@ Expected: a `10.0.x` version.
 ## 1. Restore and Build
 
 ```powershell
-dotnet restore FinancialDataCleaner.sln
-dotnet build FinancialDataCleaner.sln --configuration Release --no-restore
+dotnet restore FinancialDataCleaner.slnx
+dotnet build FinancialDataCleaner.slnx --configuration Release --no-restore
 ```
 
 Expected: all four production projects and all four test projects compile with
@@ -36,7 +36,7 @@ During implementation, run the narrow failing test first, confirm red, implement
 the smallest behavior, then confirm green. At a full checkpoint run:
 
 ```powershell
-dotnet test FinancialDataCleaner.sln --configuration Release --no-build
+dotnet test FinancialDataCleaner.slnx --configuration Release --no-build
 ```
 
 Expected: Domain/Application theory tests, Infrastructure fixture tests, and CLI
@@ -203,7 +203,9 @@ Run:
 
 ```powershell
 dotnet $validator tests/Validator.Cli.Tests/Fixtures/custom-session.csv `
-  --market custom --calendar custom-market.json --timeframe H1
+  --market custom `
+  --calendar tests/Validator.Cli.Tests/Fixtures/custom-market.json `
+  --timeframe H1 --tz-offset +00:00
 ```
 
 Expected: only timestamps inside `[09:00, 17:00)` are expected; a 17:00 record is

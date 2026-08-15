@@ -24,7 +24,7 @@ namespace Validator.Infrastructure.Reporting
             {
                 sourceFile = Path.GetFileName(validationReport.SourceFile),
                 detectedTimeframe = string.IsNullOrWhiteSpace(validationReport.DetectedTimeframe) ? "H1" : validationReport.DetectedTimeframe,
-                totalRecords = validationReport.TotalRecords > 0 ? validationReport.TotalRecords : validationReport.Findings.Count(f => f.Timestamp is not null),
+                totalRecords = validationReport.TotalRecords,
                 dateRange = validationReport.Range is null
                     ? null
                     : new
@@ -44,7 +44,7 @@ namespace Validator.Infrastructure.Reporting
                 isClean = validationReport.IsClean,
                 findings = validationReport.Findings.Select(f => new
                 {
-                    category = MapCategory(f),
+                    category = f.Category.ToString(),
                     timestamp = f.Timestamp is null ? null : ToUtcString(f.Timestamp.Value),
                     line = f.Line,
                     message = f.Message
@@ -53,48 +53,10 @@ namespace Validator.Infrastructure.Reporting
 
             LastWrittenText = JsonSerializer.Serialize(document, new JsonSerializerOptions
             {
-                WriteIndented = false,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                WriteIndented = false
             });
 
-            Console.WriteLine(LastWrittenText);
             return Task.CompletedTask;
-        }
-
-        private static string MapCategory(ValidationFinding finding)
-        {
-            var message = finding.Message ?? string.Empty;
-            if (message.Contains("Missing", StringComparison.OrdinalIgnoreCase))
-            {
-                return "MissingCandle";
-            }
-
-            if (message.Contains("Duplicate", StringComparison.OrdinalIgnoreCase))
-            {
-                return "DuplicateRecord";
-            }
-
-            if (message.Contains("Invalid", StringComparison.OrdinalIgnoreCase) || message.Contains("OHLC", StringComparison.OrdinalIgnoreCase))
-            {
-                return "InvalidOhlc";
-            }
-
-            if (message.Contains("Closed", StringComparison.OrdinalIgnoreCase))
-            {
-                return "ClosedMarketRecord";
-            }
-
-            if (message.Contains("Gap", StringComparison.OrdinalIgnoreCase))
-            {
-                return "TimeGap";
-            }
-
-            if (message.Contains("Malformed", StringComparison.OrdinalIgnoreCase))
-            {
-                return "MalformedRow";
-            }
-
-            return finding.Category.ToString();
         }
 
         private static string ToUtcString(DateTimeOffset value)

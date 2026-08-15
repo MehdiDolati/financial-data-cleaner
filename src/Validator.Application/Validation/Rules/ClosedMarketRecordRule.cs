@@ -26,10 +26,15 @@ namespace Validator.Application.Validation.Rules
                 if (isClosed)
                 {
                     findings.Add(new ValidationFinding(
-                        FindingCategory.Major,
+                        FindingCategory.ClosedMarketRecord,
                         1,
                         stableSequence: true,
-                        $"Candle fell outside allowed session at {candle.Timestamp:O}"));
+                        $"Candle fell outside the active market session at {candle.Timestamp:O}")
+                    {
+                        Timestamp = candle.Timestamp,
+                        Line = checked((int)candle.SourceLine),
+                        SourceLines = [candle.SourceLine]
+                    });
                 }
             }
 

@@ -1,23 +1,36 @@
-using System;
 using Validator.Application.Abstractions;
 using Validator.Domain.Calendars;
 
-namespace Validator.Infrastructure.Calendars
+namespace Validator.Infrastructure.Calendars;
+
+public sealed class EquitiesCalendar : Validator.Application.Abstractions.IMarketCalendar
 {
-    public class EquitiesCalendar : Validator.Application.Abstractions.IMarketCalendar
+    private static readonly MarketCalendarDefinition Definition = new(
+        MarketProfile.Equities,
+        1,
+        "US Equities",
+        "America/New_York",
+        CreateSessions());
+
+    private readonly WeeklyMarketCalendar _calendar;
+
+    public EquitiesCalendar(ITimeZoneScheduleExpander? expander = null)
     {
-        // Simplified: open Monday-Friday (UTC); closed on Saturday/Sunday
-        public MarketProfile Profile => MarketProfile.Equities;
+        _calendar = new WeeklyMarketCalendar(Definition, expander);
+    }
 
-        public bool IsOpen(DateTimeOffset timestamp)
-        {
-            var utc = timestamp.ToOffset(TimeSpan.Zero);
-            var day = utc.DayOfWeek;
-            if (day == DayOfWeek.Saturday || day == DayOfWeek.Sunday)
-                return false;
+    public MarketProfile Profile => MarketProfile.Equities;
 
-            // For now, assume market hours cover the whole weekday to keep test simple
-            return true;
-        }
+    public bool IsOpen(DateTimeOffset timestamp) => _calendar.IsOpen(timestamp);
+
+    private static IEnumerable<WeeklySession> CreateSessions()
+    {
+        var open = new TimeSpan(9, 30, 0);
+        var close = new TimeSpan(16, 0, 0);
+        yield return new WeeklySession(DayOfWeek.Monday, open, close);
+        yield return new WeeklySession(DayOfWeek.Tuesday, open, close);
+        yield return new WeeklySession(DayOfWeek.Wednesday, open, close);
+        yield return new WeeklySession(DayOfWeek.Thursday, open, close);
+        yield return new WeeklySession(DayOfWeek.Friday, open, close);
     }
 }

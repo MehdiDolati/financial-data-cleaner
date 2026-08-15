@@ -6,7 +6,7 @@ namespace Validator.Application.Tests.Options
     public class CsvOptionValidationTests
     {
         [Fact]
-        public void Validate_Allows_TimestampColumn_Without_Explicit_Format()
+        public void Validate_Rejects_TimestampColumn_Without_Explicit_Format()
         {
             var option = new CsvInputOptions
             {
@@ -14,9 +14,7 @@ namespace Validator.Application.Tests.Options
                 TimestampColumn = "Timestamp"
             };
 
-            option.Validate();
-
-            Assert.Equal("Timestamp", option.TimestampColumn);
+            Assert.Throws<ArgumentException>(() => option.Validate());
         }
 
         [Fact]

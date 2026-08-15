@@ -1,23 +1,37 @@
-using System;
 using Validator.Infrastructure.Calendars;
 
-namespace Validator.Infrastructure.Tests.Calendars
+namespace Validator.Infrastructure.Tests.Calendars;
+
+public sealed class EquitiesCalendarTests
 {
-    public class EquitiesCalendarTests
+    [Theory]
+    [InlineData(2026, 3, 6, 14, 29, false)]
+    [InlineData(2026, 3, 6, 14, 30, true)]
+    [InlineData(2026, 3, 6, 20, 59, true)]
+    [InlineData(2026, 3, 6, 21, 0, false)]
+    [InlineData(2026, 3, 9, 13, 29, false)]
+    [InlineData(2026, 3, 9, 13, 30, true)]
+    [InlineData(2026, 3, 9, 19, 59, true)]
+    [InlineData(2026, 3, 9, 20, 0, false)]
+    public void IsOpen_UsesNewYorkSessionOnBothSidesOfDst(
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute,
+        bool expected)
     {
-        [Fact]
-        public void EquitiesMarket_IsClosed_OnWeekendAndOpenOnWeekday()
-        {
-            var factory = new MarketCalendarFactory();
-            var calendar = factory.Create("equities");
+        var calendar = new EquitiesCalendar();
+        var timestamp = new DateTimeOffset(year, month, day, hour, minute, 0, TimeSpan.Zero);
 
-            // Saturday midday should be closed
-            var sat = new DateTimeOffset(2026, 1, 3, 12, 0, 0, TimeSpan.Zero);
-            Assert.False(calendar.IsOpen(sat));
+        Assert.Equal(expected, calendar.IsOpen(timestamp));
+    }
 
-            // Wednesday 10:00 should be open
-            var wed = new DateTimeOffset(2026, 1, 7, 10, 0, 0, TimeSpan.Zero);
-            Assert.True(calendar.IsOpen(wed));
-        }
+    [Fact]
+    public void IsOpen_RejectsWeekendEvenDuringSessionHours()
+    {
+        var calendar = new EquitiesCalendar();
+
+        Assert.False(calendar.IsOpen(new DateTimeOffset(2026, 3, 7, 15, 0, 0, TimeSpan.Zero)));
     }
 }

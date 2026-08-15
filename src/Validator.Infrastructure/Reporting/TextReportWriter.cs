@@ -21,27 +21,29 @@ namespace Validator.Infrastructure.Reporting
         {
             if (report is ValidationReport validationReport)
             {
-                var clean = validationReport.IsClean ? "Clean" : "Issues found";
                 var lines = new List<string>
                 {
-                    $"Status: {clean}",
-                    $"TotalFindings: {validationReport.Summary.TotalFindings}",
-                    $"MalformedRows: {validationReport.Summary.MalformedRows}",
-                    $"ValidRows: {validationReport.Summary.ValidRows}",
-                    $"DateRange: {validationReport.Range?.Start:O} -> {validationReport.Range?.End:O}",
-                    $"Source: {validationReport.SourceFile}"
+                    $"Missing candles: {validationReport.Summary.MissingCandles}",
+                    $"Duplicate records: {validationReport.Summary.DuplicateRecords}",
+                    $"Invalid OHLC: {validationReport.Summary.InvalidOhlc}",
+                    $"Closed-market records: {validationReport.Summary.ClosedMarketRecords}",
+                    $"Time gaps: {validationReport.Summary.TimeGaps}",
+                    $"Malformed rows: {validationReport.Summary.MalformedRows}"
                 };
 
-                if (_verbose)
+                if (_verbose && validationReport.Findings.Count > 0)
                 {
+                    lines.Add(string.Empty);
+                    lines.Add("Findings:");
                     foreach (var finding in validationReport.Findings)
                     {
-                        lines.Add($"Finding: {finding.Category} | {finding.Message}");
+                        var timestamp = finding.Timestamp?.ToUniversalTime().ToString("O") ?? "n/a";
+                        var line = finding.Line?.ToString() ?? "n/a";
+                        lines.Add($"{finding.Category}: timestamp={timestamp}; line={line}; {finding.Message}");
                     }
                 }
 
                 LastWrittenText = string.Join(Environment.NewLine, lines);
-                Console.WriteLine(LastWrittenText);
                 return Task.CompletedTask;
             }
 
@@ -49,16 +51,15 @@ namespace Validator.Infrastructure.Reporting
             {
                 var lines = new[]
                 {
-                    $"Status: {(summary.IsClean ? "Clean" : "Issues found")}",
-                    $"TotalFindings: {summary.TotalFindings}",
-                    $"MalformedRows: {summary.MalformedRows}",
-                    $"ValidRows: {summary.ValidRows}",
-                    "DateRange: n/a",
-                    "Source: n/a"
+                    $"Missing candles: {summary.MissingCandles}",
+                    $"Duplicate records: {summary.DuplicateRecords}",
+                    $"Invalid OHLC: {summary.InvalidOhlc}",
+                    $"Closed-market records: {summary.ClosedMarketRecords}",
+                    $"Time gaps: {summary.TimeGaps}",
+                    $"Malformed rows: {summary.MalformedRows}"
                 };
 
                 LastWrittenText = string.Join(Environment.NewLine, lines);
-                Console.WriteLine(LastWrittenText);
                 return Task.CompletedTask;
             }
 

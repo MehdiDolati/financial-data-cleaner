@@ -1,9 +1,15 @@
-using System.Threading.Tasks;
+using Validator.Domain.Calendars;
 
-namespace Validator.Application.Abstractions
+namespace Validator.Application.Abstractions;
+
+public interface ITimeZoneScheduleExpander
 {
-    public interface ITimeZoneScheduleExpander
-    {
-        Task<object> ExpandAsync(object calendarDefinition); // placeholder for NodaTime-backed expansion
-    }
+    ValueTask<ScheduleExpansion> ExpandAsync(
+        string ianaTimeZoneId,
+        IReadOnlyList<WeeklySession> sessions,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken = default);
 }
+
+public sealed record ScheduleExpansion(IReadOnlyList<UtcSession> Sessions);

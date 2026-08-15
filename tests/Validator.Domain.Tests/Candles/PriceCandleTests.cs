@@ -21,5 +21,33 @@ namespace Validator.Domain.Tests.Candles
             var ts = new DateTimeOffset(2026, 8, 13, 3, 0, 0, TimeSpan.FromHours(+3));
             Assert.Throws<ArgumentException>(() => new PriceCandle(ts, 1.0m, 2.0m, 1.0m, 1.5m, 100m));
         }
+
+        [Fact]
+        public void Constructor_Rejects_NonPositiveSourceLine()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PriceCandle(
+                new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                1m,
+                2m,
+                0.5m,
+                1.5m,
+                10m,
+                0));
+        }
+
+        [Fact]
+        public void Constructor_PreservesExplicitSourceLine()
+        {
+            var candle = new PriceCandle(
+                new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                1m,
+                2m,
+                0.5m,
+                1.5m,
+                10m,
+                42);
+
+            Assert.Equal(42, candle.SourceLine);
+        }
     }
 }

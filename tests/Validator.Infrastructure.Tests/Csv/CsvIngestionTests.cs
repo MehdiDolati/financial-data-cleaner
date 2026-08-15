@@ -14,6 +14,7 @@ namespace Validator.Infrastructure.Tests.Csv
                 HasHeader = true,
                 Delimiter = ";",
                 TimestampColumn = "Timestamp",
+                TimestampFormat = "yyyy-MM-dd HH:mm:ss",
                 TzOffset = TimeSpan.FromHours(2)
             };
 
@@ -22,6 +23,7 @@ namespace Validator.Infrastructure.Tests.Csv
             Assert.True(options.HasHeader);
             Assert.Equal(";", options.Delimiter);
             Assert.Equal("Timestamp", options.TimestampColumn);
+            Assert.Equal("yyyy-MM-dd HH:mm:ss", options.TimestampFormat);
             Assert.Equal(TimeSpan.FromHours(2), options.TzOffset);
         }
     }

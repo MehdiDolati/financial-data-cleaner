@@ -24,5 +24,17 @@ jobs:
         run: dotnet build FinancialDataCleaner.slnx --configuration Release --no-restore
       - name: Run tests
         run: dotnet test FinancialDataCleaner.slnx --configuration Release --no-build --verbosity normal
-      - name: Generate coverage (Domain+Application gate handled separately in CI tooling)
-        run: echo "Coverage collection and gating to be implemented in CI as required"
+      - name: Enforce Domain coverage
+        run: >-
+          dotnet test tests/Validator.Domain.Tests/Validator.Domain.Tests.csproj
+          --configuration Release --no-build
+          /p:CollectCoverage=true /p:Threshold=100
+          /p:ThresholdType="line%2cbranch" /p:ThresholdStat=Total
+          /p:Include="[Validator.Domain]*"
+      - name: Enforce Application coverage
+        run: >-
+          dotnet test tests/Validator.Application.Tests/Validator.Application.Tests.csproj
+          --configuration Release --no-build
+          /p:CollectCoverage=true /p:Threshold=100
+          /p:ThresholdType="line%2cbranch" /p:ThresholdStat=Total
+          /p:Include="[Validator.Application]*"
