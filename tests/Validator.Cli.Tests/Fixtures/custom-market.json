@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "Custom UTC Session",
+  "timeZone": "UTC",
+  "sessions": [
+    {
+      "openDay": "Wednesday",
+      "openTime": "09:00",
+      "closeDay": "Wednesday",
+      "closeTime": "17:00"
+    }
+  ]
+}

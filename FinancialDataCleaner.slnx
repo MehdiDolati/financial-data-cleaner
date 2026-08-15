@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Validator.Application/Validator.Application.csproj" />
+    <Project Path="src/Validator.Cli/Validator.Cli.csproj" />
+    <Project Path="src/Validator.Domain/Validator.Domain.csproj" />
+    <Project Path="src/Validator.Infrastructure/Validator.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Validator.Application.Tests/Validator.Application.Tests.csproj" />
+    <Project Path="tests/Validator.Cli.Tests/Validator.Cli.Tests.csproj" />
+    <Project Path="tests/Validator.Domain.Tests/Validator.Domain.Tests.csproj" />
+    <Project Path="tests/Validator.Infrastructure.Tests/Validator.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

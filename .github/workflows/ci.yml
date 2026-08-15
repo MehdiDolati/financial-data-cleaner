@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore FinancialDataCleaner.slnx
+      - name: Build
+        run: dotnet build FinancialDataCleaner.slnx --configuration Release --no-restore
+      - name: Run tests
+        run: dotnet test FinancialDataCleaner.slnx --configuration Release --no-build --verbosity normal
+      - name: Enforce Domain coverage
+        run: >-
+          dotnet test tests/Validator.Domain.Tests/Validator.Domain.Tests.csproj
+          --configuration Release --no-build
+          /p:CollectCoverage=true /p:Threshold=100
+          /p:ThresholdType="line%2cbranch" /p:ThresholdStat=Total
+          /p:Include="[Validator.Domain]*"
+      - name: Enforce Application coverage
+        run: >-
+          dotnet test tests/Validator.Application.Tests/Validator.Application.Tests.csproj
+          --configuration Release --no-build
+          /p:CollectCoverage=true /p:Threshold=100
+          /p:ThresholdType="line%2cbranch" /p:ThresholdStat=Total
+          /p:Include="[Validator.Application]*"

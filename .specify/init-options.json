@@ -1,8 +1,9 @@
 {
-  "ai": "cline",
+  "ai": "claude",
+  "ai_skills": true,
   "feature_numbering": "sequential",
   "here": false,
-  "integration": "cline",
+  "integration": "claude",
   "script": "ps",
   "speckit_version": "0.16.2"
 }

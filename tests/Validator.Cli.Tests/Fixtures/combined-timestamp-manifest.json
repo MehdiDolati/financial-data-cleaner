@@ -1,0 +1,10 @@
+{
+  "source": "combined-timestamp.csv",
+  "expectedTotalRecords": 2,
+  "expectedMissingCandles": 0,
+  "expectedDuplicateRecords": 0,
+  "expectedInvalidOhlc": 0,
+  "expectedClosedMarketRecords": 0,
+  "expectedTimeGaps": 0,
+  "expectedMalformedRows": 0
+}
