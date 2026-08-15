@@ -22,4 +22,11 @@
     <ProjectReference Include="..\..\src\Validator.Infrastructure\Validator.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../Fixtures/calendars/custom-weekly-calendar.json">
+      <Link>Fixtures/custom-weekly-calendar.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

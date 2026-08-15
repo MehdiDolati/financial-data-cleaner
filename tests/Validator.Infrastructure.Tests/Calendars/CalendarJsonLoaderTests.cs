@@ -10,12 +10,10 @@ namespace Validator.Infrastructure.Tests.Calendars
         [Fact]
         public void CalendarJsonLoader_LoadsWeeklyCalendarFromJson()
         {
-            var fixture = Path.Combine("tests", "Fixtures", "calendars", "custom-weekly-calendar.json");
-            // Normalize path relative to repo root during test runtime
-            var fullPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..\\..\\..\\..\\..\\", fixture));
+            var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "custom-weekly-calendar.json");
 
             var loader = new CalendarJsonLoader();
-            var calendar = loader.Load(fullPath);
+            var calendar = loader.Load(fixturePath);
 
             // Wednesday 10:00 UTC should be open
             var wed = new DateTimeOffset(2026, 2, 4, 10, 0, 0, TimeSpan.Zero);
