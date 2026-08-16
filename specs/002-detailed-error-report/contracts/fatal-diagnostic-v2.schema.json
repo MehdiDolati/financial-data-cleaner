@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://financial-data-cleaner.local/contracts/fatal-diagnostic-v2.schema.json",
+  "title": "OHLCV Validation Fatal Diagnostic v2",
+  "description": "Machine-readable reason a trustworthy complete validation report could not be produced.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "status",
+    "findingSetComplete",
+    "code",
+    "failureClass",
+    "stage",
+    "reason",
+    "guidance",
+    "checks"
+  ],
+  "properties": {
+    "contractVersion": { "const": 2 },
+    "status": { "const": "Fatal" },
+    "findingSetComplete": { "const": false },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_ARGUMENT",
+        "SOURCE_UNAVAILABLE",
+        "SOURCE_CHANGED",
+        "INVALID_ENCODING",
+        "INVALID_CSV",
+        "INVALID_STRUCTURE",
+        "AMBIGUOUS_DELIMITER",
+        "AMBIGUOUS_TIMEFRAME",
+        "INVALID_CALENDAR",
+        "VALIDATION_INCOMPLETE",
+        "REPORT_RECONCILIATION_FAILED",
+        "REPORT_RENDER_FAILED",
+        "REPORT_COMMIT_FAILED"
+      ]
+    },
+    "failureClass": {
+      "type": "string",
+      "enum": ["Dataset", "Configuration", "Operational"]
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "ArgumentValidation",
+        "SourceIdentity",
+        "Ingestion",
+        "TimeframeResolution",
+        "Validation",
+        "Reconciliation",
+        "ReportRendering",
+        "ReportCommit"
+      ]
+    },
+    "reason": { "$ref": "#/$defs/nonEmptyString" },
+    "guidance": { "$ref": "#/$defs/nonEmptyString" },
+    "source": { "$ref": "#/$defs/partialSourceIdentity" },
+    "location": { "$ref": "#/$defs/failureLocation" },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/checkExecution" },
+      "allOf": [
+        { "$ref": "#/$defs/containsMissingCandlesCheck" },
+        { "$ref": "#/$defs/containsDuplicateRecordsCheck" },
+        { "$ref": "#/$defs/containsInvalidOhlcCheck" },
+        { "$ref": "#/$defs/containsClosedMarketRecordsCheck" },
+        { "$ref": "#/$defs/containsTimeGapsCheck" },
+        { "$ref": "#/$defs/containsMalformedRowsCheck" }
+      ]
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "checkName": {
+      "type": "string",
+      "enum": [
+        "MissingCandles",
+        "DuplicateRecords",
+        "InvalidOhlc",
+        "ClosedMarketRecords",
+        "TimeGaps",
+        "MalformedRows"
+      ]
+    },
+    "partialSourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName"],
+      "properties": {
+        "fileName": { "$ref": "#/$defs/nonEmptyString" },
+        "byteSize": { "$ref": "#/$defs/nonNegativeInteger" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "failureLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "sourceLine": { "$ref": "#/$defs/positiveInteger" },
+        "timestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "field": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "checkExecution": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["check", "status"],
+          "properties": {
+            "check": { "$ref": "#/$defs/checkName" },
+            "status": { "const": "Completed" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["check", "status", "reason"],
+          "properties": {
+            "check": { "$ref": "#/$defs/checkName" },
+            "status": {
+              "type": "string",
+              "enum": ["NotApplicable", "NotCompleted"]
+            },
+            "reason": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        }
+      ]
+    },
+    "containsMissingCandlesCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "MissingCandles" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsDuplicateRecordsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "DuplicateRecords" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsInvalidOhlcCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "InvalidOhlc" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsClosedMarketRecordsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "ClosedMarketRecords" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsTimeGapsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "TimeGaps" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsMalformedRowsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "MalformedRows" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    }
+  }
+}
