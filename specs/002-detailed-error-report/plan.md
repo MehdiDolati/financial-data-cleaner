@@ -71,7 +71,7 @@ and one fatal diagnostic per incomplete run.
 
 | Principle | Result | Plan Evidence |
 |---|---|---|
-| I. Test-First | PASS | Every model, reconciliation rule, adapter, schema, and CLI behavior is introduced by a failing unit, integration, contract, or E2E test. |
+| I. Test-First | PASS after task-graph remediation | The revised tasks place a failing unit, integration, contract, or E2E test immediately before every behavior implementation; interface-only ports and compile-only composition stubs are explicitly separated from behavior. |
 | II. Framework-Agnostic, Fully Covered Business Logic | PASS | Detailed report/fatal models, evidence construction, check status, IDs, and reconciliation live in Domain/Application with no serializer or console dependency and remain under the 100% gate. |
 | III. Clean Architecture | PASS | Application owns source-identity, replayable finding/evidence, report-audit, writer, and atomic-destination contracts. Infrastructure implements filesystem, hashing, spool, and rendering adapters; CLI only binds options and routes streams. |
 | IV. Deterministic Results | PASS | SHA-256 identifies source bytes; IDs derive from canonical finding keys; output uses category/timestamp/line/tie-break order; source values are invariantly escaped; no generated-at time or random public identifier is emitted. |
@@ -83,14 +83,16 @@ No constitutional violations require a complexity exception.
 
 ### Post-Design Re-check
 
-PASS. `data-model.md` makes completion, reconciliation, source identity,
-evidence, and fatal state explicit. The application/CLI and JSON contracts
-preserve v1 while defining v2 without serializer leakage into business logic.
-`quickstart.md` validates compatibility, completeness, deterministic replay,
-source protection, atomic completion, fatal stream routing, and bounded memory.
-Normalized evidence and relationship spools add Infrastructure complexity only
-where FR-002, FR-023, FR-024, and SC-006 require unbounded detail to remain
-complete without unbounded memory. No constitutional violation was introduced.
+PASS after task-graph remediation. `data-model.md` makes completion,
+reconciliation, source identity, evidence, and fatal state explicit. The revised
+tasks add test-first ownership for the six-check finding pipeline, report/context
+aggregates, verbose/v1 compatibility, operational failure classes, source alias
+protection, and the 100,000-finding bounded-memory acceptance path. The
+application/CLI and JSON contracts preserve v1 while defining v2 without
+serializer leakage into business logic. `quickstart.md` validates compatibility,
+completeness, deterministic replay, source protection, atomic completion, fatal
+stream routing, and bounded memory. No constitutional violation remains after
+the revised dependency order is applied.
 
 ## Project Structure
 
