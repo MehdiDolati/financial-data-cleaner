@@ -8,6 +8,14 @@
 
 **Input**: User description: "I want a detailed report of whatever errors found in the dataset file."
 
+## Clarifications
+
+### Session 2026-08-16
+
+- Q: When a caller uses `--format json` without requesting a contract version, which JSON contract should the validator emit? → A: Emit v1 by default; require explicit opt-in for v2.
+- Q: When v2 JSON is selected and validation ends fatally before a successful report exists, where and in what form should the diagnostic be emitted? → A: Emit structured v2 fatal JSON on stderr; leave stdout and the report destination empty.
+- Q: What memory guarantee should detailed reporting provide as the number of findings grows? → A: Keep memory bounded independently of total input-row and finding counts.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Review Every Detected Problem (Priority: P1)
@@ -79,6 +87,7 @@ claim that all checks completed.
 1. **Given** a file whose structure prevents reliable record processing, **When** validation stops, **Then** a fatal diagnostic identifies the failure stage, reason, source location when known, suggested next action, and checks that were not completed.
 2. **Given** a fatal ingestion failure after some rows were observed, **When** the diagnostic is produced, **Then** partial observations are not presented as final category totals or as an exhaustive finding list.
 3. **Given** a failure unrelated to dataset content, such as an invalid command option or an unwritable report destination, **When** it is reported, **Then** it is identified as an operational/configuration failure rather than mislabeled as a dataset defect.
+4. **Given** v2 JSON output was selected, **When** validation ends fatally, **Then** stderr contains exactly one structured v2 fatal diagnostic and stdout and the report destination contain no report payload.
 
 ---
 
@@ -166,11 +175,13 @@ details.
 - **FR-029**: When a dataset cannot be fully scanned, the system MUST produce a fatal diagnostic distinct from a successful data-quality report. It MUST include a stable failure code, failure class, processing stage, plain-language reason, source location when known, corrective guidance, and the checks not completed.
 - **FR-030**: A fatal diagnostic MAY include explicitly labeled observations made before failure for troubleshooting, but MUST NOT present them as exhaustive findings or final category totals.
 - **FR-031**: If report generation itself fails, the system MUST provide an actionable operational diagnostic and MUST NOT leave or label a partial report as complete.
-- **FR-032**: The detailed report MUST be available in both established human-readable text and machine-readable report representations. Both MUST carry equivalent substantive information, while presentation may differ for readability.
+- **FR-032**: The detailed report MUST be available in both the established verbose human-readable text representation and an explicitly selected v2 machine-readable report representation. Both detailed representations MUST carry equivalent substantive information, while presentation may differ for readability.
 - **FR-033**: Human-readable output MUST group run context, scan coverage, category summaries, and category-specific finding details under clear labels so a user can navigate a large report without interpreting machine field names.
-- **FR-034**: Machine-readable output MUST expose report status, run context, check status, reconciliation data, and category-specific evidence as documented fields under an explicitly versioned contract.
+- **FR-034**: The v2 machine-readable output MUST expose report status, run context, check status, reconciliation data, and category-specific evidence as documented fields under an explicitly versioned contract.
 - **FR-035**: Existing summary category names, count meanings, successful-run exit behavior, and clean/findings distinction MUST remain compatible with the established validator behavior.
 - **FR-036**: If a report is written to a destination, completion MUST be all-or-nothing, and the system MUST reject any destination that resolves to the source dataset before source content can be changed.
+- **FR-037**: A caller that requests JSON without selecting a contract version MUST receive the existing v1 contract unchanged. The v2 detailed JSON contract MUST require explicit opt-in so strict v1-schema consumers do not receive incompatible fields.
+- **FR-038**: When v2 JSON is selected and validation ends fatally, the system MUST emit exactly one structured v2 fatal diagnostic to stderr and MUST emit no report payload to stdout or the selected report destination. The diagnostic MUST expose the fields required by FR-029 as documented data rather than only as prose.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -190,9 +201,9 @@ details.
 - **SC-001**: Across an acceptance corpus containing at least one example of every finding category and every category-specific edge case in this specification, 100% of deliberately injected findings and their expected evidence appear in the detailed report.
 - **SC-002**: In 100% of successful-report acceptance tests, every category summary exactly equals the sum of its detailed-entry count contributions, and all row totals reconcile according to their documented meanings.
 - **SC-003**: In a task-based review with representative users, at least 90% can identify the affected source record or expected timestamp, explain the failed rule, and name the suggested next action for a sampled finding within two minutes without consulting application source code.
-- **SC-004**: Across fatal fixtures for unreadable input, invalid encoding, invalid structure, and unresolved validation prerequisites, 100% produce an unambiguous incomplete/fatal diagnostic with failure stage, reason, guidance, and unevaluated checks, and 0% are presented as clean or complete quality reports.
+- **SC-004**: Across fatal fixtures for unreadable input, invalid encoding, invalid structure, and unresolved validation prerequisites, 100% produce an unambiguous incomplete/fatal diagnostic with failure stage, reason, guidance, and unevaluated checks, and 0% are presented as clean or complete quality reports. For v2 JSON runs, 100% of these diagnostics are parseable as the documented fatal contract from stderr while stdout and the report destination remain empty.
 - **SC-005**: Repeated reports from identical input bytes and identical validation context have 100% identical substantive fields and finding order.
-- **SC-006**: A successful validation producing at least 100,000 detailed findings reports all of them without silent truncation, and an interrupted report write leaves no artifact identified as complete.
+- **SC-006**: A successful validation producing at least 100,000 detailed findings reports all of them without silent truncation while process memory remains bounded independently of total input-row and finding counts; an interrupted report write leaves no artifact identified as complete.
 - **SC-007**: Machine-readable consumers can obtain every required location, rule, evidence, relationship, and count-contribution value from documented fields in 100% of contract tests without parsing human-readable messages.
 - **SC-008**: In all source-protection tests, including a report destination that aliases the input file, the source dataset remains byte-for-byte unchanged.
 
@@ -200,7 +211,7 @@ details.
 
 - This feature extends the completed OHLCV CSV data-quality validator defined in `specs/001-ohlcv-data-quality-validator`; it does not replace ingestion or introduce a second validation engine.
 - "Errors" means the six established data-quality finding categories plus fatal conditions that prevent a full dataset scan. It does not imply a new severity score or new statistical validation rules.
-- The existing concise text summary remains the default. Detailed text is explicitly requested through the validator's established verbose reporting option, while the machine-readable representation remains suitable for complete automated consumption.
+- The existing concise text summary remains the default. Detailed text is explicitly requested through the validator's established verbose reporting option. Existing JSON v1 remains the default for an unversioned JSON request, while detailed machine-readable output requires explicit selection of the v2 contract.
 - Reports are in English for this feature, consistent with the existing validator scope.
 - Source timestamps and physical line numbers can be reported only when they were recoverable; expected-but-absent records have timestamps but no source lines.
 - Completeness applies to all findings discoverable during a structurally successful scan. Once safe parsing is no longer possible, fail-safe behavior takes precedence over continuing to search for additional defects.
