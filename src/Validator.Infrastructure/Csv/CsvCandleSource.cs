@@ -29,15 +29,44 @@ public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
 
     public IReadOnlyList<MalformedRow> MalformedRows => _malformedRows;
 
+    // Resolved interpretation facts captured during the last read. These are
+    // reported as validation context so a consumer can reproduce the run.
+    public char? ResolvedDelimiter { get; private set; }
+
+    public bool ResolvedHasHeader => _options.HasHeader;
+
+    // True when a single combined timestamp column was resolved, false when a
+    // separate date and time pair was resolved.
+    public bool ResolvedCombinedTimestamp { get; private set; }
+
+    public string? ResolvedDateFormat { get; private set; }
+
+    public string? ResolvedTimeFormat { get; private set; }
+
+    public string? ResolvedTimestampFormat { get; private set; }
+
+    // Resolved header name or one-based column index of a combined timestamp.
+    public string? ResolvedTimestampColumn { get; private set; }
+
+    // Every physical data record examined, excluding an optional header row.
+    public long PhysicalRowsExamined { get; private set; }
+
     public async IAsyncEnumerable<PriceCandle> ReadAllAsync()
     {
         _malformedRows.Clear();
+        PhysicalRowsExamined = 0;
+        ResolvedDateFormat = null;
+        ResolvedTimeFormat = null;
+        ResolvedTimestampFormat = null;
+        ResolvedTimestampColumn = null;
+
         if (!File.Exists(_path))
         {
             throw new FileNotFoundException($"CSV input file not found: {_path}", _path);
         }
 
         var delimiter = await ResolveDelimiterAsync().ConfigureAwait(false);
+        ResolvedDelimiter = delimiter;
         var configuration = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = delimiter.ToString(),
@@ -68,6 +97,7 @@ public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
             }
 
             layout ??= ResolveHeaderlessLayout(row.Length);
+            PhysicalRowsExamined++;
             EnsureRequiredColumns(row, layout, sourceLine);
 
             DateTimeOffset? timestamp = null;
@@ -206,8 +236,12 @@ public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
         if (layout.Timestamp is int timestampIndex)
         {
             var timestampText = row[timestampIndex];
+            ResolvedCombinedTimestamp = true;
+            ResolvedTimestampColumn = _options.TimestampColumn ??
+                (timestampIndex + 1).ToString(CultureInfo.InvariantCulture);
             if (!string.IsNullOrWhiteSpace(_options.TimestampFormat))
             {
+                ResolvedTimestampFormat = _options.TimestampFormat;
                 local = DateTime.ParseExact(
                     timestampText,
                     _options.TimestampFormat,
@@ -216,11 +250,11 @@ public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
             }
             else
             {
-                local = DateTime.ParseExact(
+                local = ParseFirstMatchingFormat(
                     timestampText,
                     ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm:ss'Z'", "O"],
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None);
+                    out var matchedFormat);
+                ResolvedTimestampFormat ??= matchedFormat;
             }
         }
         else
@@ -229,6 +263,9 @@ public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
             var timeText = row[layout.Time!.Value];
             var timeFormat = _options.TimeFormat ??
                 (timeText.Count(character => character == ':') == 1 ? "HH:mm" : "HH:mm:ss");
+            ResolvedCombinedTimestamp = false;
+            ResolvedDateFormat ??= dateFormat;
+            ResolvedTimeFormat ??= timeFormat;
             local = DateTime.ParseExact(
                 $"{row[layout.Date!.Value]} {timeText}",
                 $"{dateFormat} {timeFormat}",
@@ -253,6 +290,31 @@ public sealed class CsvCandleSource : ICandleSource, IMalformedRowSource
         }
 
         return HeaderLayoutResolver.Resolve(headers, _options.TimestampColumn!)[_options.TimestampColumn!];
+    }
+
+    // Parses with the first candidate format that matches so the resolved
+    // format can be reported exactly as it was applied.
+    private static DateTime ParseFirstMatchingFormat(
+        string text,
+        string[] formats,
+        out string matchedFormat)
+    {
+        foreach (var format in formats)
+        {
+            if (DateTime.TryParseExact(
+                    text,
+                    format,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var parsed))
+            {
+                matchedFormat = format;
+                return parsed;
+            }
+        }
+
+        throw new FormatException(
+            $"Timestamp value '{text}' does not match any supported combined format.");
     }
 
     private static decimal ParseDecimal(string value, string fieldName)
