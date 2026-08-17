@@ -81,9 +81,21 @@ public sealed class LargeReportMemoryTests : IDisposable
         output
     ];
 
-    // Peak managed heap is sampled while the run proceeds; the report goes to a
-    // file so the measurement reflects the pipeline rather than a captured
-    // in-memory copy of the output.
+    // Peak *retained* managed memory is sampled while the run proceeds: each
+    // sample forces a full collection first, so the figure is the live set and
+    // not merely what the collector has not yet swept.
+    //
+    // Sampling GC.GetTotalMemory(false) was tried and rejected. It reports
+    // allocated-but-uncollected bytes, which is governed by GC scheduling
+    // rather than by what the pipeline holds: the identical code passed under
+    // workstation GC and failed under server GC, whose per-core heaps collect
+    // far more lazily. That measures the collector's appetite, not this
+    // feature's retention, and it is retention that the bounded-memory promise
+    // is about.
+    //
+    // Total allocation is deliberately not bounded here. Serializing 20,000
+    // rows must allocate proportionally more than serializing 200; that is
+    // throughput. The promise is that no structure grows with child volume.
     private static async Task<(CoreValidationE2ETests.CommandResult Result, long PeakBytes)> MeasureAsync(
         string[] arguments)
     {
@@ -96,15 +108,16 @@ public sealed class LargeReportMemoryTests : IDisposable
         {
             while (Volatile.Read(ref sampling))
             {
-                var sample = GC.GetTotalMemory(false);
+                var sample = GC.GetTotalMemory(forceFullCollection: true);
                 if (sample > peak)
                 {
                     peak = sample;
                 }
 
-                await Task.Delay(5).ConfigureAwait(false);
+                await Task.Delay(15).ConfigureAwait(false);
             }
         });
+
 
         try
         {

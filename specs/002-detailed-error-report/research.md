@@ -223,7 +223,34 @@ final review pass:
   undocumented public types across the 40 files added on this branch.
 - **Checklist**: `checklists/requirements.md` — 16 of 16 items complete.
 
+**Correction found by CI (bounded-memory measurement)**: The bounded-memory
+tests originally sampled `GC.GetTotalMemory(false)`, and CI failed on the
+child-volume assertion while the same code passed locally. The reported growth
+was allocated-but-uncollected bytes, not memory the pipeline holds: the identical
+code passes under workstation GC and fails under server GC, whose per-core heaps
+collect far more lazily. Sampling a figure the collector controls measures GC
+scheduling rather than retention, so the tests now sample retained bytes by
+forcing a collection at each sample. Total allocation is deliberately left
+unbounded — serializing 20,000 rows must allocate more than serializing 200, and
+that is throughput, not a leak. The promise under test is that no structure grows
+with child volume.
+
+The rewritten assertions were then mutation-tested by removing the external merge
+sorter from the CLI composition, which makes canonicalization load every spooled
+record into memory. `PeakMemoryGrowsOnlyWithTheCatalogIndexPerFinding` failed by
+227 MB against its 218 MB allowance, confirming the budgets still detect a real
+regression rather than merely passing.
+
+**Known gap (bounded-memory coverage)**: In that same mutation run,
+`PeakMemoryDoesNotGrowWithChildVolumeUnderOneFinding` continued to pass. Holding
+one finding's children in memory is not distinguishable, at 20,000 rows, from the
+buffers a streaming run legitimately uses, so the per-finding test is what
+actually guards the streaming property. The child-volume test is retained as a
+statement of intent, and its limitation is recorded here rather than implied to be
+stronger than it is.
+
 **Known gap**: Validator.Application has not reached the 100% line/branch target.
+
 The residual uncovered branches are concentrated in the orchestrator's
 cancellation and disposal paths and in defensive guards that the current
 composition cannot reach without test-only seams. Rather than add seams that
