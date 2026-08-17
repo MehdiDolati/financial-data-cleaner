@@ -149,27 +149,60 @@ public sealed class ReportCommitTests : IDisposable
         Assert.Empty(standardOutput.ToString());
     }
 
+    // The commit failure is provoked by an existing directory at the
+    // destination, because a directory can never be replaced by a file. An
+    // exclusively locked destination file would not work here: it blocks the
+    // move only on Windows, while POSIX rename ignores open handles and would
+    // commit successfully on Linux.
     [Fact]
     public async Task Publish_WhenCommitFails_LeavesDestinationUnchanged()
     {
-        var destination = Path.Combine(_directory, "locked-report.json");
-        await File.WriteAllTextAsync(destination, "previous-report");
+        var destination = Path.Combine(_directory, "occupied-report.json");
+        Directory.CreateDirectory(destination);
+        var preserved = Path.Combine(destination, "existing-content.txt");
+        await File.WriteAllTextAsync(preserved, "previous-report");
         var writer = new StageAndCommitWriter(destination);
         using var standardOutput = new StringWriter();
 
-        ReportCommitResult result;
-        using (new FileStream(destination, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            result = await writer.PublishAsync(
-                (staged, token) => staged.WriteAsync("{\"contractVersion\":2}"),
-                standardOutput);
-        }
+        var result = await writer.PublishAsync(
+            (staged, token) => staged.WriteAsync("{\"contractVersion\":2}"),
+            standardOutput);
 
         var failed = Assert.IsType<ReportCommitResult.Failed>(result);
         Assert.Equal("REPORT_COMMIT_FAILED", failed.Diagnostic.Code);
         Assert.Equal(FailureClass.Operational, failed.Diagnostic.FailureClass);
         Assert.Equal(FailureStage.ReportCommit, failed.Diagnostic.Stage);
-        Assert.Equal("previous-report", await File.ReadAllTextAsync(destination));
+        Assert.True(Directory.Exists(destination));
+        Assert.Equal("previous-report", await File.ReadAllTextAsync(preserved));
+        Assert.Empty(standardOutput.ToString());
+        Assert.Empty(StagedArtifacts(_directory));
+    }
+
+    // A destination whose parent path is an existing file can never be staged
+    // into, so the failure is reported before anything is rendered.
+    [Fact]
+    public async Task Publish_WhenDestinationParentIsAFile_FailsWithoutRenderingOrTouchingThatFile()
+    {
+        var blocking = Path.Combine(_directory, "not-a-directory");
+        await File.WriteAllTextAsync(blocking, "blocking-file");
+        var writer = new StageAndCommitWriter(Path.Combine(blocking, "report.json"));
+        using var standardOutput = new StringWriter();
+        var rendered = false;
+
+        var result = await writer.PublishAsync(
+            (staged, token) =>
+            {
+                rendered = true;
+                return staged.WriteAsync("{}");
+            },
+            standardOutput);
+
+        var failed = Assert.IsType<ReportCommitResult.Failed>(result);
+        Assert.Equal("REPORT_COMMIT_FAILED", failed.Diagnostic.Code);
+        Assert.Equal(FailureStage.ReportCommit, failed.Diagnostic.Stage);
+        Assert.False(rendered);
+        Assert.Equal("blocking-file", await File.ReadAllTextAsync(blocking));
+        Assert.Empty(standardOutput.ToString());
         Assert.Empty(StagedArtifacts(_directory));
     }
 
