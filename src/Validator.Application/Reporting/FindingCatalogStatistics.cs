@@ -27,6 +27,14 @@ namespace Validator.Application.Reporting
         }
     }
 
+    /// <summary>
+    /// The per-category counts of a completed catalog.
+    /// </summary>
+    /// <remarks>
+    /// Constant in size no matter how many findings exist, and the authoritative
+    /// input to reconciliation: the report's summary must agree with these counts
+    /// or the run fails rather than publishing totals it cannot support.
+    /// </remarks>
     public sealed record FindingCatalogStatistics
     {
         public CategoryStatistics MissingCandles { get; }

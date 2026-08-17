@@ -6,6 +6,10 @@ using Validator.Application.Validation;
 
 namespace Validator.Application.Abstractions
 {
+    /// <summary>
+    /// Everything one detailed validation run needs: what to read, how to read
+    /// it, which calendar applies, and which checks to run.
+    /// </summary>
     public sealed record DetailedValidationRequest(
         string SourceLabel,
         IPreparedCandleSource CandleSource,
@@ -18,6 +22,10 @@ namespace Validator.Application.Abstractions
     // console or a report file.
     public interface IDetailedValidationUseCase
     {
+        /// <summary>
+        /// Runs validation and returns either a complete reconciled report or the
+        /// diagnostic explaining why one could not be produced.
+        /// </summary>
         ValueTask<DetailedValidationOutcome> ExecuteAsync(
             DetailedValidationRequest request,
             CancellationToken cancellationToken = default);

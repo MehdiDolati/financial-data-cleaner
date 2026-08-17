@@ -80,6 +80,17 @@ Compare-Object `
   (Get-Content report-v1-explicit.json -Raw)
 ```
 
+Observed for `known-defects.csv --timeframe H1` (stdout, exit `1`):
+
+```text
+Missing candles: 2
+Duplicate records: 1
+Invalid OHLC: 1
+Closed-market records: 0
+Time gaps: 2
+Malformed rows: 0
+```
+
 Expected:
 
 - Concise text remains exactly the six established summary lines.
@@ -99,6 +110,19 @@ $v2Exit = $LASTEXITCODE
 
 Get-Content report-v2.json -Raw | ConvertFrom-Json | Out-Null
 $v2Exit
+```
+
+Observed prefix for the same fixture (single line, abbreviated):
+
+```json
+{"contractVersion":2,"status":"FindingsDetected","findingSetComplete":true,
+ "source":{"fileName":"known-defects.csv","byteSize":204,"sha256":"e5daf57c…764f"},
+ "context":{"timeframe":"H1","calendar":{"profile":"forex","name":"Forex"},
+  "timestamp":{"mode":"SeparateDateTime","dateFormat":"yyyy.MM.dd","timeFormat":"HH:mm","sourceOffset":"+02:00"},
+  "delimiter":"comma","hasHeader":false,
+  "dateRange":{"from":"2025-12-31T22:00:00Z","to":"2026-01-01T02:00:00Z"}},
+ "coverage":{"physicalRowsExamined":4,"acceptedRows":4,"malformedRows":0},
+ "checks":[{"check":"MissingCandles","status":"Completed"}, …]}
 ```
 
 Expected: stdout contains exactly one JSON document, exits `1`, and validates
@@ -153,6 +177,30 @@ Expected:
 Verbose text contains equivalent substantive evidence under human-readable
 section labels and keeps the first six summary lines unchanged.
 
+Observed verbose text after the six summary lines
+(`known-defects.csv --timeframe H1 --verbose`, abbreviated):
+
+```text
+Report status:
+- status: FindingsDetected
+- validationCompleted: true
+- findingSetComplete: true (complete for every check listed as Completed under Check execution)
+- contractVersion: 2
+
+Source identity:
+- fileName: "known-defects.csv"
+- byteSize: 204
+- sha256: e5daf57c800fbaf9d38e1fa2746ec53e2f86fff5cbfada4ff3df63f7f8c7764f
+
+Validation context:
+- timeframe: H1
+- calendarProfile: forex
+- calendarName: "Forex"
+```
+
+Automated coverage: `tests/Validator.Cli.Tests/ReportCompatibilityTests.cs` and
+`tests/Validator.Cli.Tests/DetailedReportV2E2ETests.cs`.
+
 ## 7. Clean and Not-Applicable Scenarios
 
 ```powershell
@@ -193,6 +241,21 @@ Expected:
 - Reason, guidance, known safe source/location fields, and all six check statuses
   are present as applicable.
 - There is no successful summary, reconciliation, `isClean`, or findings array.
+
+Observed stderr for the command above (exit `2`, stdout `0` bytes, abbreviated):
+
+```json
+{"contractVersion":2,"status":"Fatal","findingSetComplete":false,
+ "code":"INVALID_STRUCTURE","failureClass":"Dataset","stage":"Ingestion",
+ "reason":"The source does not expose the columns the active layout requires.",
+ "guidance":"Required header 'close' was not found in the CSV input.",
+ "source":{"fileName":"missing-close-column.csv"},
+ "checks":[{"check":"MissingCandles","status":"NotCompleted","reason":"Validation did not run."}, …]}
+```
+
+Automated coverage: `tests/Validator.Cli.Tests/FatalV2RoutingTests.cs`,
+`tests/Validator.Cli.Tests/OperationalFailureTests.cs`, and
+`tests/Validator.Cli.Tests/SchemaValidationTests.cs`.
 
 Repeat with `--output existing-report.json` containing sentinel bytes. On fatal
 exit the sentinel file remains byte-for-byte unchanged.
@@ -262,7 +325,25 @@ removed.
 
 ## 13. Bounded-Memory Completeness
 
-Use deterministic generators outside the repository to create:
+This scenario is automated in
+`tests/Validator.Cli.Tests/LargeReportMemoryTests.cs`, which generates its
+sources at run time rather than committing large fixtures:
+
+```powershell
+dotnet test tests/Validator.Cli.Tests/Validator.Cli.Tests.csproj `
+  --configuration Release --no-build `
+  --filter "FullyQualifiedName~LargeReportMemoryTests"
+```
+
+Expected: all cases pass. The suite covers a 100,000-finding gap, a
+20,000-row duplicate group, hostile source text at scale, temporary-artifact
+cleanup, cancelled writes, and interrupted writes, and it asserts two separate
+memory guarantees: growth per finding is limited to the catalog's compact index
+record, and growing one finding's children a hundredfold costs only the
+configured buffers.
+
+To reproduce by hand, use deterministic generators outside the repository to
+create:
 
 - at least 100,000 top-level findings;
 - one duplicate group with enough rows to exceed the configured in-memory chunk;

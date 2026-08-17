@@ -4,9 +4,19 @@ using System.Linq;
 
 namespace Validator.Domain.Findings.Evidence
 {
+    /// <summary>
+    /// Whether repeated records agree with each other.
+    /// </summary>
+    /// <remarks>
+    /// The distinction matters to the reader: identical repeats can be dropped
+    /// safely, while conflicting ones require deciding which values are right.
+    /// </remarks>
     public enum DuplicateClassification
     {
+        /// <summary>Every repeated record holds the same values.</summary>
         Exact = 0,
+
+        /// <summary>The repeated records disagree on at least one field.</summary>
         Conflicting = 1
     }
 

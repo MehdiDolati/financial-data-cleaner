@@ -129,8 +129,10 @@ namespace Validator.Application.Reporting
     // be passed to a successful report writer.
     public abstract record DetailedValidationOutcome
     {
+        /// <summary>A complete, reconciled report was produced.</summary>
         public sealed record Succeeded(DetailedValidationReport Report) : DetailedValidationOutcome;
 
+        /// <summary>No report could be produced, and the diagnostic says why.</summary>
         public sealed record Failed(FatalDiagnostic Diagnostic) : DetailedValidationOutcome;
     }
 }

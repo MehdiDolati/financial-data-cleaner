@@ -3,9 +3,15 @@ using System.Globalization;
 
 namespace Validator.Application.Ingestion
 {
+    /// <summary>
+    /// How a source expresses the instant of a record.
+    /// </summary>
     public enum TimestampMode
     {
+        /// <summary>The date and the time of day are in separate columns.</summary>
         SeparateDateTime = 0,
+
+        /// <summary>A single column holds the whole timestamp.</summary>
         CombinedTimestamp = 1
     }
 

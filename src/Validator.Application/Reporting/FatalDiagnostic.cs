@@ -6,30 +6,73 @@ using Validator.Domain.Findings;
 
 namespace Validator.Application.Reporting
 {
+    /// <summary>
+    /// Who or what a fatal failure is attributable to, so a reader knows whether
+    /// to fix the data, the invocation, or the environment.
+    /// </summary>
     public enum FailureClass
     {
+        /// <summary>The source data itself could not be validated as given.</summary>
         Dataset = 0,
+
+        /// <summary>The requested options or configuration were not usable.</summary>
         Configuration = 1,
+
+        /// <summary>The environment failed, for example an unreadable or unwritable path.</summary>
         Operational = 2
     }
 
+    /// <summary>
+    /// The point in the run at which processing stopped.
+    /// </summary>
+    /// <remarks>
+    /// Declared in the order the stages execute, so a reader can see how much of
+    /// the pipeline had completed before the failure.
+    /// </remarks>
     public enum FailureStage
     {
+        /// <summary>While checking the supplied options.</summary>
         ArgumentValidation = 0,
+
+        /// <summary>While establishing the source's identity, including its hash.</summary>
         SourceIdentity = 1,
+
+        /// <summary>While reading the source data.</summary>
         Ingestion = 2,
+
+        /// <summary>While determining the timeframe to validate against.</summary>
         TimeframeResolution = 3,
+
+        /// <summary>While running the validation checks.</summary>
         Validation = 4,
+
+        /// <summary>While proving the report's totals agree with its findings.</summary>
         Reconciliation = 5,
+
+        /// <summary>While rendering the report.</summary>
         ReportRendering = 6,
+
+        /// <summary>While publishing the rendered report to its destination.</summary>
         ReportCommit = 7
     }
 
-    // Only trustworthy source fields already established at failure time.
+    /// <summary>
+    /// The source facts that were already established when a run failed.
+    /// </summary>
+    /// <remarks>
+    /// Every field beyond the file name is optional because a failure can happen
+    /// before the value is known. Absent values are reported as absent rather
+    /// than guessed, so a diagnostic never implies knowledge the run never had.
+    /// </remarks>
     public sealed record PartialSourceIdentity
     {
+        /// <summary>The name of the source that was being validated.</summary>
         public string FileName { get; }
+
+        /// <summary>The source's size, if it had been determined.</summary>
         public long? ByteSize { get; }
+
+        /// <summary>The source's SHA-256 hash, if it had been computed.</summary>
         public string? Sha256 { get; }
 
         public PartialSourceIdentity(string fileName, long? byteSize = null, string? sha256 = null)

@@ -29,7 +29,7 @@ Goal: One complete detailed report listing every finding produced by each comple
 
 Independent test criteria: End-to-end process produces a v2 JSON whose `findingSetComplete==true`, `summaryCount == contributionSum` for every category, and contains every injected finding from the fixture.
 
-- [ ] T011 [US1] Create an end-to-end integration test that runs the CLI against a cross-category fixture and asserts v2 JSON invariants in tests/Validator.Cli.Tests/DetailedReportEndToEndTests.cs
+- [X] T011 [US1] Create an end-to-end integration test that runs the CLI against a cross-category fixture and asserts v2 JSON invariants in tests/Validator.Cli.Tests/DetailedReportV2E2ETests.cs
 - [X] T013 [P] Create failing unit tests for FindingCatalog append/read/replay semantics, deterministic reference uniqueness, and relationship validation in tests/Validator.Application.Tests/FindingCatalogTests.cs
 - [X] T012 Implement the FindingCatalog append/read/replay semantics to satisfy T013 in src/Validator.Application/Reporting/FindingCatalog.cs
 - [X] T039 [P] Create failing integration tests for bounded external-merge spool ordering, replay, large duplicate groups, and temporary-artifact cleanup in tests/Validator.Infrastructure.Tests/ExternalMergeSpoolTests.cs
@@ -38,7 +38,7 @@ Independent test criteria: End-to-end process produces a v2 JSON whose `findingS
 - [X] T015 Implement the reconciliation check to satisfy T040 in src/Validator.Application/Reporting/ReconciliationValidator.cs
 - [X] T018 [US1] Create failing integration tests for staged rendering, stdout publication, destination atomicity, input/output alias rejection, and unchanged destinations after fatal/render failures in tests/Validator.Cli.Tests/ReportCommitTests.cs
 - [X] T016 Implement atomic staged rendering and commit behavior to satisfy T018 in src/Validator.Infrastructure/Reporting/StageAndCommitWriter.cs
-- [ ] T017 [US1] Add CLI wiring so `--format json --report-version 2` produces v2 JSON through the validated report writer; update Validator.Cli/Commands/ReportCommand.cs
+- [X] T017 [US1] Add CLI wiring so `--format json --report-version 2` produces v2 JSON through the validated report writer; update src/Validator.Cli/Commands/ValidateCommand.cs
 
 Phase 4 - User Story 2 (P2) - Locate and Understand Each Problem
 
@@ -46,13 +46,13 @@ Goal: Each finding shows where it occurred, rule failed, evidence, and suggested
 
 Independent test criteria: For each category-specific fixture, detailed evidence fields match the expected manifest.
 
-- [ ] T019 [US2] Add unit tests for each evidence shape asserting required fields (MissingCandle, TimeGap, DuplicateRow details, InvalidOhlc codes, ClosedMarket details, MalformedField entries) in tests/Validator.Domain.Tests/EvidenceShapeTests.cs
-- [ ] T041 [US2] Create failing unit tests for evidence-reference joining, missing-reference rejection, and deterministic relationship expansion in tests/Validator.Application.Tests/EvidenceJoinerTests.cs
-- [ ] T020 Implement evidence rendering join logic to satisfy T041 in src/Validator.Application/Reporting/EvidenceJoiner.cs
-- [ ] T021 [P] Create failing unit tests for duplicate-group evidence streaming, participating-row traceability, and differing-fields calculation in tests/Validator.Application.Tests/DuplicateGroupTests.cs
-- [ ] T042 [P] Implement duplicate-group evidence streaming and differing-fields calculation to satisfy T021 in src/Validator.Application/Validation/DuplicateGroupProcessor.cs
-- [ ] T043 Create failing unit tests for missing-candle and time-gap generation, large gaps, and bidirectional relationship edges in tests/Validator.Application.Tests/MissingCandleAndTimeGapTests.cs
-- [ ] T022 Implement missing-candle and time-gap generation to satisfy T043 in src/Validator.Application/Validation/MissingCandleProcessor.cs and src/Validator.Application/Validation/TimeGapProcessor.cs
+- [X] T019 [US2] Add unit tests for each evidence shape asserting required fields (MissingCandle, TimeGap, DuplicateRow details, InvalidOhlc codes, ClosedMarket details, MalformedField entries) in tests/Validator.Domain.Tests/EvidenceShapeTests.cs
+- [X] T041 [US2] Create failing unit tests for evidence-reference joining, missing-reference rejection, and deterministic relationship expansion in tests/Validator.Application.Tests/EvidenceJoinerTests.cs
+- [X] T020 Implement evidence rendering join logic to satisfy T041 in src/Validator.Application/Reporting/EvidenceJoiner.cs
+- [X] T021 [P] Create failing unit tests for duplicate-group evidence streaming, participating-row traceability, and differing-fields calculation in tests/Validator.Application.Tests/DuplicateGroupTests.cs
+- [X] T042 [P] Implement duplicate-group evidence streaming and differing-fields calculation to satisfy T021 in src/Validator.Application/Validation/DuplicateGroupProcessor.cs
+- [X] T043 Create failing unit tests for missing-candle and time-gap generation, large gaps, and bidirectional relationship edges in tests/Validator.Application.Tests/MissingCandleAndTimeGapTests.cs
+- [X] T022 Implement missing-candle and time-gap generation to satisfy T043 in src/Validator.Application/Validation/MissingCandleProcessor.cs and src/Validator.Application/Validation/TimeGapProcessor.cs
 
 Phase 5 - User Story 3 (P2) - Diagnose an Incomplete Validation
 
@@ -62,10 +62,10 @@ Independent test criteria: Running v2 against unreadable/invalid fixtures produc
 
 - [X] T023 [US3] Create failing tests for FatalDiagnostic aggregate and stage/class/code invariants in tests/Validator.Application.Tests/FatalDiagnosticTests.cs
 - [X] T024 Implement the `FatalDiagnostic` model so fatal outcomes cannot be represented as successful reports in src/Validator.Application/Reporting/FatalDiagnostic.cs
-- [ ] T025 [US3] Create failing CLI process-level tests asserting exactly one v2 fatal document on stderr, empty stdout, exit code 2, and unchanged destination in tests/Validator.Cli.Tests/FatalV2RoutingTests.cs
-- [ ] T044 [US3] Implement fatal v2 routing to satisfy T025, including empty successful-report destinations and no stdout report payload, in src/Validator.Cli/Commands/ReportCommand.cs and src/Validator.Infrastructure/Reporting/
-- [ ] T045 [US3] Create failing process-level tests for invalid options, unresolved timeframe, missing/unreadable input, unwritable destination, render failure, commit failure, and input/output aliasing with distinct failure class/code/stage assertions in tests/Validator.Cli.Tests/OperationalFailureTests.cs
-- [ ] T046 [US3] Implement operational/configuration failure classification and actionable diagnostics to satisfy T045 in src/Validator.Application/Reporting/ and src/Validator.Cli/Commands/
+- [X] T025 [US3] Create failing CLI process-level tests asserting exactly one v2 fatal document on stderr, empty stdout, exit code 2, and unchanged destination in tests/Validator.Cli.Tests/FatalV2RoutingTests.cs
+- [X] T044 [US3] Implement fatal v2 routing to satisfy T025, including empty successful-report destinations and no stdout report payload, in src/Validator.Cli/Commands/ReportCommand.cs and src/Validator.Infrastructure/Reporting/
+- [X] T045 [US3] Create failing process-level tests for invalid options, unresolved timeframe, missing/unreadable input, unwritable destination, render failure, commit failure, and input/output aliasing with distinct failure class/code/stage assertions in tests/Validator.Cli.Tests/OperationalFailureTests.cs
+- [X] T046 [US3] Implement operational/configuration failure classification and actionable diagnostics to satisfy T045 in src/Validator.Application/Reporting/ and src/Validator.Cli/Commands/
 
 Phase 6 - User Story 4 (P3) - Consume and Compare Reports Reliably
 
@@ -73,20 +73,21 @@ Goal: Deterministic, self-describing, and repeatable reports.
 
 Independent test criteria: Re-running the same input/config produces byte-identical substantive fields and finding order.
 
-- [ ] T026 [US4] Add deterministic-ordering unit tests for ID generation, tie-breakers, UTC ordering, and overall finding ordering in tests/Validator.Application.Tests/DeterminismTests.cs
-- [ ] T027 Implement stable FindingReference generation and deterministic tie-breaker ordering to satisfy T026 in src/Validator.Application/Reporting/FindingReferenceFactory.cs
-- [ ] T028 [US4] Add an automated repeatability test that hashes two separate runs' v2 outputs and asserts identical hashes in tests/Validator.Cli.Tests/RepeatabilityTests.cs
+- [X] T026 [US4] Add deterministic-ordering unit tests for ID generation, tie-breakers, UTC ordering, and overall finding ordering in tests/Validator.Application.Tests/DeterminismTests.cs
+- [X] T027 Implement stable FindingReference generation and deterministic tie-breaker ordering to satisfy T026 in src/Validator.Application/Reporting/FindingReferenceFactory.cs
+- [X] T028 [US4] Add an automated repeatability test that hashes two separate runs' v2 outputs and asserts identical hashes in tests/Validator.Cli.Tests/RepeatabilityTests.cs
 
 Phase 7 - Compatibility, Scale, and Polish
 
-- [ ] T047 [P] Create failing compatibility tests for concise text preservation, `--verbose` detailed text, unversioned JSON v1, explicit JSON v2 opt-in, and substantive verbose/v2 parity in tests/Validator.Cli.Tests/ReportCompatibilityTests.cs
-- [ ] T048 Implement verbose rendering and preserve concise text/JSON v1 compatibility to satisfy T047 in src/Validator.Infrastructure/Reporting/VerboseReportWriter.cs and src/Validator.Cli/Commands/
-- [ ] T030 Add schema validation tests that validate produced v2 JSON and fatal v2 JSON against contracts/detailed-report-v2.schema.json and contracts/fatal-diagnostic-v2.schema.json in tests/Validator.Cli.Tests/SchemaValidationTests.cs
-- [ ] T049 [US1] Add a bounded-memory acceptance test using at least 100,000 findings, arbitrarily large duplicate groups and missing-candle gaps, hostile source text, cancellation, and interrupted report writes; assert complete output, configured buffer limits, cleanup, and no complete partial artifact in tests/Validator.Cli.Tests/LargeReportMemoryTests.cs
-- [ ] T029 Update quickstart.md with exact commands used by integration tests and example expected outputs. Path: specs/002-detailed-error-report/quickstart.md
+- [X] T047 [P] Create failing compatibility tests for concise text preservation, `--verbose` detailed text, unversioned JSON v1, explicit JSON v2 opt-in, and substantive verbose/v2 parity in tests/Validator.Cli.Tests/ReportCompatibilityTests.cs
+- [X] T048 Implement verbose rendering and preserve concise text/JSON v1 compatibility to satisfy T047 in src/Validator.Infrastructure/Reporting/VerboseReportWriter.cs and src/Validator.Cli/Commands/
+- [X] T030 Add schema validation tests that validate produced v2 JSON and fatal v2 JSON against contracts/detailed-report-v2.schema.json and contracts/fatal-diagnostic-v2.schema.json in tests/Validator.Cli.Tests/SchemaValidationTests.cs
+- [X] T049 [US1] Add a bounded-memory acceptance test using at least 100,000 findings, arbitrarily large duplicate groups and missing-candle gaps, hostile source text, cancellation, and interrupted report writes; assert complete output, configured buffer limits, cleanup, and no complete partial artifact in tests/Validator.Cli.Tests/LargeReportMemoryTests.cs
+- [X] T029 Update quickstart.md with exact commands used by integration tests and example expected outputs. Path: specs/002-detailed-error-report/quickstart.md
 - [ ] T031 Ensure Domain and Application reach 100% line and branch coverage: add missing tests and coverage thresholds in CI configuration. Path: .github/workflows/coverage.yml
-- [ ] T032 [P] Add documentation comments to public Domain/Application types created above. Paths: src/Validator.Domain/**, src/Validator.Application/**
-- [ ] T033 Final review: run the full quickstart (restore, build, test, representative fixtures, compatibility cases, fatal cases, and large-report case) and record results in specs/002-detailed-error-report/research.md
+  - **Partially complete.** Merged multi-suite coverage collection and an enforced CI gate are in place (`tools/coverage-run.ps1`, `.github/workflows/coverage.yml`). Measured: Validator.Domain 100% line / 100% branch (target met); Validator.Application 95.86% line / 89.48% branch (target **not** met). Remaining uncovered branches are in orchestrator cancellation/disposal paths and defensive guards unreachable through the current composition. The gate is set to the measured level as a regression ratchet. See research.md §12.
+- [X] T032 [P] Add documentation comments to public Domain/Application types created above. Paths: src/Validator.Domain/**, src/Validator.Application/**
+- [X] T033 Final review: run the full quickstart (restore, build, test, representative fixtures, compatibility cases, fatal cases, and large-report case) and record results in specs/002-detailed-error-report/research.md
 
 Dependencies
 

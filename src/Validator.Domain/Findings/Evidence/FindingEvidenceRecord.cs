@@ -8,8 +8,13 @@ namespace Validator.Domain.Findings.Evidence
     // source size.
     public abstract record FindingEvidenceRecord
     {
+        /// <summary>
+        /// The published name of this record's shape, used to route it back to
+        /// the right evidence when reading a spooled report.
+        /// </summary>
         public abstract string Kind { get; }
 
+        /// <summary>Evidence for a candle the timeframe expected but the source omits.</summary>
         public sealed record MissingCandle(
             FindingReference Finding,
             MissingCandleEvidence Evidence,
@@ -18,6 +23,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "MissingCandle";
         }
 
+        /// <summary>The evidence describing one time gap.</summary>
         public sealed record TimeGapHeader(
             FindingReference Finding,
             TimeGapEvidence Evidence,
@@ -26,6 +32,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "TimeGap";
         }
 
+        /// <summary>One missing candle that falls inside a time gap.</summary>
         public sealed record TimeGapMissingReference(
             FindingReference Finding,
             FindingReference TargetReference,
@@ -34,6 +41,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "TimeGapMissingReference";
         }
 
+        /// <summary>The evidence describing one group of duplicate records.</summary>
         public sealed record DuplicateHeader(
             FindingReference Finding,
             DuplicateRecordEvidence Evidence,
@@ -42,6 +50,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "DuplicateRecord";
         }
 
+        /// <summary>One field whose value differs across a duplicate group.</summary>
         public sealed record DuplicateDifferingField(
             FindingReference Finding,
             string Field,
@@ -50,6 +59,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "DuplicateDifferingField";
         }
 
+        /// <summary>One of the repeated source rows in a duplicate group.</summary>
         public sealed record DuplicateRow(
             FindingReference Finding,
             DuplicateRowEvidence Row,
@@ -58,6 +68,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "DuplicateRow";
         }
 
+        /// <summary>The observed values of a record whose OHLC relationships fail.</summary>
         public sealed record InvalidOhlcValues(
             FindingReference Finding,
             OhlcValues Observed,
@@ -66,6 +77,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "InvalidOhlc";
         }
 
+        /// <summary>One specific OHLC relationship the observed values violate.</summary>
         public sealed record InvalidOhlcViolation(
             FindingReference Finding,
             OhlcViolationCode Code,
@@ -74,6 +86,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "InvalidOhlcViolation";
         }
 
+        /// <summary>Evidence for a record timestamped when the market was closed.</summary>
         public sealed record ClosedMarket(
             FindingReference Finding,
             ClosedMarketRecordEvidence Evidence,
@@ -82,6 +95,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "ClosedMarketRecord";
         }
 
+        /// <summary>The evidence describing one unparseable source row.</summary>
         public sealed record MalformedHeader(
             FindingReference Finding,
             MalformedRowEvidence Evidence,
@@ -90,6 +104,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "MalformedRow";
         }
 
+        /// <summary>One field-level parse error within a malformed row.</summary>
         public sealed record MalformedFieldErrorRecord(
             FindingReference Finding,
             MalformedFieldError Error,
@@ -98,6 +113,7 @@ namespace Validator.Domain.Findings.Evidence
             public override string Kind => "MalformedFieldError";
         }
 
+        /// <summary>One check that could not run because the row was unparseable.</summary>
         public sealed record MalformedSkippedCheck(
             FindingReference Finding,
             CheckName Check,
