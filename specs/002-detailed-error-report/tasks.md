@@ -4,22 +4,22 @@
 
 Phase 1 - Setup
 
-- [ ] T001 Ensure solution builds and restore packages in CI and locally (validate dotnet restore/build/test). Path: FinancialDataCleaner.slnx
-- [ ] T002 Add CI script/check to verify .NET 10 SDK and run `dotnet test` for existing projects. Path: .github/workflows/validate-dotnet.yml
+- [X] T001 Ensure solution builds and restore packages in CI and locally (validate dotnet restore/build/test). Path: FinancialDataCleaner.slnx
+- [X] T002 Add CI script/check to verify .NET 10 SDK and run `dotnet test` for existing projects. Path: .github/workflows/validate-dotnet.yml
 
 Phase 2 - Foundational (blocking prerequisites)
 
-- [ ] T003 [P] Create failing unit test: `DetailedFinding` model invariants (reference uniqueness, count contribution positive) in tests/Validator.Domain.Tests/DetailedFindingTests.cs
-- [ ] T004 Implement `DetailedFinding`, `FindingReference`, and `FindingLocation` domain types to satisfy T003 in src/Validator.Domain/Findings/DetailedFinding.cs
-- [ ] T005 [P] Create failing unit tests for evidence discriminants and serialization contracts in tests/Validator.Domain.Tests/EvidenceModelTests.cs
-- [ ] T006 Implement evidence types: MissingCandleEvidence, TimeGapEvidence, DuplicateRecordEvidence, InvalidOhlcEvidence, ClosedMarketRecordEvidence, MalformedRowEvidence in src/Validator.Domain/Findings/Evidence/*.cs
-- [ ] T007 Create failing unit tests for `CategoryReconciliation` invariants (summary==contributionSum) in tests/Validator.Application.Tests/ReconciliationTests.cs
-- [ ] T008 Implement `ReportReconciliation` and in-memory constant-size counters to satisfy T007 in src/Validator.Application/Reporting/ReportReconciliation.cs
-- [ ] T009 [P] Define Application port interfaces: ISourceIdentityProvider, ISpoolWriter, ISpoolReader, IReportWriter in src/Validator.Application/Abstractions/*.cs
-- [ ] T034 [P] Create failing integration tests for temporary spool lifecycle, SHA-256 source identity, cleanup on success/fatal/cancellation, and source/output alias rejection in tests/Validator.Infrastructure.Tests/SpoolAndSourceIdentityTests.cs
-- [ ] T010 Implement minimal Infrastructure spools and hashing to satisfy T034 in src/Validator.Infrastructure/Findings/Spool*.cs and src/Validator.Infrastructure/Csv/SourceIdentityProvider.cs
-- [ ] T035 [P] Create failing unit tests for `DetailedValidationReport`, `ReportOutcome`, `SourceIdentity`, `ValidationContextSnapshot`, `ScanCoverage`, and `CheckExecution` invariants in tests/Validator.Application.Tests/DetailedReportModelTests.cs
-- [ ] T036 Implement the report outcome, source/context, coverage, and check-execution models to satisfy T035 in src/Validator.Application/Reporting/ and src/Validator.Application/Ingestion/
+- [X] T003 [P] Create failing unit test: `DetailedFinding` model invariants (reference uniqueness, count contribution positive) in tests/Validator.Domain.Tests/DetailedFindingTests.cs
+- [X] T004 Implement `DetailedFinding`, `FindingReference`, and `FindingLocation` domain types to satisfy T003 in src/Validator.Domain/Findings/DetailedFinding.cs
+- [X] T005 [P] Create failing unit tests for evidence discriminants and serialization contracts in tests/Validator.Domain.Tests/EvidenceModelTests.cs
+- [X] T006 Implement evidence types: MissingCandleEvidence, TimeGapEvidence, DuplicateRecordEvidence, InvalidOhlcEvidence, ClosedMarketRecordEvidence, MalformedRowEvidence in src/Validator.Domain/Findings/Evidence/*.cs
+- [X] T007 Create failing unit tests for `CategoryReconciliation` invariants (summary==contributionSum) in tests/Validator.Application.Tests/ReconciliationTests.cs
+- [X] T008 Implement `ReportReconciliation` and in-memory constant-size counters to satisfy T007 in src/Validator.Application/Reporting/ReportReconciliation.cs
+- [X] T009 [P] Define Application port interfaces: ISourceIdentityProvider, ISpoolWriter, ISpoolReader, IReportWriter in src/Validator.Application/Abstractions/*.cs
+- [X] T034 [P] Create failing integration tests for temporary spool lifecycle, SHA-256 source identity, cleanup on success/fatal/cancellation, and source/output alias rejection in tests/Validator.Infrastructure.Tests/SpoolAndSourceIdentityTests.cs
+- [X] T010 Implement minimal Infrastructure spools and hashing to satisfy T034 in src/Validator.Infrastructure/Findings/Spool*.cs and src/Validator.Infrastructure/Csv/SourceIdentityProvider.cs
+- [X] T035 [P] Create failing unit tests for `DetailedValidationReport`, `ReportOutcome`, `SourceIdentity`, `ValidationContextSnapshot`, `ScanCoverage`, and `CheckExecution` invariants in tests/Validator.Application.Tests/DetailedReportModelTests.cs
+- [X] T036 Implement the report outcome, source/context, coverage, and check-execution models to satisfy T035 in src/Validator.Application/Reporting/ and src/Validator.Application/Ingestion/
 - [ ] T037 Create failing application tests proving all six established checks can produce typed detailed findings, preserve source traceability, and mark completed/not-completed checks correctly in tests/Validator.Application.Tests/DetailedFindingProductionTests.cs
 - [ ] T038 Implement detailed-finding production and outcome aggregation for missing candles, duplicate records, invalid OHLC, closed-market records, time gaps, and malformed rows in src/Validator.Application/Validation/DetailedValidationOrchestrator.cs
 
