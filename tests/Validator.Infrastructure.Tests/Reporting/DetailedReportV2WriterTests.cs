@@ -29,6 +29,14 @@ public sealed class DetailedReportV2WriterTests
 
     private static DateTimeOffset Utc(int hour) => new(2024, 8, 1, hour, 0, 0, TimeSpan.Zero);
 
+    // Findings are located by their stable reference, so an assertion about one
+    // finding does not depend on its position in the canonical sequence.
+    private static JsonElement FindingByReference(JsonDocument document, FindingReference reference) =>
+        document.RootElement
+            .GetProperty("findings")
+            .EnumerateArray()
+            .Single(finding => finding.GetProperty("reference").GetString() == reference.Value);
+
     private static FindingCatalog CreateCatalog() => new(
         () => new SpoolWriter(),
         path => new SpoolReader(path, path + ".complete"));
@@ -238,8 +246,10 @@ public sealed class DetailedReportV2WriterTests
         Assert.Equal(0, summary.GetProperty("duplicateRecords").GetInt64());
     }
 
+    // Findings follow the established canonical order: category rank first, so
+    // a missing candle precedes its gap, and malformed rows come last.
     [Fact]
-    public async Task WriteAsync_EmitsFindingsInCanonicalReferenceOrderWithCompleteNarrative()
+    public async Task WriteAsync_EmitsFindingsInCanonicalOrderWithCompleteNarrative()
     {
         var (json, _, owner) = await RenderPopulatedAsync();
         await using var _owner = owner;
@@ -247,7 +257,7 @@ public sealed class DetailedReportV2WriterTests
         using var document = JsonDocument.Parse(json);
         var findings = document.RootElement.GetProperty("findings").EnumerateArray().ToArray();
         Assert.Equal(
-            new[] { MalformedRef.Value, CandleRef.Value, GapRef.Value },
+            new[] { CandleRef.Value, GapRef.Value, MalformedRef.Value },
             findings.Select(finding => finding.GetProperty("reference").GetString()).ToArray());
 
         Assert.All(findings, finding =>
@@ -267,7 +277,7 @@ public sealed class DetailedReportV2WriterTests
         await using var _owner = owner;
 
         using var document = JsonDocument.Parse(json);
-        var malformed = document.RootElement.GetProperty("findings").EnumerateArray().First();
+        var malformed = FindingByReference(document, MalformedRef);
         Assert.Equal(new long[] { 5 }, malformed
             .GetProperty("location")
             .GetProperty("sourceLines")
@@ -293,9 +303,8 @@ public sealed class DetailedReportV2WriterTests
         await using var _owner = owner;
 
         using var document = JsonDocument.Parse(json);
-        var findings = document.RootElement.GetProperty("findings").EnumerateArray().ToArray();
-        var candle = findings[1];
-        var gap = findings[2];
+        var candle = FindingByReference(document, CandleRef);
+        var gap = FindingByReference(document, GapRef);
 
         Assert.Empty(candle.GetProperty("location").GetProperty("sourceLines").EnumerateArray());
         var candleEvidence = candle.GetProperty("evidence");

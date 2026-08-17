@@ -255,7 +255,10 @@ namespace Validator.Application.Reporting
                     }
                 }
 
-                _orderedHeaders = _headers.Values.OrderBy(header => header.Reference.Value, StringComparer.Ordinal).ToList();
+                // Canonical order is the documented category/timestamp/line/
+                // reference order, not the raw text of the reference, so every
+                // representation of this report agrees on one sequence.
+                _orderedHeaders = _headers.Values.OrderBy(header => header, CanonicalFindingOrder.Instance).ToList();
                 _relationshipBlocks = relationships.Index;
                 _locationBlocks = locations.Index;
                 _evidenceBlocks = evidence.Index;
