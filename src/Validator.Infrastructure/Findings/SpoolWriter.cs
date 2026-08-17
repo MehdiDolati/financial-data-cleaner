@@ -22,6 +22,10 @@ namespace Validator.Infrastructure.Findings
 
         public string CompletionMarkerPath => Path + ".complete";
 
+        public long BytesWritten { get; private set; }
+
+        private static readonly int NewlineByteCount = System.Text.Encoding.UTF8.GetByteCount(Environment.NewLine);
+
         public SpoolWriter(ITempStorage? tempStorage = null)
         {
             if (tempStorage is null)
@@ -67,6 +71,7 @@ namespace Validator.Infrastructure.Findings
 
                 cancellationToken.ThrowIfCancellationRequested();
                 _writer.WriteLine(line);
+                BytesWritten += System.Text.Encoding.UTF8.GetByteCount(line) + NewlineByteCount;
             }
 
             return ValueTask.CompletedTask;

@@ -8,6 +8,8 @@ namespace Validator.Infrastructure.Sorting
     {
         private readonly string _rootDirectory;
 
+        public string RootDirectory => _rootDirectory;
+
         public TempStorage(string? rootDirectory = null)
         {
             _rootDirectory = rootDirectory ?? Path.Combine(Path.GetTempPath(), $"validator-{Guid.NewGuid():N}");

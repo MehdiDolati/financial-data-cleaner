@@ -20,8 +20,8 @@ Phase 2 - Foundational (blocking prerequisites)
 - [X] T010 Implement minimal Infrastructure spools and hashing to satisfy T034 in src/Validator.Infrastructure/Findings/Spool*.cs and src/Validator.Infrastructure/Csv/SourceIdentityProvider.cs
 - [X] T035 [P] Create failing unit tests for `DetailedValidationReport`, `ReportOutcome`, `SourceIdentity`, `ValidationContextSnapshot`, `ScanCoverage`, and `CheckExecution` invariants in tests/Validator.Application.Tests/DetailedReportModelTests.cs
 - [X] T036 Implement the report outcome, source/context, coverage, and check-execution models to satisfy T035 in src/Validator.Application/Reporting/ and src/Validator.Application/Ingestion/
-- [ ] T037 Create failing application tests proving all six established checks can produce typed detailed findings, preserve source traceability, and mark completed/not-completed checks correctly in tests/Validator.Application.Tests/DetailedFindingProductionTests.cs
-- [ ] T038 Implement detailed-finding production and outcome aggregation for missing candles, duplicate records, invalid OHLC, closed-market records, time gaps, and malformed rows in src/Validator.Application/Validation/DetailedValidationOrchestrator.cs
+- [X] T037 Create failing application tests proving all six established checks can produce typed detailed findings, preserve source traceability, and mark completed/not-completed checks correctly in tests/Validator.Application.Tests/Validation/DetailedValidationOrchestratorTests.cs
+- [X] T038 Implement detailed-finding production and outcome aggregation for missing candles, duplicate records, invalid OHLC, closed-market records, time gaps, and malformed rows in src/Validator.Application/Validation/DetailedValidationOrchestrator.cs
 
 Phase 3 - User Story 1 (P1) - Review Every Detected Problem
 
@@ -30,14 +30,14 @@ Goal: One complete detailed report listing every finding produced by each comple
 Independent test criteria: End-to-end process produces a v2 JSON whose `findingSetComplete==true`, `summaryCount == contributionSum` for every category, and contains every injected finding from the fixture.
 
 - [ ] T011 [US1] Create an end-to-end integration test that runs the CLI against a cross-category fixture and asserts v2 JSON invariants in tests/Validator.Cli.Tests/DetailedReportEndToEndTests.cs
-- [ ] T013 [P] Create failing unit tests for FindingCatalog append/read/replay semantics, deterministic reference uniqueness, and relationship validation in tests/Validator.Application.Tests/FindingCatalogTests.cs
-- [ ] T012 Implement the FindingCatalog append/read/replay semantics to satisfy T013 in src/Validator.Application/Reporting/FindingCatalog.cs
-- [ ] T039 [P] Create failing integration tests for bounded external-merge spool ordering, replay, large duplicate groups, and temporary-artifact cleanup in tests/Validator.Infrastructure.Tests/ExternalMergeSpoolTests.cs
-- [ ] T014 Implement bounded external-merge spool-backed readers/writers to satisfy T039 in src/Validator.Infrastructure/Findings/ExternalMergeSpool.cs
-- [ ] T040 Create failing unit tests for reconciliation validation of category contributions, physical row totals, check statuses, and finding-set completeness in tests/Validator.Application.Tests/ReconciliationValidatorTests.cs
-- [ ] T015 Implement the reconciliation check to satisfy T040 in src/Validator.Application/Reporting/ReconciliationValidator.cs
-- [ ] T018 [US1] Create failing integration tests for staged rendering, stdout publication, destination atomicity, input/output alias rejection, and unchanged destinations after fatal/render failures in tests/Validator.Cli.Tests/ReportCommitTests.cs
-- [ ] T016 Implement atomic staged rendering and commit behavior to satisfy T018 in src/Validator.Infrastructure/Reporting/StageAndCommitWriter.cs
+- [X] T013 [P] Create failing unit tests for FindingCatalog append/read/replay semantics, deterministic reference uniqueness, and relationship validation in tests/Validator.Application.Tests/FindingCatalogTests.cs
+- [X] T012 Implement the FindingCatalog append/read/replay semantics to satisfy T013 in src/Validator.Application/Reporting/FindingCatalog.cs
+- [X] T039 [P] Create failing integration tests for bounded external-merge spool ordering, replay, large duplicate groups, and temporary-artifact cleanup in tests/Validator.Infrastructure.Tests/ExternalMergeSpoolTests.cs
+- [X] T014 Implement bounded external-merge spool-backed readers/writers to satisfy T039 in src/Validator.Infrastructure/Findings/ExternalMergeSpool.cs
+- [X] T040 Create failing unit tests for reconciliation validation of category contributions, physical row totals, check statuses, and finding-set completeness in tests/Validator.Application.Tests/ReconciliationValidatorTests.cs
+- [X] T015 Implement the reconciliation check to satisfy T040 in src/Validator.Application/Reporting/ReconciliationValidator.cs
+- [X] T018 [US1] Create failing integration tests for staged rendering, stdout publication, destination atomicity, input/output alias rejection, and unchanged destinations after fatal/render failures in tests/Validator.Cli.Tests/ReportCommitTests.cs
+- [X] T016 Implement atomic staged rendering and commit behavior to satisfy T018 in src/Validator.Infrastructure/Reporting/StageAndCommitWriter.cs
 - [ ] T017 [US1] Add CLI wiring so `--format json --report-version 2` produces v2 JSON through the validated report writer; update Validator.Cli/Commands/ReportCommand.cs
 
 Phase 4 - User Story 2 (P2) - Locate and Understand Each Problem
@@ -60,8 +60,8 @@ Goal: Fatal diagnostic explains where processing stopped and which checks did no
 
 Independent test criteria: Running v2 against unreadable/invalid fixtures produces a single fatal v2 JSON on stderr, empty stdout, exit code 2, and destination unchanged.
 
-- [ ] T023 [US3] Create failing tests for FatalDiagnostic aggregate and stage/class/code invariants in tests/Validator.Application.Tests/FatalDiagnosticTests.cs
-- [ ] T024 Implement the `FatalDiagnostic` model so fatal outcomes cannot be represented as successful reports in src/Validator.Application/Reporting/FatalDiagnostic.cs
+- [X] T023 [US3] Create failing tests for FatalDiagnostic aggregate and stage/class/code invariants in tests/Validator.Application.Tests/FatalDiagnosticTests.cs
+- [X] T024 Implement the `FatalDiagnostic` model so fatal outcomes cannot be represented as successful reports in src/Validator.Application/Reporting/FatalDiagnostic.cs
 - [ ] T025 [US3] Create failing CLI process-level tests asserting exactly one v2 fatal document on stderr, empty stdout, exit code 2, and unchanged destination in tests/Validator.Cli.Tests/FatalV2RoutingTests.cs
 - [ ] T044 [US3] Implement fatal v2 routing to satisfy T025, including empty successful-report destinations and no stdout report payload, in src/Validator.Cli/Commands/ReportCommand.cs and src/Validator.Infrastructure/Reporting/
 - [ ] T045 [US3] Create failing process-level tests for invalid options, unresolved timeframe, missing/unreadable input, unwritable destination, render failure, commit failure, and input/output aliasing with distinct failure class/code/stage assertions in tests/Validator.Cli.Tests/OperationalFailureTests.cs

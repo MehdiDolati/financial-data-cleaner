@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
 using Validator.Application.Validation;
 
@@ -9,7 +10,8 @@ namespace Validator.Application.Abstractions
         string SourceLabel,
         IPreparedCandleSource CandleSource,
         ValidationOptions Options,
-        IMarketCalendar MarketCalendar);
+        IMarketCalendar MarketCalendar,
+        CsvInputOptions CsvOptions);
 
     // Detailed validation use case: produces either a complete, reconciled
     // detailed report or a fatal diagnostic. The use case never writes to the
