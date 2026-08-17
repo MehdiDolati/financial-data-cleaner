@@ -1,0 +1,41 @@
+name: Coverage
+
+# Validator.Domain and Validator.Application carry the report's correctness, so
+# their coverage is gated rather than merely reported. Both projects are measured
+# from every test suite and merged, because the unit suites exercise them
+# directly while the Infrastructure and CLI suites exercise them through the real
+# pipeline; gating a single suite would understate what is actually covered.
+#
+# The target for both projects is 100% line and branch. Domain is there today.
+# Application is not yet, so the gate below is set to the level currently
+# achieved and is meant to be raised as the remaining gaps are closed. It is a
+# ratchet that prevents regression, not a claim that the target is met.
+
+on:
+  push:
+    branches: [ main, '00*-*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.301'
+      - name: Restore
+        run: dotnet restore FinancialDataCleaner.slnx
+      - name: Run tests with merged coverage and enforce the gate
+        shell: pwsh
+        run: ./tools/coverage-run.ps1 -LineThreshold 95.8 -BranchThreshold 89.4
+      - name: Publish coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: artifacts/coverage/
+          if-no-files-found: warn
