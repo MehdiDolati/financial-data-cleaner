@@ -216,8 +216,11 @@ final review pass:
   Infrastructure 77, CLI 97).
 - **Coverage** (merged across all four suites, gating projects only):
   Validator.Domain 100% line / 100% branch; Validator.Application 95.86% line /
-  89.48% branch. CI enforces this level via `tools/coverage-run.ps1` as a
-  regression ratchet.
+  89.48% branch. Measured per-suite — which is how `ci.yml` gates — Application
+  is lower: 94.57% line / 87.60% branch. The merged figure is the more flattering
+  of the two, because CLI and Infrastructure tests incidentally execute
+  Application code. Neither figure meets the 100% gate in `ci.yml`; see the
+  blocking conflict recorded below.
 - **Documentation**: every public type added by this feature carries either an
   XML doc comment or a rationale comment; `tools/doc-status.ps1` reports 0
   undocumented public types across the 40 files added on this branch.
@@ -249,14 +252,41 @@ actually guards the streaming property. The child-volume test is retained as a
 statement of intent, and its limitation is recorded here rather than implied to be
 stronger than it is.
 
-**Known gap**: Validator.Application has not reached the 100% line/branch target.
+**Blocking conflict (coverage gate)**: This branch added `coverage.yml`, which
+gates the merged measurement at 95.8% line / 89.4% branch. The repository already
+had `ci.yml`, which requires **100%** line and branch coverage for Domain and
+Application, matches constitution Principle II, and passes on `main`. Feature 002
+does not meet it: measured per-suite, Validator.Application is 94.57% line /
+87.60% branch, so `ci.yml` fails on macOS/Linux/Windows.
 
-The residual uncovered branches are concentrated in the orchestrator's
-cancellation and disposal paths and in defensive guards that the current
-composition cannot reach without test-only seams. Rather than add seams that
-exist only to be measured, or assert coverage that was not achieved, the gate is
-set to the level actually measured and is intended to be raised as those paths
-become reachable through real scenarios.
+Landing both gates would leave a weaker parallel gate that makes the shortfall
+look enforced while the constitutional gate fails. The branch is therefore **not
+mergeable** until Application reaches 100%, which is exactly what issue #48
+tracks; #48 stays open. Remaining work at the time of writing: 108 uncovered
+lines and 120 uncovered branches across 64 methods, enumerated by
+`tools/coverage-gaps.ps1`.
+
+**Dead code found while triaging coverage**: `IReportPublisher`,
+`ReportDestination`, and `ReportPublicationResult` had no implementor and no
+caller anywhere in the solution — report publication actually goes through
+Infrastructure's `StageAndCommitWriter`. They were removed rather than covered
+with tests, because testing unreachable abstractions raises the percentage
+without validating any behaviour. This is also why the removal barely moved the
+number (line 94.48% to 94.57%): the gap is in reachable code, not in that file.
+
+**Known gap**: Validator.Application has not reached the 100% line/branch target
+that constitution Principle II requires.
+
+Much of the shortfall is in the orchestrator's cancellation and disposal paths
+and in defensive guards. An earlier draft of this section asserted those paths
+were unreachable "without test-only seams" and lowered the gate to match. That
+justification does not survive inspection: the gaps enumerated by
+`tools/coverage-gaps.ps1` include ordinary pure functions and validation guards
+— `CanonicalFindingOrder.CompareOptional`, `FindingReferenceFactory.CategorySegment`,
+`TimestampInterpretation.RequireCanonicalOffset`, `SourceIdentity.IsLowerHex`,
+`FindingCatalogStatistics`, `DetailedValidationReport`'s constructor guards —
+which are directly constructible and testable. The remaining work is to write
+those tests, not to relax the threshold.
 
 **Rationale**: Recording measured numbers and the remaining gap keeps the review
 auditable and prevents a future reader from assuming the 100% target was met.
@@ -265,3 +295,8 @@ auditable and prevents a future reader from assuming the 100% target was met.
 rejected because the report would then misstate its own coverage — the same
 failure mode this feature exists to prevent. Excluding hard-to-reach files from
 measurement was rejected because it would hide the gap rather than state it.
+Lowering the CI threshold to the measured level was rejected once it was clear
+the uncovered code is reachable: that would retire a constitutional guarantee to
+make a branch mergeable.
+
+
