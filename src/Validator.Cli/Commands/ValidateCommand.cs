@@ -2,12 +2,15 @@ using System.Globalization;
 using System.Text;
 using Validator.Application.Abstractions;
 using Validator.Application.Ingestion;
+using Validator.Application.Reporting;
 using Validator.Application.Validation;
 using Validator.Domain.Calendars;
 using Validator.Domain.Timeframes;
 using Validator.Infrastructure.Calendars;
 using Validator.Infrastructure.Csv;
+using Validator.Infrastructure.Findings;
 using Validator.Infrastructure.Reporting;
+using Validator.Infrastructure.Sorting;
 
 namespace Validator.Cli.Commands;
 
@@ -30,6 +33,7 @@ public static class ValidateCommand
                                               Delimiter override (default: auto-detect)
           --header                            Match columns by header name
           --format <text|json>                Report format (default: text)
+          --report-version <1|2>              JSON contract version (default: 1)
           --output <path>                     Write report atomically to a file
           --verbose                           Append finding details in text mode
           --help                              Show this help
@@ -37,6 +41,7 @@ public static class ValidateCommand
         Examples:
           validator EURUSD_H1.csv
           validator EURUSD_M15.csv --header --format json
+          validator EURUSD_H1.csv --format json --report-version 2
           validator prices.csv --timestamp-format "yyyy-MM-dd HH:mm:ss" --timestamp-column 1 --tz-offset +00:00
           validator equities.csv --market equities --timeframe M30 --verbose
           validator custom.csv --market custom --calendar market-hours.json --output report.json --format json
@@ -56,9 +61,36 @@ public static class ValidateCommand
             return 0;
         }
 
+        ParsedArguments parsed;
         try
         {
-            var parsed = ParseArguments(args);
+            parsed = ParseArguments(args);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        {
+            // The requested contract version is read straight from the raw
+            // arguments, so an option mistake in a v2 run is still answered
+            // with one structured document instead of free-form text.
+            return PrefersDetailedV2(args)
+                ? WriteFatal(new FatalDiagnostic(
+                    "INVALID_ARGUMENT",
+                    "The supplied options could not be applied to this run.",
+                    exception.Message))
+                : WriteText(exception.Message);
+        }
+
+        // Version selection is resolved before unrelated options, so any later
+        // source or configuration failure can still be reported as one
+        // structured v2 document. Verbose text is the same detailed report in a
+        // human-readable shape, so it runs through the same pipeline and keeps
+        // the existing actionable text diagnostic on a fatal outcome.
+        if (parsed.ReportVersion == 2 || (parsed.Verbose && parsed.Format == ReportFormat.Text))
+        {
+            return await RunDetailedAsync(parsed).ConfigureAwait(false);
+        }
+
+        try
+        {
             var calendar = new MarketCalendarFactory().Create(
                 new LocalCalendarRequest(parsed.Market, parsed.CalendarPath));
 
@@ -129,6 +161,7 @@ public static class ValidateCommand
         var market = MarketProfile.Forex;
         string? calendarPath = null;
         var csv = new CsvInputOptions();
+        var reportVersion = 1;
 
         for (var index = 1; index < args.Count; index++)
         {
@@ -169,6 +202,9 @@ public static class ValidateCommand
                 case "--format":
                     format = ParseFormat(RequireValue(args, ref index, option));
                     break;
+                case "--report-version":
+                    reportVersion = ParseReportVersion(RequireValue(args, ref index, option));
+                    break;
                 case "--output":
                     outputPath = RequireValue(args, ref index, option);
                     break;
@@ -181,6 +217,14 @@ public static class ValidateCommand
             }
         }
 
+        // A contract version is only meaningful for JSON, so a text request that
+        // also selects v2 is contradictory rather than silently ignored.
+        if (reportVersion == 2 && format != ReportFormat.Json)
+        {
+            throw new ArgumentException(
+                "Option '--report-version 2' is valid only with '--format json'.");
+        }
+
         csv.Validate();
         return new ParsedArguments(
             inputPath,
@@ -190,7 +234,242 @@ public static class ValidateCommand
             verbose,
             market,
             calendarPath,
-            csv);
+            csv,
+            reportVersion);
+    }
+
+    // Runs one detailed validation. A successful report is staged and committed
+    // to the destination (or stdout) as v2 JSON or as detailed text; a fatal
+    // outcome produces exactly one diagnostic on stderr in the shape the
+    // selected representation requires, and leaves stdout empty.
+    private static async Task<int> RunDetailedAsync(ParsedArguments parsed)
+    {
+        IMarketCalendar calendar;
+        try
+        {
+            calendar = new MarketCalendarFactory().Create(
+                new LocalCalendarRequest(parsed.Market, parsed.CalendarPath));
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or FormatException or InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "INVALID_CALENDAR",
+                "The requested market calendar could not be resolved.",
+                exception.Message));
+        }
+
+        if (!File.Exists(parsed.InputPath))
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "SOURCE_UNAVAILABLE",
+                "The validated source could not be opened for reading.",
+                $"Verify that the input file exists and is readable: {Path.GetFileName(parsed.InputPath)}",
+                new PartialSourceIdentity(Path.GetFileName(parsed.InputPath))));
+        }
+
+        if (parsed.OutputPath is not null &&
+            string.Equals(
+                Path.GetFullPath(parsed.InputPath),
+                Path.GetFullPath(parsed.OutputPath),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "INVALID_ARGUMENT",
+                "The report destination is the same file as the validated input.",
+                "Choose a report destination that differs from the input file.",
+                new PartialSourceIdentity(Path.GetFileName(parsed.InputPath))));
+        }
+
+        using var tempStorage = new TempStorage();
+        var source = new PreparedCsvCandleSource(parsed.InputPath, parsed.CsvOptions);
+        var useCase = new DetailedValidationOrchestrator(() => new FindingCatalog(
+            () => new SpoolWriter(tempStorage),
+            path => new SpoolReader(path, path + ".complete"),
+            // Child records are canonicalized through bounded external merge runs
+            // so peak memory follows the configured chunk size rather than the
+            // number of findings, gap length, or duplicate-group size.
+            new ExternalMergeSpool(tempStorage)));
+
+        DetailedValidationOutcome outcome;
+        try
+        {
+            outcome = await useCase.ExecuteAsync(new DetailedValidationRequest(
+                Path.GetFileName(parsed.InputPath),
+                source,
+                new ValidationOptions { TimeframeOverride = parsed.Timeframe, Verbose = parsed.Verbose },
+                calendar,
+                parsed.CsvOptions)).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is
+            InvalidOperationException or
+            InvalidDataException or
+            FormatException or
+            DecoderFallbackException or
+            ArgumentException or
+            IOException or
+            UnauthorizedAccessException)
+        {
+            // An unusable dataset is still described in the selected shape, so a
+            // consumer never has to parse free-form text off standard error.
+            return Fail(parsed, ToFatalDiagnostic(exception, Path.GetFileName(parsed.InputPath)));
+        }
+
+        if (outcome is DetailedValidationOutcome.Failed failed)
+        {
+            return Fail(parsed, failed.Diagnostic);
+        }
+
+        var report = ((DetailedValidationOutcome.Succeeded)outcome).Report;
+        try
+        {
+            // Both representations render the same completed catalog through the
+            // same staged commit, so neither can publish a partial report.
+            var commit = await new StageAndCommitWriter(parsed.OutputPath, parsed.InputPath)
+                .PublishAsync(
+                    (staged, token) => parsed.ReportVersion == 2
+                        ? new DetailedReportV2Writer().WriteAsync(report, staged, token)
+                        : new VerboseReportWriter().WriteAsync(report, staged, token),
+                    Console.Out)
+                .ConfigureAwait(false);
+
+            if (commit is ReportCommitResult.Failed commitFailed)
+            {
+                return Fail(parsed, commitFailed.Diagnostic);
+            }
+
+            if (parsed.OutputPath is not null)
+            {
+                Console.Out.WriteLine(
+                    $"Validation complete: findings={report.Summary.TotalFindings}; clean={report.Summary.IsClean.ToString().ToLowerInvariant()}; report={parsed.OutputPath}");
+            }
+
+            return report.Summary.IsClean ? 0 : 1;
+        }
+        finally
+        {
+            await report.Findings.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    // Classifies an ingestion failure that stopped the run before any report
+    // could be produced. The stage and failure class follow from the code.
+    private static FatalDiagnostic ToFatalDiagnostic(Exception exception, string fileName)
+    {
+        var (code, reason, guidance) = exception switch
+        {
+            DecoderFallbackException => (
+                "INVALID_ENCODING",
+                "The source bytes are not valid text in the expected encoding.",
+                "Re-export the file as UTF-8 or ASCII without invalid byte sequences."),
+            InvalidDataException data when data.Message.Contains("Invalid CSV", StringComparison.OrdinalIgnoreCase) => (
+                "INVALID_CSV",
+                "The source is not parsable as delimited text.",
+                data.Message),
+            InvalidDataException data => (
+                "INVALID_STRUCTURE",
+                "The source does not expose the columns the active layout requires.",
+                data.Message),
+            InvalidOperationException structure => (
+                "INVALID_STRUCTURE",
+                "The source does not expose the columns the active layout requires.",
+                structure.Message),
+            IOException or UnauthorizedAccessException => (
+                "SOURCE_UNAVAILABLE",
+                "The validated source could not be read to completion.",
+                exception.Message),
+            _ => (
+                "INVALID_ARGUMENT",
+                "The supplied options cannot be applied to this source.",
+                exception.Message)
+        };
+
+        return new FatalDiagnostic(code, reason, guidance, new PartialSourceIdentity(fileName));
+    }
+
+    // Routes one fatal diagnostic to the shape the selected representation
+    // promised: a v2 request receives one structured document, and a text
+    // request receives the enriched actionable text diagnostic.
+    private static int Fail(ParsedArguments parsed, FatalDiagnostic diagnostic) =>
+        parsed.ReportVersion == 2
+            ? WriteFatal(diagnostic)
+            : WriteText(DescribeFatal(diagnostic));
+
+    private static int WriteFatal(FatalDiagnostic diagnostic)
+    {
+        Console.Error.Write(new FatalDiagnosticV2Writer().Render(diagnostic));
+        return 2;
+    }
+
+    // Enriches the existing text diagnostic with the stable code, class, stage,
+    // guidance, known source location, and the checks that did not finish.
+    private static string DescribeFatal(FatalDiagnostic diagnostic)
+    {
+        var lines = new List<string>
+        {
+            diagnostic.Reason,
+            $"code={diagnostic.Code}; class={diagnostic.FailureClass}; stage={diagnostic.Stage}",
+            $"guidance: {diagnostic.Guidance}"
+        };
+
+        if (diagnostic.Source is not null)
+        {
+            lines.Add($"source: fileName={diagnostic.Source.FileName}");
+        }
+
+        if (diagnostic.Location is not null)
+        {
+            var location = new List<string>();
+            if (diagnostic.Location.SourceLine.HasValue)
+            {
+                location.Add($"line={diagnostic.Location.SourceLine.Value}");
+            }
+
+            if (diagnostic.Location.TimestampUtc.HasValue)
+            {
+                location.Add($"timestampUtc={diagnostic.Location.TimestampUtc.Value.UtcDateTime:yyyy-MM-dd'T'HH:mm:ss'Z'}");
+            }
+
+            if (diagnostic.Location.Field is not null)
+            {
+                location.Add($"field={diagnostic.Location.Field}");
+            }
+
+            lines.Add($"location: {string.Join("; ", location)}");
+        }
+
+        var unfinished = diagnostic.Checks
+            .Where(check => check.Status != CheckStatus.Completed)
+            .Select(check => check.Check.ToString())
+            .ToArray();
+        if (unfinished.Length > 0)
+        {
+            lines.Add($"checks not completed: {string.Join(", ", unfinished)}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static int WriteText(string message)
+    {
+        Console.Error.WriteLine(message);
+        return 2;
+    }
+
+    // Reads the requested contract version from the raw arguments so an option
+    // mistake in a v2 run is still answered in the v2 shape. Only an explicit
+    // '--report-version 2' opts in; anything else keeps the v1 text behavior.
+    private static bool PrefersDetailedV2(IReadOnlyList<string> args)
+    {
+        for (var index = 0; index < args.Count - 1; index++)
+        {
+            if (args[index] == "--report-version" && args[index + 1].Trim() == "2")
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string RequireValue(IReadOnlyList<string> args, ref int index, string option)
@@ -218,6 +497,13 @@ public static class ValidateCommand
         "text" => ReportFormat.Text,
         "json" => ReportFormat.Json,
         _ => throw new ArgumentException($"Unknown report format '{value}'. Use text or json.")
+    };
+
+    private static int ParseReportVersion(string value) => value.Trim() switch
+    {
+        "1" => 1,
+        "2" => 2,
+        _ => throw new ArgumentException($"Unknown report-version '{value}'. Use 1 or 2.")
     };
 
     private static TimeSpan ParseOffset(string value)
@@ -298,5 +584,6 @@ public static class ValidateCommand
         bool Verbose,
         MarketProfile Market,
         string? CalendarPath,
-        CsvInputOptions CsvOptions);
+        CsvInputOptions CsvOptions,
+        int ReportVersion);
 }
