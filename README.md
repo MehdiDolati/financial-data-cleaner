@@ -36,6 +36,29 @@ Emit JSON with an explicit timeframe:
 dotnet $validator prices.csv --timeframe H1 --format json
 ```
 
+The unversioned JSON format is the compatible v1 contract. Select the detailed
+v2 JSON contract explicitly:
+
+```powershell
+dotnet $validator prices.csv --timeframe H1 --format json --report-version 2
+```
+
+To include every finding in human-readable text, use verbose mode. The first
+six summary lines remain unchanged, followed by source identity, validation
+context, scan coverage, check execution, reconciliation, and category-specific
+finding details:
+
+```powershell
+dotnet $validator prices.csv --timeframe H1 --verbose
+```
+
+A detailed report can be written atomically to a file:
+
+```powershell
+dotnet $validator prices.csv --timeframe H1 --format json `
+  --report-version 2 --output report-v2.json
+```
+
 Validate a headered combined-timestamp source:
 
 ```powershell
@@ -69,8 +92,9 @@ Run `dotnet $validator --help` for the complete examples included with the CLI.
 | `--delimiter <value>` | `comma`, `semicolon`, `tab`, `,`, `;`, or `\t` | Auto-detect |
 | `--header` | Match required columns by case-insensitive header name | Off |
 | `--format <text\|json>` | Select report format | `text` |
+| `--report-version <1\|2>` | Select the JSON contract version; v2 enables detailed JSON | `1` |
 | `--output <path>` | Write the complete report atomically to a file | Stdout |
-| `--verbose` | Append canonical finding details to text output | Off |
+| `--verbose` | Append complete canonical finding details to text output | Off |
 | `--help` | Show all options and required examples | None |
 
 The default headerless layout is:
@@ -96,10 +120,24 @@ Time gaps: 0
 Malformed rows: 0
 ```
 
-JSON output conforms to
+Unversioned JSON and `--report-version 1` conform to the compatible v1 contract:
 [`validation-report.schema.json`](specs/001-ohlcv-data-quality-validator/contracts/validation-report.schema.json).
-With `--output`, the selected report is written to the requested path and stdout
-contains one completion-summary line.
+`--format json --report-version 2` produces a complete detailed report with
+source identity, resolved validation context, scan coverage, check status,
+reconciled category counts, and typed evidence for every finding. Its contract
+is documented in
+[`detailed-report-v2.schema.json`](specs/002-detailed-error-report/contracts/detailed-report-v2.schema.json).
+
+Detailed reports are complete and deterministic. They include all findings from
+checks that completed, keep related missing-candle and time-gap findings linked,
+and never expose an absolute source path by default. With `--output`, the
+selected report is staged and committed atomically; stdout contains one
+completion-summary line only after a successful commit.
+
+When a v2 run cannot produce a trustworthy complete report, exit code `2` is
+returned, stdout remains empty, and stderr contains one structured fatal
+diagnostic conforming to
+[`fatal-diagnostic-v2.schema.json`](specs/002-detailed-error-report/contracts/fatal-diagnostic-v2.schema.json).
 
 ## Exit Codes
 
@@ -107,7 +145,7 @@ contains one completion-summary line.
 | ---: | --- |
 | `0` | Help requested, or validation completed with no findings |
 | `1` | Validation completed with one or more findings |
-| `2` | Usage, configuration, ingestion, timeframe, calendar, or report-write failure |
+| `2` | Fatal dataset, configuration, ingestion, timeframe, calendar, reconciliation, or report-write failure |
 
 Fatal failures write diagnostics to stderr and do not emit a data-quality report.
 
@@ -120,7 +158,11 @@ The solution uses four inward-facing projects:
 - `Validator.Infrastructure`: CSV, sorting, calendar, finding, and report adapters
 - `Validator.Cli`: argument handling and composition
 
-Domain and Application are held to 100% line and branch coverage. Infrastructure
-uses real-file integration tests, and the CLI uses end-to-end tests. The detailed
-feature contract and runnable walkthrough are in
-[`specs/001-ohlcv-data-quality-validator/`](specs/001-ohlcv-data-quality-validator/).
+Domain is held to 100% line and branch coverage. Application is covered at
+99.69% line and 99.03% branch coverage; the remaining paths are unreachable by
+construction and are documented in the final feature review. Infrastructure
+uses real-file integration tests, and the CLI uses end-to-end tests. The feature
+contracts and runnable walkthroughs are in
+[`specs/001-ohlcv-data-quality-validator/`](specs/001-ohlcv-data-quality-validator/)
+and
+[`specs/002-detailed-error-report/`](specs/002-detailed-error-report/).

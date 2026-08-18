@@ -1,3 +1,15 @@
+<!--
+Sync Impact Report
+- Version change: 1.0.0 -> 1.1.0
+- Modified principles: None
+- Added principles: VIII. Documentation Ships with the Feature
+- Added sections: None
+- Removed sections: None
+- Expanded guidance: Development Workflow and Governance now require README
+  impact assessment, same-change documentation updates, and compliance review.
+- Removed guidance: Obsolete instruction to replace the already-resolved project name.
+- Follow-up TODOs: None
+-->
 # Financial Data Cleaner Constitution
 
 This constitution governs a platform that starts with offline market-data
@@ -66,6 +78,17 @@ deployment — can be added as new, independently specified features that
 *consume* this one's output, rather than requiring this one to be reopened
 and modified.
 
+### VIII. Documentation Ships with the Feature
+Every feature or behavior change MUST assess its documentation impact and MUST
+update `README.md` in the same change whenever it affects installation, build
+steps, usage, command-line options, inputs, outputs, exit behavior, public
+contracts, architecture, or contributor workflow. README examples and links
+MUST describe the implemented behavior and current contract versions. If a
+feature has no README impact, its plan or review MUST record that conclusion
+and the concrete reason; silence is not evidence that documentation was
+considered. Documentation is part of the feature's public interface, so a
+change with required but stale documentation is incomplete.
+
 ## Technology Standards
 
 - Platform: C# / .NET (currently .NET 10) is the default for every module in
@@ -86,10 +109,15 @@ and modified.
   `/speckit.clarify` (as needed) → `/speckit.plan` → `/speckit.tasks` →
   `/speckit.implement`, with `/speckit.checklist` and `/speckit.analyze` as
   recommended (not mandatory) quality gates before implementation begins.
+- Every feature plan MUST identify whether the feature changes `README.md` and
+  name the affected sections when it does. Generated feature tasks MUST include
+  the required README work before final validation; when no README update is
+  required, the plan or final review MUST state why.
 - A module is "done" only when: its tests were written first (Principle I),
   its business-logic coverage is 100% (Principle II), and it could be driven
   by an alternate front end without source changes to Domain/Application
-  (Principle III) — even if that front end isn't built yet.
+  (Principle III) — even if that front end isn't built yet — and its README
+  impact has been resolved (Principle VIII).
 - Findings from one module (e.g. a data-quality report) are treated as a
   typed contract other modules can depend on, not an implementation detail —
   future specs (e.g. a backtester) consume this validator's output shape
@@ -100,7 +128,11 @@ and modified.
 This constitution supersedes ad hoc convention wherever the two conflict.
 Amendments require a documented rationale and a version bump below; any
 in-flight plan that conflicts with an amendment is re-checked against it
-before implementation continues. Replace `[PROJECT_NAME]` above once the
-platform is named.
+before implementation continues. Feature plans, task lists, implementation
+reviews, and pull-request reviews MUST verify Principle VIII explicitly by
+confirming the README is updated or by recording a specific no-impact
+rationale. Constitution versions follow semantic versioning: MAJOR for
+incompatible governance changes, MINOR for new or materially expanded rules,
+and PATCH for non-semantic clarification.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-05 | **Last Amended**: 2026-08-05
+**Version**: 1.1.0 | **Ratified**: 2026-08-05 | **Last Amended**: 2026-08-18
