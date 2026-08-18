@@ -7,9 +7,15 @@ name: Coverage
 # pipeline; gating a single suite would understate what is actually covered.
 #
 # The target for both projects is 100% line and branch. Domain is there today.
-# Application is not yet, so the gate below is set to the level currently
-# achieved and is meant to be raised as the remaining gaps are closed. It is a
-# ratchet that prevents regression, not a claim that the target is met.
+# Application stands at 99.69% line / 99.03% branch merged. The six uncovered
+# lines are defensive arms that no composition can reach: the invariants they
+# restate are already enforced by ScanCoverage, DetailedSummary and
+# ReportReconciliation, which refuse to hold a violating value in the first
+# place. Deleting them to reach a round number would remove the second line of
+# defence, so they are kept and the gate is set just below the measured figure
+# as a ratchet against regression. Run tools/coverage-gaps.ps1 to enumerate them.
+
+
 
 on:
   push:
@@ -31,7 +37,8 @@ jobs:
         run: dotnet restore FinancialDataCleaner.slnx
       - name: Run tests with merged coverage and enforce the gate
         shell: pwsh
-        run: ./tools/coverage-run.ps1 -LineThreshold 95.8 -BranchThreshold 89.4
+        run: ./tools/coverage-run.ps1 -LineThreshold 99.6 -BranchThreshold 99.0
+
       - name: Publish coverage report
         if: always()
         uses: actions/upload-artifact@v4

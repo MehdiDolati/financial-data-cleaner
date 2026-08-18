@@ -15,15 +15,20 @@
     powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\coverage-run.ps1
 
 .EXAMPLE
-    powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\coverage-run.ps1 -LineThreshold 95 -BranchThreshold 89
+    powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\coverage-run.ps1 -LineThreshold 99.6 -BranchThreshold 99.0
+
 #>
+# Thresholds are decimals, not whole numbers: the gate sits a fraction below the
+# measured figure, so rounding them to integers would silently demand 100% and
+# fail a run that is actually within tolerance.
 [CmdletBinding()]
 param(
     [string] $Configuration = 'Release',
-    [int]    $LineThreshold = 0,
-    [int]    $BranchThreshold = 0,
+    [double] $LineThreshold = 0,
+    [double] $BranchThreshold = 0,
     [string] $OutputDirectory = 'artifacts/coverage'
 )
+
 
 $ErrorActionPreference = 'Stop'
 

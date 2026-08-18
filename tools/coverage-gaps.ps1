@@ -77,13 +77,20 @@ foreach ($module in $json.PSObject.Properties) {
 
                 $branchTotal     = 0
                 $branchUncovered = 0
+                $branchLines     = New-Object 'System.Collections.Generic.List[int]'
                 foreach ($branch in @($method.Value.Branches)) {
                     if ($null -eq $branch) { continue }
                     $branchTotal++
                     $totalBranches++
                     if ([int64]$branch.Hits -gt 0) { $coveredBranches++ }
-                    else { $branchUncovered++ }
+                    else {
+                        $branchUncovered++
+                        if (-not $branchLines.Contains([int]$branch.Line)) {
+                            $branchLines.Add([int]$branch.Line)
+                        }
+                    }
                 }
+
 
                 if (-not $IncludeCovered -and $uncoveredLines.Count -eq 0 -and $branchUncovered -eq 0) {
                     continue
@@ -96,16 +103,20 @@ foreach ($module in $json.PSObject.Properties) {
                 $paren = $short.IndexOf('(')
                 if ($paren -ge 0) { $short = $short.Substring(0, $paren) }
 
-                $sorted = @($uncoveredLines | Sort-Object)
+                $sorted       = @($uncoveredLines | Sort-Object)
+                $sortedBranch = @($branchLines | Sort-Object)
 
                 $rows.Add([pscustomobject]@{
                     Source          = $sourceName
+                    Class           = $class.Name
                     Method          = $short
                     UncoveredLines  = ($sorted -join ',')
                     LineGapCount    = $sorted.Count
                     BranchUncovered = $branchUncovered
                     BranchTotal     = $branchTotal
+                    BranchLines     = ($sortedBranch -join ',')
                 })
+
             }
         }
     }
@@ -124,8 +135,9 @@ else {
                 $parts.Add("lines[$($row.UncoveredLines)]")
             }
             if ($row.BranchUncovered -gt 0) {
-                $parts.Add("branches $($row.BranchUncovered)/$($row.BranchTotal) uncovered")
+                $parts.Add("branches $($row.BranchUncovered)/$($row.BranchTotal) uncovered at lines[$($row.BranchLines)]")
             }
+
             Write-Output ("    {0} -> {1}" -f $row.Method, ($parts -join '  '))
         }
         Write-Output ''
