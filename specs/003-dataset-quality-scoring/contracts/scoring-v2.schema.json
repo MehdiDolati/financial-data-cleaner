@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://financial-data-cleaner.local/contracts/scoring-v2.schema.json",
+  "title": "Dataset Quality Scoring v2",
+  "description": "Optional scoring section of a successful detailed OHLCV validation report. Present only when scoring was requested; absent otherwise. Additive to detailed-report-v2.schema.json and does not change contractVersion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scale", "metrics", "weighting", "dataset"],
+  "properties": {
+    "scale": { "$ref": "#/$defs/scoreScale" },
+    "metrics": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "description": "All six established metrics in canonical category order.",
+      "items": { "$ref": "#/$defs/metricScore" },
+      "allOf": [
+        { "$ref": "#/$defs/containsMissingCandleMetric" },
+        { "$ref": "#/$defs/containsDuplicateRecordMetric" },
+        { "$ref": "#/$defs/containsInvalidOhlcMetric" },
+        { "$ref": "#/$defs/containsClosedMarketRecordMetric" },
+        { "$ref": "#/$defs/containsTimeGapMetric" },
+        { "$ref": "#/$defs/containsMalformedRowMetric" }
+      ]
+    },
+    "weighting": { "$ref": "#/$defs/scoreWeighting" },
+    "dataset": { "$ref": "#/$defs/datasetScore" }
+  },
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "MissingCandle",
+        "DuplicateRecord",
+        "InvalidOhlc",
+        "ClosedMarketRecord",
+        "TimeGap",
+        "MalformedRow"
+      ]
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "multipleOf": 0.01,
+      "description": "A score on the 0-to-100 scale at exactly two decimal places, where 100 is flawless."
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "description": "A non-negative resolved weight. Zero is legal and contributes nothing to the average."
+    },
+    "normalisedShare": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "multipleOf": 0.01,
+      "description": "Share of the weights actually used for the average, at two decimal places."
+    },
+    "populationKind": {
+      "type": "string",
+      "enum": ["ExpectedCandles", "AcceptedRows", "ExaminedRows"],
+      "description": "The population a metric's defect rate is measured against."
+    },
+    "metricState": {
+      "type": "string",
+      "enum": ["Scored", "NotApplicable", "NotScored"]
+    },
+    "scoreScale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum", "maximum", "higherIsBetter", "decimalPlaces"],
+      "properties": {
+        "minimum": { "const": 0 },
+        "maximum": { "const": 100 },
+        "higherIsBetter": { "const": true },
+        "decimalPlaces": { "const": 2 }
+      }
+    },
+    "metricScore": {
+      "description": "One established metric with exactly one state. A score is present only when Scored; a reason is present only when it is not.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "category",
+            "state",
+            "count",
+            "population",
+            "populationKind",
+            "score",
+            "weight"
+          ],
+          "properties": {
+            "category": { "$ref": "#/$defs/category" },
+            "state": { "const": "Scored" },
+            "count": { "$ref": "#/$defs/nonNegativeInteger" },
+            "population": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Positive for a scored metric; the denominator of its defect rate."
+            },
+            "populationKind": { "$ref": "#/$defs/populationKind" },
+            "score": { "$ref": "#/$defs/score" },
+            "weight": { "$ref": "#/$defs/weight" },
+            "normalisedShare": { "$ref": "#/$defs/normalisedShare" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "category",
+            "state",
+            "count",
+            "populationKind",
+            "reason",
+            "weight"
+          ],
+          "properties": {
+            "category": { "$ref": "#/$defs/category" },
+            "state": {
+              "type": "string",
+              "enum": ["NotApplicable", "NotScored"]
+            },
+            "count": { "$ref": "#/$defs/nonNegativeInteger" },
+            "population": {
+              "$ref": "#/$defs/nonNegativeInteger",
+              "description": "Present with value 0 when the check ran but the population was empty; absent when the check did not run."
+            },
+            "populationKind": { "$ref": "#/$defs/populationKind" },
+            "reason": { "$ref": "#/$defs/nonEmptyString" },
+            "weight": { "$ref": "#/$defs/weight" }
+          }
+        }
+      ]
+    },
+    "scoreWeighting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "weights"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["Default", "CallerSupplied"]
+        },
+        "weights": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "description": "The resolved weight of every metric in canonical category order.",
+          "items": { "$ref": "#/$defs/metricWeight" }
+        }
+      }
+    },
+    "metricWeight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "weight"],
+      "properties": {
+        "category": { "$ref": "#/$defs/category" },
+        "weight": { "$ref": "#/$defs/weight" },
+        "normalisedShare": {
+          "$ref": "#/$defs/normalisedShare",
+          "description": "Present only for metrics included in the average."
+        }
+      }
+    },
+    "excludedMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "state", "reason"],
+      "properties": {
+        "category": { "$ref": "#/$defs/category" },
+        "state": {
+          "type": "string",
+          "enum": ["NotApplicable", "NotScored"]
+        },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "datasetScore": {
+      "description": "The single dataset average. Either an average with its coverage, or an explicit unavailability with a reason and no substitute value.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "average",
+            "metricsCovered",
+            "coveredCategories",
+            "excludedMetrics"
+          ],
+          "properties": {
+            "available": { "const": true },
+            "average": { "$ref": "#/$defs/score" },
+            "metricsCovered": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            },
+            "coveredCategories": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/category" }
+            },
+            "excludedMetrics": {
+              "type": "array",
+              "maxItems": 5,
+              "items": { "$ref": "#/$defs/excludedMetric" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "metricsCovered",
+            "coveredCategories",
+            "excludedMetrics",
+            "unavailableReason"
+          ],
+          "properties": {
+            "available": { "const": false },
+            "metricsCovered": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6,
+              "description": "May be positive when metrics were scored but every scored weight was zero."
+            },
+            "coveredCategories": {
+              "type": "array",
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/category" }
+            },
+            "excludedMetrics": {
+              "type": "array",
+              "maxItems": 6,
+              "items": { "$ref": "#/$defs/excludedMetric" }
+            },
+            "unavailableReason": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        }
+      ]
+    },
+    "containsMissingCandleMetric": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "MissingCandle" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsDuplicateRecordMetric": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "DuplicateRecord" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsInvalidOhlcMetric": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "InvalidOhlc" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsClosedMarketRecordMetric": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "ClosedMarketRecord" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsTimeGapMetric": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "TimeGap" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsMalformedRowMetric": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "MalformedRow" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    }
+  }
+}
