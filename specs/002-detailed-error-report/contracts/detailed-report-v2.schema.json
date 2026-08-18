@@ -1,0 +1,712 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://financial-data-cleaner.local/contracts/detailed-report-v2.schema.json",
+  "title": "Detailed OHLCV Validation Report v2",
+  "description": "Complete machine-readable outcome of one successful dataset validation run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "status",
+    "findingSetComplete",
+    "source",
+    "context",
+    "coverage",
+    "checks",
+    "summary",
+    "reconciliation",
+    "findings"
+  ],
+  "properties": {
+    "contractVersion": { "const": 2 },
+    "status": {
+      "type": "string",
+      "enum": ["Clean", "FindingsDetected"]
+    },
+    "findingSetComplete": { "const": true },
+    "source": { "$ref": "#/$defs/sourceIdentity" },
+    "context": { "$ref": "#/$defs/validationContext" },
+    "coverage": { "$ref": "#/$defs/scanCoverage" },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/successfulCheckExecution" },
+      "allOf": [
+        { "$ref": "#/$defs/containsMissingCandlesCheck" },
+        { "$ref": "#/$defs/containsDuplicateRecordsCheck" },
+        { "$ref": "#/$defs/containsInvalidOhlcCheck" },
+        { "$ref": "#/$defs/containsClosedMarketRecordsCheck" },
+        { "$ref": "#/$defs/containsTimeGapsCheck" },
+        { "$ref": "#/$defs/containsMalformedRowsCheck" }
+      ]
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "reconciliation": { "$ref": "#/$defs/reconciliation" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" },
+      "description": "All findings in category, UTC timestamp, source line, and reference order."
+    }
+  },
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "timeframeCode": {
+      "type": "string",
+      "pattern": "^(M|H|D)[1-9][0-9]*$"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "MissingCandle",
+        "DuplicateRecord",
+        "InvalidOhlc",
+        "ClosedMarketRecord",
+        "TimeGap",
+        "MalformedRow"
+      ]
+    },
+    "checkName": {
+      "type": "string",
+      "enum": [
+        "MissingCandles",
+        "DuplicateRecords",
+        "InvalidOhlc",
+        "ClosedMarketRecords",
+        "TimeGaps",
+        "MalformedRows"
+      ]
+    },
+    "sourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "byteSize", "sha256"],
+      "properties": {
+        "fileName": { "$ref": "#/$defs/nonEmptyString" },
+        "byteSize": { "$ref": "#/$defs/nonNegativeInteger" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "dateRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "$ref": "#/$defs/utcTimestamp" },
+        "to": { "$ref": "#/$defs/utcTimestamp" }
+      }
+    },
+    "calendarContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "name"],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": ["forex", "equities", "crypto", "custom"]
+        },
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "timeZone": { "$ref": "#/$defs/nonEmptyString" },
+        "definitionSha256": { "$ref": "#/$defs/sha256" },
+        "sessions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/weeklySession" }
+        }
+      }
+    },
+    "weeklySession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["openDay", "openTime", "closeDay", "closeTime"],
+      "properties": {
+        "openDay": { "$ref": "#/$defs/dayOfWeek" },
+        "openTime": { "$ref": "#/$defs/localTime" },
+        "closeDay": { "$ref": "#/$defs/dayOfWeek" },
+        "closeTime": { "$ref": "#/$defs/localTime" }
+      }
+    },
+    "dayOfWeek": {
+      "type": "string",
+      "enum": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ]
+    },
+    "localTime": {
+      "type": "string",
+      "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$"
+    },
+    "timestampInterpretation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "dateFormat", "timeFormat", "sourceOffset"],
+          "properties": {
+            "mode": { "const": "SeparateDateTime" },
+            "dateFormat": { "$ref": "#/$defs/nonEmptyString" },
+            "timeFormat": { "$ref": "#/$defs/nonEmptyString" },
+            "sourceOffset": { "$ref": "#/$defs/sourceOffset" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "timestampFormat", "timestampColumn", "sourceOffset"],
+          "properties": {
+            "mode": { "const": "CombinedTimestamp" },
+            "timestampFormat": { "$ref": "#/$defs/nonEmptyString" },
+            "timestampColumn": { "$ref": "#/$defs/nonEmptyString" },
+            "sourceOffset": { "$ref": "#/$defs/sourceOffset" }
+          }
+        }
+      ]
+    },
+    "sourceOffset": {
+      "type": "string",
+      "pattern": "^[+-](?:(?:0[0-9]|1[0-3]):[0-5][0-9]|14:00)$"
+    },
+    "validationContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timeframe",
+        "calendar",
+        "timestamp",
+        "delimiter",
+        "hasHeader",
+        "dateRange"
+      ],
+      "properties": {
+        "timeframe": { "$ref": "#/$defs/timeframeCode" },
+        "calendar": { "$ref": "#/$defs/calendarContext" },
+        "timestamp": { "$ref": "#/$defs/timestampInterpretation" },
+        "delimiter": {
+          "type": "string",
+          "enum": ["comma", "semicolon", "tab"]
+        },
+        "hasHeader": { "type": "boolean" },
+        "dateRange": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateRange" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "scanCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["physicalRowsExamined", "acceptedRows", "malformedRows"],
+      "properties": {
+        "physicalRowsExamined": { "$ref": "#/$defs/nonNegativeInteger" },
+        "acceptedRows": { "$ref": "#/$defs/nonNegativeInteger" },
+        "malformedRows": { "$ref": "#/$defs/nonNegativeInteger" }
+      }
+    },
+    "successfulCheckExecution": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["check", "status"],
+          "properties": {
+            "check": { "$ref": "#/$defs/checkName" },
+            "status": { "const": "Completed" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["check", "status", "reason"],
+          "properties": {
+            "check": { "$ref": "#/$defs/checkName" },
+            "status": { "const": "NotApplicable" },
+            "reason": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        }
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missingCandles",
+        "duplicateRecords",
+        "invalidOhlc",
+        "closedMarketRecords",
+        "timeGaps",
+        "malformedRows"
+      ],
+      "properties": {
+        "missingCandles": { "$ref": "#/$defs/nonNegativeInteger" },
+        "duplicateRecords": { "$ref": "#/$defs/nonNegativeInteger" },
+        "invalidOhlc": { "$ref": "#/$defs/nonNegativeInteger" },
+        "closedMarketRecords": { "$ref": "#/$defs/nonNegativeInteger" },
+        "timeGaps": { "$ref": "#/$defs/nonNegativeInteger" },
+        "malformedRows": { "$ref": "#/$defs/nonNegativeInteger" }
+      }
+    },
+    "categoryReconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "summaryCount", "entryCount", "contributionSum"],
+      "properties": {
+        "category": { "$ref": "#/$defs/category" },
+        "summaryCount": { "$ref": "#/$defs/nonNegativeInteger" },
+        "entryCount": { "$ref": "#/$defs/nonNegativeInteger" },
+        "contributionSum": { "$ref": "#/$defs/nonNegativeInteger" }
+      }
+    },
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverageReconciled", "categories"],
+      "properties": {
+        "coverageReconciled": { "const": true },
+        "categories": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/categoryReconciliation" },
+          "allOf": [
+            { "$ref": "#/$defs/containsMissingCandleCategory" },
+            { "$ref": "#/$defs/containsDuplicateRecordCategory" },
+            { "$ref": "#/$defs/containsInvalidOhlcCategory" },
+            { "$ref": "#/$defs/containsClosedMarketRecordCategory" },
+            { "$ref": "#/$defs/containsTimeGapCategory" },
+            { "$ref": "#/$defs/containsMalformedRowCategory" }
+          ]
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceLines"],
+      "properties": {
+        "sourceLines": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/positiveInteger" }
+        },
+        "timestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "originalTimestampText": { "type": "string" }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "targetReference"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["PartOfGap", "ContainsMissingCandle"]
+        },
+        "targetReference": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "category",
+        "title",
+        "explanation",
+        "countContribution",
+        "location",
+        "evidence",
+        "relationships",
+        "suggestedAction"
+      ],
+      "properties": {
+        "reference": { "$ref": "#/$defs/nonEmptyString" },
+        "category": { "$ref": "#/$defs/category" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "explanation": { "$ref": "#/$defs/nonEmptyString" },
+        "countContribution": { "$ref": "#/$defs/positiveInteger" },
+        "location": { "$ref": "#/$defs/location" },
+        "evidence": {
+          "oneOf": [
+            { "$ref": "#/$defs/missingCandleEvidence" },
+            { "$ref": "#/$defs/timeGapEvidence" },
+            { "$ref": "#/$defs/duplicateEvidence" },
+            { "$ref": "#/$defs/invalidOhlcEvidence" },
+            { "$ref": "#/$defs/closedMarketEvidence" },
+            { "$ref": "#/$defs/malformedRowEvidence" }
+          ]
+        },
+        "relationships": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relationship" }
+        },
+        "suggestedAction": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "category": { "const": "MissingCandle" } } },
+          "then": { "properties": { "evidence": { "$ref": "#/$defs/missingCandleEvidence" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "TimeGap" } } },
+          "then": { "properties": { "evidence": { "$ref": "#/$defs/timeGapEvidence" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "DuplicateRecord" } } },
+          "then": { "properties": { "evidence": { "$ref": "#/$defs/duplicateEvidence" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "InvalidOhlc" } } },
+          "then": { "properties": { "evidence": { "$ref": "#/$defs/invalidOhlcEvidence" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "ClosedMarketRecord" } } },
+          "then": { "properties": { "evidence": { "$ref": "#/$defs/closedMarketEvidence" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "MalformedRow" } } },
+          "then": { "properties": { "evidence": { "$ref": "#/$defs/malformedRowEvidence" } } }
+        }
+      ]
+    },
+    "missingCandleEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "expectedTimestampUtc", "expectedTimeframe", "timeGapReference"],
+      "properties": {
+        "kind": { "const": "MissingCandle" },
+        "expectedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "expectedTimeframe": { "$ref": "#/$defs/timeframeCode" },
+        "timeGapReference": { "$ref": "#/$defs/nonEmptyString" },
+        "previousObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "nextObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" }
+      }
+    },
+    "timeGapEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "firstMissingTimestampUtc",
+        "lastMissingTimestampUtc",
+        "expectedTimeframe",
+        "missingCandleCount",
+        "elapsedSeconds",
+        "missingCandleReferences"
+      ],
+      "properties": {
+        "kind": { "const": "TimeGap" },
+        "firstMissingTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "lastMissingTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "expectedTimeframe": { "$ref": "#/$defs/timeframeCode" },
+        "missingCandleCount": { "$ref": "#/$defs/positiveInteger" },
+        "elapsedSeconds": { "$ref": "#/$defs/positiveInteger" },
+        "previousObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "nextObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "missingCandleReferences": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        }
+      }
+    },
+    "duplicateRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceLine", "open", "high", "low", "close", "volume"],
+      "properties": {
+        "sourceLine": { "$ref": "#/$defs/positiveInteger" },
+        "originalTimestampText": { "type": "string" },
+        "open": { "type": "number" },
+        "high": { "type": "number" },
+        "low": { "type": "number" },
+        "close": { "type": "number" },
+        "volume": { "type": "number" }
+      }
+    },
+    "ohlcvField": {
+      "type": "string",
+      "enum": ["Open", "High", "Low", "Close", "Volume"]
+    },
+    "duplicateEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sharedTimestampUtc", "classification", "differingFields", "rows"],
+      "properties": {
+        "kind": { "const": "DuplicateRecord" },
+        "sharedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "classification": {
+          "type": "string",
+          "enum": ["Exact", "Conflicting"]
+        },
+        "differingFields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ohlcvField" },
+          "uniqueItems": true
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/duplicateRow" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "classification": { "const": "Exact" } },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": { "differingFields": { "maxItems": 0 } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "classification": { "const": "Conflicting" } },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": { "differingFields": { "minItems": 1 } }
+          }
+        }
+      ]
+    },
+    "ohlcvValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["open", "high", "low", "close", "volume"],
+      "properties": {
+        "open": { "type": "number" },
+        "high": { "type": "number" },
+        "low": { "type": "number" },
+        "close": { "type": "number" },
+        "volume": { "type": "number" }
+      }
+    },
+    "ohlcViolation": {
+      "type": "string",
+      "enum": [
+        "HIGH_BELOW_OPEN",
+        "HIGH_BELOW_CLOSE",
+        "HIGH_BELOW_LOW",
+        "LOW_ABOVE_OPEN",
+        "LOW_ABOVE_CLOSE",
+        "LOW_ABOVE_HIGH",
+        "NON_POSITIVE_OPEN",
+        "NON_POSITIVE_HIGH",
+        "NON_POSITIVE_LOW",
+        "NON_POSITIVE_CLOSE",
+        "NEGATIVE_VOLUME"
+      ]
+    },
+    "invalidOhlcEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "observed", "violations"],
+      "properties": {
+        "kind": { "const": "InvalidOhlc" },
+        "observed": { "$ref": "#/$defs/ohlcvValues" },
+        "violations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ohlcViolation" }
+        }
+      }
+    },
+    "utcBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["closedFromUtc", "nextOpenUtc"],
+      "properties": {
+        "closedFromUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "nextOpenUtc": { "$ref": "#/$defs/utcTimestamp" }
+      }
+    },
+    "closedMarketEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "marketProfile", "calendarName", "closedRule"],
+      "properties": {
+        "kind": { "const": "ClosedMarketRecord" },
+        "marketProfile": {
+          "type": "string",
+          "enum": ["forex", "equities", "crypto", "custom"]
+        },
+        "calendarName": { "$ref": "#/$defs/nonEmptyString" },
+        "calendarTimeZone": { "$ref": "#/$defs/nonEmptyString" },
+        "closedRule": { "$ref": "#/$defs/nonEmptyString" },
+        "boundary": { "$ref": "#/$defs/utcBoundary" }
+      }
+    },
+    "malformedFieldError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "originalValue", "reasonCode", "reason"],
+      "properties": {
+        "field": { "$ref": "#/$defs/nonEmptyString" },
+        "originalValue": { "type": "string" },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "malformedRowEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "expectedSlotReserved", "fieldErrors", "checksNotApplied"],
+      "properties": {
+        "kind": { "const": "MalformedRow" },
+        "parsedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "originalTimestampText": { "type": "string" },
+        "expectedSlotReserved": { "type": "boolean" },
+        "fieldErrors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/malformedFieldError" }
+        },
+        "checksNotApplied": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/checkName" }
+        }
+      }
+    },
+    "containsMissingCandlesCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "MissingCandles" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsDuplicateRecordsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "DuplicateRecords" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsInvalidOhlcCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "InvalidOhlc" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsClosedMarketRecordsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "ClosedMarketRecords" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsTimeGapsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "TimeGaps" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsMalformedRowsCheck": {
+      "contains": {
+        "type": "object",
+        "properties": { "check": { "const": "MalformedRows" } },
+        "required": ["check"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsMissingCandleCategory": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "MissingCandle" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsDuplicateRecordCategory": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "DuplicateRecord" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsInvalidOhlcCategory": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "InvalidOhlc" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsClosedMarketRecordCategory": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "ClosedMarketRecord" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsTimeGapCategory": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "TimeGap" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsMalformedRowCategory": {
+      "contains": {
+        "type": "object",
+        "properties": { "category": { "const": "MalformedRow" } },
+        "required": ["category"]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    }
+  }
+}

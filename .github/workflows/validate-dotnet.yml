@@ -1,0 +1,26 @@
+name: Validate .NET SDK
+
+on:
+  push:
+    branches: [ main, '00*-*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.301'
+      - name: Verify SDK version
+        run: dotnet --version
+      - name: Restore
+        run: dotnet restore FinancialDataCleaner.slnx
+      - name: Build
+        run: dotnet build FinancialDataCleaner.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test FinancialDataCleaner.slnx --configuration Release --no-build
