@@ -3,7 +3,9 @@ using System.Text;
 using Validator.Application.Abstractions;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
+using Validator.Application.Scoring;
 using Validator.Application.Validation;
+
 using Validator.Domain.Calendars;
 using Validator.Domain.Timeframes;
 using Validator.Infrastructure.Calendars;
@@ -36,16 +38,22 @@ public static class ValidateCommand
           --report-version <1|2>              JSON contract version (default: 1)
           --output <path>                     Write report atomically to a file
           --verbose                           Append finding details in text mode
+          --score                             Report per-metric quality scores and one dataset average
+          --score-weights <list>              Override the average's weighting (requires --score)
           --help                              Show this help
+
+        JSON scoring requires '--report-version 2'; '--score' with the version 1 JSON contract is rejected.
 
         Examples:
           validator EURUSD_H1.csv
           validator EURUSD_M15.csv --header --format json
           validator EURUSD_H1.csv --format json --report-version 2
+          validator EURUSD_H1.csv --timeframe H1 --score
           validator prices.csv --timestamp-format "yyyy-MM-dd HH:mm:ss" --timestamp-column 1 --tz-offset +00:00
           validator equities.csv --market equities --timeframe M30 --verbose
           validator custom.csv --market custom --calendar market-hours.json --output report.json --format json
         """;
+
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -84,10 +92,14 @@ public static class ValidateCommand
         // structured v2 document. Verbose text is the same detailed report in a
         // human-readable shape, so it runs through the same pipeline and keeps
         // the existing actionable text diagnostic on a fatal outcome.
-        if (parsed.ReportVersion == 2 || (parsed.Verbose && parsed.Format == ReportFormat.Text))
+        if (parsed.ReportVersion == 2 ||
+            ((parsed.Verbose || parsed.Score is not null) && parsed.Format == ReportFormat.Text))
         {
+            // Scored text needs the detailed pipeline's populations and check
+            // statuses, so it routes through the same path as verbose text.
             return await RunDetailedAsync(parsed).ConfigureAwait(false);
         }
+
 
         try
         {
@@ -162,12 +174,21 @@ public static class ValidateCommand
         string? calendarPath = null;
         var csv = new CsvInputOptions();
         var reportVersion = 1;
+        var score = false;
+        string? scoreWeights = null;
 
         for (var index = 1; index < args.Count; index++)
         {
             var option = args[index];
             switch (option)
             {
+                case "--score":
+                    score = true;
+                    break;
+                case "--score-weights":
+                    scoreWeights = RequireValue(args, ref index, option);
+                    break;
+
                 case "--timeframe":
                     timeframe = RequireValue(args, ref index, option);
                     Timeframe.Parse(timeframe);
@@ -225,6 +246,35 @@ public static class ValidateCommand
                 "Option '--report-version 2' is valid only with '--format json'.");
         }
 
+        // Weights are meaningless without opting into scoring, so supplying them
+        // alone is a configuration error rather than a silent no-op.
+        if (scoreWeights is not null && !score)
+        {
+            throw new ArgumentException(
+                "Option '--score-weights' requires '--score'.");
+        }
+
+        // Scores are only available under the v2 JSON contract, so requesting
+        // them with the frozen v1 contract fails fast and names the option
+        // combination needed to obtain scores. This is checked before the
+        // source is opened.
+        if (score && format == ReportFormat.Json && reportVersion != 2)
+        {
+            throw new ArgumentException(
+                "Option '--score' is not available with the version 1 JSON contract. Use '--format json --report-version 2' to obtain scores.");
+        }
+
+        // Weight parsing and full validation are a pure function of the request,
+        // so they run here, before any dataset content is read. A rejected
+        // weighting therefore produces no report.
+        ScoreRequest? scoreRequest = null;
+        if (score)
+        {
+            scoreRequest = scoreWeights is null
+                ? ScoreRequest.Default()
+                : new ScoreRequest(ScoreWeightParser.Parse(scoreWeights));
+        }
+
         csv.Validate();
         return new ParsedArguments(
             inputPath,
@@ -235,8 +285,10 @@ public static class ValidateCommand
             market,
             calendarPath,
             csv,
-            reportVersion);
+            reportVersion,
+            scoreRequest);
     }
+
 
     // Runs one detailed validation. A successful report is staged and committed
     // to the destination (or stdout) as v2 JSON or as detailed text; a fatal
@@ -297,7 +349,8 @@ public static class ValidateCommand
             outcome = await useCase.ExecuteAsync(new DetailedValidationRequest(
                 Path.GetFileName(parsed.InputPath),
                 source,
-                new ValidationOptions { TimeframeOverride = parsed.Timeframe, Verbose = parsed.Verbose },
+                new ValidationOptions { TimeframeOverride = parsed.Timeframe, Verbose = parsed.Verbose, Score = parsed.Score },
+
                 calendar,
                 parsed.CsvOptions)).ConfigureAwait(false);
         }
@@ -585,5 +638,8 @@ public static class ValidateCommand
         MarketProfile Market,
         string? CalendarPath,
         CsvInputOptions CsvOptions,
-        int ReportVersion);
+        int ReportVersion,
+        ScoreRequest? Score);
 }
+
+

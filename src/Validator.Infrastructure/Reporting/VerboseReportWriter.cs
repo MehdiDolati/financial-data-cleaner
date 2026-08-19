@@ -36,7 +36,15 @@ namespace Validator.Infrastructure.Reporting
             var buffer = new StringBuilder();
 
             AppendSummaryLines(buffer, report.Summary);
+            if (report.Score is not null)
+            {
+                // Scoring is additive and sits immediately after the six summary
+                // lines; the rest of the detailed report is unchanged.
+                ScoringTextSectionWriter.Append(buffer, report.Score);
+            }
+
             AppendStatus(buffer, report);
+
             AppendSource(buffer, report.Source);
             AppendContext(buffer, report.Context);
             AppendCoverage(buffer, report.Coverage);
@@ -79,14 +87,16 @@ namespace Validator.Infrastructure.Reporting
 
         private static void AppendSummaryLines(StringBuilder buffer, DetailedSummary summary)
         {
-            buffer.Append("Missing candles: ").Append(Number(summary.MissingCandles)).Append('\n');
-            buffer.Append("Duplicate records: ").Append(Number(summary.DuplicateRecords)).Append('\n');
-            buffer.Append("Invalid OHLC: ").Append(Number(summary.InvalidOhlc)).Append('\n');
-            buffer.Append("Closed-market records: ").Append(Number(summary.ClosedMarketRecords)).Append('\n');
-            buffer.Append("Time gaps: ").Append(Number(summary.TimeGaps)).Append('\n');
-            buffer.Append("Malformed rows: ").Append(Number(summary.MalformedRows)).Append('\n');
+            // The six leading lines come from the one shared label source so the
+            // concise and verbose renderings cannot drift (SC-006).
+            foreach (var line in SummaryLabels.Lines(summary))
+            {
+                buffer.Append(line).Append('\n');
+            }
+
             buffer.Append('\n');
         }
+
 
         private static void AppendStatus(StringBuilder buffer, DetailedValidationReport report)
         {

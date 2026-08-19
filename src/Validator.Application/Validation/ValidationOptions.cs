@@ -1,4 +1,5 @@
 using System;
+using Validator.Application.Scoring;
 using Validator.Domain.Timeframes;
 
 namespace Validator.Application.Validation
@@ -8,6 +9,10 @@ namespace Validator.Application.Validation
         public string? TimeframeOverride { get; init; }
         public bool Verbose { get; init; } = false;
 
+        // The opt-in scoring request. Null means scoring was not requested, so
+        // the run behaves exactly as before and the report carries no score.
+        public ScoreRequest? Score { get; init; }
+
         public Timeframe? GetParsedTimeframe()
         {
             if (string.IsNullOrWhiteSpace(TimeframeOverride)) return null;
@@ -16,3 +21,5 @@ namespace Validator.Application.Validation
         }
     }
 }
+
+
