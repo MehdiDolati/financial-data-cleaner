@@ -71,5 +71,41 @@ namespace Validator.Domain.Tests.Comparison
 
             Assert.Contains("unavailable score must carry a reason", ex.Message);
         }
+
+        [Fact]
+        public void Available_WithZeroMatchedPopulation_Throws()
+        {
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => new BenchmarkAgreementScore(
+                score: new ScoreValue(new ExactRatio(100, 1)),
+                formula: "test",
+                matchedPopulation: 0,
+                materialDiscrepancyCount: 0,
+                unavailableReason: null));
+
+            Assert.Contains("positive matched population", ex.Message);
+        }
+
+        [Fact]
+        public void AllProperties_AreAccessible()
+        {
+            var score = BenchmarkAgreementScore.Available(matchedPopulation: 100, materialDiscrepancyTimestamps: 10);
+
+            Assert.NotNull(score.Score);
+            Assert.Equal("100 × (matchedPopulation - materialDiscrepancyTimestamps) / matchedPopulation", score.Formula);
+            Assert.Equal(100, score.MatchedPopulation);
+            Assert.Equal(10, score.MaterialDiscrepancyCount);
+            Assert.Null(score.UnavailableReason);
+        }
+
+        [Fact]
+        public void Unavailable_AllProperties_AreAccessible()
+        {
+            var score = BenchmarkAgreementScore.Unavailable("No overlap", matchedPopulation: 50, materialDiscrepancyTimestamps: 5);
+
+            Assert.Null(score.Score);
+            Assert.Equal("No overlap", score.UnavailableReason);
+            Assert.Equal(50, score.MatchedPopulation);
+            Assert.Equal(5, score.MaterialDiscrepancyCount);
+        }
     }
 }

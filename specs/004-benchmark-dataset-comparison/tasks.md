@@ -70,16 +70,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T019 [P] [US1] Write unit tests for `EstablishBenchmarkUseCase` in `tests/Validator.Application.Tests/Benchmark/EstablishBenchmarkUseCaseTests.cs` — test successful establishment, name collision rejection, invalid validation rejection, source identity preservation
-- [ ] T020 [P] [US1] Write unit tests for `FileBenchmarkStore` in `tests/Validator.Infrastructure.Tests/Benchmark/FileBenchmarkStoreTests.cs` — test save/load/delete/list round-trip, atomic writes, SHA-256 verification on load, missing file handling, corrupted JSON handling
+- [x] T019 [P] [US1] Write unit tests for `EstablishBenchmarkUseCase` in `tests/Validator.Application.Tests/Benchmark/EstablishBenchmarkUseCaseTests.cs` — test successful establishment, name collision rejection, invalid validation rejection, source identity preservation
+- [x] T020 [P] [US1] Write unit tests for `FileBenchmarkStore` (Coverage tests added) in `tests/Validator.Infrastructure.Tests/Benchmark/FileBenchmarkStoreTests.cs` — test save/load/delete/list round-trip, atomic writes, SHA-256 verification on load, missing file handling, corrupted JSON handling
 
 ### Implementation for User Story 1
 
-- [ ] T021 [US1] Implement `BenchmarkSnapshotValidator` in `src/Validator.Application/Benchmark/BenchmarkSnapshotValidator.cs` — validate that a DetailedValidationReport has all required fields (source identity, context, checks completed, metrics scored) before benchmark creation is allowed (FR-004)
-- [ ] T022 [US1] Implement `EstablishBenchmarkUseCase` in `src/Validator.Application/Benchmark/EstablishBenchmarkUseCase.cs` — orchestrate: validate report completeness, build BenchmarkSnapshot from report, check name collision via IBenchmarkStore, save snapshot + source bytes; reject on collision (FR-003) or incomplete validation (FR-004)
-- [ ] T023 [US1] Implement `BenchmarkName` value object in `src/Validator.Application/Benchmark/BenchmarkName.cs` — derive safe directory name from user input: lowercase, spaces to hyphens, remove non-alphanumeric, no path separators
-- [ ] T024 [US1] Implement `FileBenchmarkStore` in `src/Validator.Infrastructure/Benchmark/FileBenchmarkStore.cs` — file-based IBenchmarkStore: save benchmark.json + source.csv atomically, load with SHA-256 verification, delete directory, list existing benchmarks
-- [ ] T025 [US1] Implement `BenchmarkSnapshotJsonSerializer` in `src/Validator.Infrastructure/Benchmark/BenchmarkSnapshotJsonSerializer.cs` — serialize/deserialize BenchmarkSnapshot to/from JSON contract v1; handle all nested types (SourceIdentity, ValidationContextSnapshot, MetricScore, etc.)
+- [x] T021 [US1] Implement `BenchmarkSnapshotValidator` in `src/Validator.Application/Benchmark/BenchmarkSnapshotValidator.cs` — validate that a DetailedValidationReport has all required fields (source identity, context, checks completed, metrics scored) before benchmark creation is allowed (FR-004)
+- [x] T022 [US1] Implement `EstablishBenchmarkUseCase` in `src/Validator.Application/Benchmark/EstablishBenchmarkUseCase.cs` — orchestrate: validate report completeness, build BenchmarkSnapshot from report, check name collision via IBenchmarkStore, save snapshot + source bytes; reject on collision (FR-003) or incomplete validation (FR-004)
+- [x] T023 [US1] Implement `BenchmarkName` value object in `src/Validator.Application/Benchmark/BenchmarkName.cs` — derive safe directory name from user input: lowercase, spaces to hyphens, remove non-alphanumeric, no path separators
+- [x] T024 [US1] Implement `FileBenchmarkStore` in `src/Validator.Infrastructure/Benchmark/FileBenchmarkStore.cs` — file-based IBenchmarkStore: save benchmark.json + source.csv atomically, load with SHA-256 verification, delete directory, list existing benchmarks
+- [x] T025 [US1] Implement `BenchmarkSnapshotJsonSerializer` in `src/Validator.Infrastructure/Benchmark/BenchmarkSnapshotJsonSerializer.cs` — serialize/deserialize BenchmarkSnapshot to/from JSON contract v1; handle all nested types (SourceIdentity, ValidationContextSnapshot, MetricScore, etc.)
 - [ ] T026 [US1] Extend `ValidateCommand` CLI in `src/Validator.Cli/Commands/ValidateCommand.cs` — add `--benchmark <name>` option; when specified, run validation, then call EstablishBenchmarkUseCase; add `--benchmark-dir <path>` option with default `./benchmarks/`; add `--benchmark-delete <name>` option with `--yes` confirmation flag
 - [ ] T027 [US1] Run and pass all US1 tests (`dotnet test --filter "Benchmark"`)
 

@@ -11,9 +11,10 @@ namespace Validator.Application.Benchmark
     public interface IBenchmarkStore
     {
         /// <summary>
-        /// Saves a benchmark snapshot. Fails if a benchmark with the same name already exists.
+        /// Saves a benchmark snapshot and copies the source file into the benchmark directory.
+        /// Fails if a benchmark with the same name already exists.
         /// </summary>
-        ValueTask SaveAsync(BenchmarkSnapshot snapshot, CancellationToken cancellationToken = default);
+        ValueTask SaveAsync(BenchmarkSnapshot snapshot, string sourceFilePath, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Loads a benchmark snapshot by name. Throws if not found.

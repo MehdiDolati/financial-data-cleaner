@@ -91,5 +91,66 @@ namespace Validator.Domain.Tests.Comparison
             Assert.Equal(start, coverage.OverlappingRangeStart);
             Assert.Equal(end, coverage.OverlappingRangeEnd);
         }
+
+        [Fact]
+        public void Constructor_WithNullOverlappingRange_Succeeds()
+        {
+            var coverage = new ComparisonCoverage(
+                benchmarkRecordCount: 100,
+                candidateRecordCount: 100,
+                matchedCount: 0,
+                missingFromCandidateCount: 100,
+                extraInCandidateCount: 100);
+
+            Assert.Null(coverage.OverlappingRangeStart);
+            Assert.Null(coverage.OverlappingRangeEnd);
+        }
+
+        [Fact]
+        public void Constructor_WithNegativeBenchmarkRecordCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new ComparisonCoverage(
+                benchmarkRecordCount: -1, candidateRecordCount: 0,
+                matchedCount: 0, missingFromCandidateCount: 0, extraInCandidateCount: 0));
+        }
+
+        [Fact]
+        public void Constructor_WithNegativeCandidateRecordCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new ComparisonCoverage(
+                benchmarkRecordCount: 0, candidateRecordCount: -1,
+                matchedCount: 0, missingFromCandidateCount: 0, extraInCandidateCount: 0));
+        }
+
+        [Fact]
+        public void Constructor_WithNegativeMissingCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new ComparisonCoverage(
+                benchmarkRecordCount: 100, candidateRecordCount: 100,
+                matchedCount: 100, missingFromCandidateCount: -1, extraInCandidateCount: 0));
+        }
+
+        [Fact]
+        public void Constructor_WithNegativeExtraCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new ComparisonCoverage(
+                benchmarkRecordCount: 100, candidateRecordCount: 100,
+                matchedCount: 100, missingFromCandidateCount: 0, extraInCandidateCount: -1));
+        }
+
+        [Fact]
+        public void Constructor_WithPerfectMatch_Succeeds()
+        {
+            var coverage = new ComparisonCoverage(
+                benchmarkRecordCount: 100,
+                candidateRecordCount: 100,
+                matchedCount: 100,
+                missingFromCandidateCount: 0,
+                extraInCandidateCount: 0);
+
+            Assert.Equal(100, coverage.MatchedCount);
+            Assert.Equal(0, coverage.MissingFromCandidateCount);
+            Assert.Equal(0, coverage.ExtraInCandidateCount);
+        }
     }
 }
