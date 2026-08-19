@@ -19,6 +19,13 @@ The following decisions have significant impact on the benchmark contract and co
 - **Q3: How should acceptable broker differences be configured and timestamps aligned?** → A: Use configurable per-field absolute and relative tolerances, compare the union of timestamps, and report missing and extra candles separately.
 - **Q4: What default tolerance profile should apply when the user does not provide one?** → A: Use a conservative forex-oriented profile: price fields accept the greater of one fractional quote-unit step or 0.01% of the benchmark value; volume accepts differences up to 5% of the benchmark volume. The user can override each field explicitly, and every resolved tolerance is reported. This is a deliberately cautious starting point: it filters ordinary broker rounding and small feed variation without making large price changes or broad history differences disappear.
 
+### Session 2026-08-19
+
+- **Q5: How should the fractional quote-unit step be determined when the instrument has no declared quote precision?** → A: Infer the step from the benchmark dataset's observed decimal precision — scan all Open/High/Low/Close values and determine the smallest positive fractional unit represented (e.g., values with up to 5 decimal places yield a step of 0.00001). No explicit user input is required.
+- **Q6: What should the CLI exit code represent when --compare is used?** → A: Exit 0 if the comparison completed successfully (regardless of discrepancies found); exit 2 for fatal errors. The comparison is purely advisory (FR-026), so the report itself carries the findings rather than the exit code. This keeps comparison behavior consistent with the existing validator pattern where exit 1 means validation findings, and avoids overloading the exit code with threshold logic.
+- **Q7: Where should benchmark snapshots be stored on disk?** → A: Default to a `benchmarks/` directory at the project root, overridable with a `--benchmark-dir <path>` option. The default directory is created on first benchmark establishment. The user can point to a shared location for team use.- **Q8: Should users be able to delete an existing benchmark?** → A: Yes. Support `--benchmark-delete <name>` to remove a benchmark's metadata and source copy. This lets users clean up stale or incorrect benchmarks. Deletion requires explicit confirmation or a `--yes` flag to prevent accidental removal.
+- **Q9: What context mismatches should block comparison vs. merely be noted?** → A: Timeframe mismatch is a hard fail — comparing H1 candles against D1 candles is meaningless, so the operation is rejected with a clear diagnostic. Other context differences (calendar, timestamp interpretation, date range) are noted in the report as informational warnings but do not block comparison, since the union-of-timestamps approach handles range differences gracefully.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Establish a Trusted Benchmark (Priority: P1)
@@ -116,7 +123,7 @@ As a pipeline owner or auditor, I want a comparison to be deterministic and self
 
 #### Comparison Eligibility and Alignment
 
-- **FR-006**: The system MUST compare a candidate dataset with a selected benchmark only after both datasets have been interpreted under compatible timestamp, timeframe, instrument, and market-calendar context, or MUST report the incompatibility explicitly.
+- **FR-006**: The system MUST reject comparison when the candidate and benchmark timeframes differ (e.g., H1 vs D1) with a fatal diagnostic explaining the incompatibility. For other context differences (calendar, timestamp interpretation, date range), the system MUST proceed with comparison and note the differences in the report as informational warnings.
 - **FR-007**: The system MUST normalize timestamps to the established UTC comparison representation before matching records.
 - **FR-008**: The system MUST match records by timestamp and MUST report benchmark timestamps absent from the candidate as missing candidate records.
 - **FR-009**: The system MUST report candidate timestamps absent from the benchmark as extra candidate records and MUST NOT invent reference values for them.
@@ -185,7 +192,7 @@ As a pipeline owner or auditor, I want a comparison to be deterministic and self
 - Comparisons are detection-only and advisory. Automatic repair, interpolation, deduplication, and source mutation are out of scope.
 - Instrument identity, timeframe, timestamp interpretation, market calendar, and covered range are required comparison context, even when the source file itself does not contain a symbol column.
 - Numerical comparison is performed on the parsed numeric values rather than their original text representation.
-- The default one-fractional-step price tolerance is resolved from the instrument's declared quote precision; if that precision is unavailable, configuration MUST provide an explicit absolute tolerance rather than silently guessing.
+- The default one-fractional-step price tolerance is resolved by inferring the fractional unit from the benchmark dataset's observed decimal precision across OHLC values (e.g., 5 decimal places → step of 0.00001). This avoids requiring an explicit instrument model while still providing a principled pip-level floor.
 - The default 5% volume tolerance is a pragmatic broker-variation baseline, not a claim that volume is comparable across all providers; users may disable volume comparison or provide a stricter or wider field-specific rule.
 - Existing six-metric definitions and score calculations remain authoritative for independent dataset quality scores.
 - Human-readable reports remain in English and machine-readable reports remain versioned and deterministic.

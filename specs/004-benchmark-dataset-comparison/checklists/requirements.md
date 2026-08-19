@@ -36,6 +36,11 @@
 - **Q3 resolved**: Comparison uses per-field absolute/relative tolerances over the union of timestamps, with missing and extra records reported separately.
 - **Default tolerance resolved**: Price fields use the greater of one fractional quote-unit step or 0.01%; volume uses 5%. All resolved tolerances are auditable and overridable.
 - **Delicate mismatch handling**: The specification explicitly distinguishes tolerated broker differences from material discrepancies and prevents no-coverage comparisons from receiving a perfect score.
+- **Q5 resolved (2026-08-19)**: Quote precision is inferred from the benchmark dataset's observed decimal precision. No explicit instrument model needed.
+- **Q6 resolved (2026-08-19)**: Comparison exit code is 0 on success, 2 on fatal. Advisory nature means report carries findings, not exit code.
+- **Q7 resolved (2026-08-19)**: Benchmarks stored in `./benchmarks/` by default, overridable with `--benchmark-dir`.
+- **Q8 resolved (2026-08-19)**: Benchmark deletion supported via `--benchmark-delete <name>`.
+- **Q9 resolved (2026-08-19)**: Timeframe mismatch is a hard fail; other context differences are noted as warnings.
 - Principle VIII requires a `README.md` update because this feature adds benchmark lifecycle, comparison options, inputs, and outputs. Planning and tasks must schedule that documentation work.
 
 ## Notes
