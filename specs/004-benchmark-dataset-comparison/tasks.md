@@ -20,8 +20,8 @@
 
 **Purpose**: Create new directories and test fixtures for the feature.
 
-- [ ] T001 Create directory structure: `src/Validator.Domain/Benchmarks/`, `src/Validator.Domain/Comparison/`, `src/Validator.Application/Benchmark/`, `src/Validator.Application/Comparison/`, `src/Validator.Infrastructure/Benchmark/`, `tests/Validator.Domain.Tests/Comparison/`, `tests/Validator.Application.Tests/Benchmark/`, `tests/Validator.Application.Tests/Comparison/`, `tests/Validator.Infrastructure.Tests/Benchmark/`
-- [ ] T002 [P] Create test fixture CSV files in `tests/Fixtures/`: a reference AUDUSD D1 dataset (`AUDUSD_D1_reference.csv`) with ~100 candles, a candidate with identical values (`AUDUSD_D1_candidate_identical.csv`), a candidate with one material price difference and one tolerated broker difference (`AUDUSD_D1_candidate_with_differences.csv`), a candidate with missing and extra candles (`AUDUSD_D1_candidate_coverage_gaps.csv`), and a candidate with no overlapping timestamps (`AUDUSD_D1_candidate_no_overlap.csv`)
+- [x] T001 Create directory structure: `src/Validator.Domain/Benchmarks/`, `src/Validator.Domain/Comparison/`, `src/Validator.Application/Benchmark/`, `src/Validator.Application/Comparison/`, `src/Validator.Infrastructure/Benchmark/`, `tests/Validator.Domain.Tests/Comparison/`, `tests/Validator.Application.Tests/Benchmark/`, `tests/Validator.Application.Tests/Comparison/`, `tests/Validator.Infrastructure.Tests/Benchmark/`
+- [x] T002 [P] Create test fixture CSV files in `tests/Fixtures/`: a reference AUDUSD D1 dataset (`AUDUSD_D1_reference.csv`) with ~100 candles, a candidate with identical values (`AUDUSD_D1_candidate_identical.csv`), a candidate with one material price difference and one tolerated broker difference (`AUDUSD_D1_candidate_with_differences.csv`), a candidate with missing and extra candles (`AUDUSD_D1_candidate_coverage_gaps.csv`), and a candidate with no overlapping timestamps (`AUDUSD_D1_candidate_no_overlap.csv`)
 
 ---
 
