@@ -19,13 +19,38 @@ public sealed class SchemaValidationTests : IDisposable
         RequireFormatValidation = true
     };
 
+    private static readonly object RegistryGate = new();
+    private static bool _scoringSchemaRegistered;
+
     private readonly string _directory;
 
     public SchemaValidationTests()
     {
         _directory = Path.Combine(Path.GetTempPath(), $"validator-schema-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_directory);
+        RegisterScoringSchema();
     }
+
+    // The amended v2 success schema references the scoring section by its
+    // published id. Registering the section schema up front lets that $ref
+    // resolve entirely offline, so schema tests never attempt a network fetch.
+    private static void RegisterScoringSchema()
+    {
+        lock (RegistryGate)
+        {
+            if (_scoringSchemaRegistered)
+            {
+                return;
+            }
+
+            var scoring = JsonSchema.FromFile(Path.Combine(Contracts, "scoring-v2.schema.json"));
+            SchemaRegistry.Global.Register(
+                new Uri("https://financial-data-cleaner.local/contracts/scoring-v2.schema.json"),
+                scoring);
+            _scoringSchemaRegistered = true;
+        }
+    }
+
 
     public void Dispose()
     {
@@ -180,10 +205,30 @@ public sealed class SchemaValidationTests : IDisposable
 
     // The contracts themselves must remain parseable, self-describing schema
     // documents rather than arbitrary JSON.
+    // A scored v2 document validates against the amended success schema, whose
+    // scoring member validates against the separately published section schema,
+    // and its contractVersion is still 2.
+    [Fact]
+    public async Task ScoredV2Report_SatisfiesTheAmendedDetailedReportContract()
+    {
+        var json = await RunForV2JsonAsync(
+            Path.Combine(Fixtures, "known-defects.csv"),
+            "--timeframe", "H1", "--score", "--format", "json", "--report-version", "2");
+
+        AssertValid(Load("detailed-report-v2.schema.json"), json);
+
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(2, document.RootElement.GetProperty("contractVersion").GetInt32());
+        Assert.True(document.RootElement.TryGetProperty("scoring", out var scoring));
+        AssertValid(Load("scoring-v2.schema.json"), scoring.GetRawText());
+    }
+
     [Theory]
     [InlineData("detailed-report-v2.schema.json")]
     [InlineData("fatal-diagnostic-v2.schema.json")]
+    [InlineData("scoring-v2.schema.json")]
     public void PublishedContract_IsAParseableSchemaDocument(string fileName)
+
     {
         var path = Path.Combine(Contracts, fileName);
         Assert.True(File.Exists(path), $"The published contract '{fileName}' was not found next to the tests.");

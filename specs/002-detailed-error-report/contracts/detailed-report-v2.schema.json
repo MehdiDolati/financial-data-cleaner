@@ -47,8 +47,10 @@
       "type": "array",
       "items": { "$ref": "#/$defs/finding" },
       "description": "All findings in category, UTC timestamp, source line, and reference order."
-    }
+    },
+    "scoring": { "$ref": "scoring-v2.schema.json" }
   },
+
   "$defs": {
     "nonNegativeInteger": {
       "type": "integer",

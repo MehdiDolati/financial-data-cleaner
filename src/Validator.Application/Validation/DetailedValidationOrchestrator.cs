@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 using Validator.Application.Abstractions;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
+using Validator.Application.Scoring;
 using Validator.Domain.Candles;
 using Validator.Domain.Findings;
 using Validator.Domain.Findings.Evidence;
 using Validator.Domain.Timeframes;
+
 
 namespace Validator.Application.Validation
 {
@@ -73,13 +75,14 @@ namespace Validator.Application.Validation
             {
                 catalog = _catalogFactory();
 
-                var (checks, summary) = await RunChecksAsync(
+                var (checks, summary, expectedCandles) = await RunChecksAsync(
                     candles,
                     malformedRows,
                     timeframe,
                     request.MarketCalendar,
                     catalog,
                     cancellationToken).ConfigureAwait(false);
+
 
                 var completion = await catalog.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 if (completion is CompletedFindingCatalogResult.Failed completionFailed)
@@ -105,6 +108,30 @@ namespace Validator.Application.Validation
                     return new DetailedValidationOutcome.Failed(fatal);
                 }
 
+                // Scoring is a pure derivation over the reconciled run. It is
+                // attempted only when requested and only after reconciliation has
+                // passed, so a fatal run never carries a score. An impossible
+                // defect rate is an internal inconsistency and fails the run as a
+                // reconciliation failure rather than being clamped.
+                DatasetScoreReport? score = null;
+                if (request.Options.Score is { } scoreRequest)
+                {
+                    try
+                    {
+                        var populations = MetricPopulations.FromScanCoverage(succeeded.Coverage, expectedCandles);
+                        score = ScoreSectionBuilder.Build(summary, populations, checks, scoreRequest.Weighting);
+                    }
+                    catch (ImpossibleDefectRateException exception)
+                    {
+                        await completed.Catalog.DisposeAsync().ConfigureAwait(false);
+                        return new DetailedValidationOutcome.Failed(new FatalDiagnostic(
+                            "REPORT_RECONCILIATION_FAILED",
+                            "A metric's defect count exceeds its population, implying an impossible rate.",
+                            exception.Message,
+                            checks: checks));
+                    }
+                }
+
                 var context = CreateContext(request, timeframe, succeeded);
                 var report = new DetailedValidationReport(
                     succeeded.Source,
@@ -113,8 +140,12 @@ namespace Validator.Application.Validation
                     checks,
                     summary,
                     reconciliation,
-                    completed.Catalog);
+                    completed.Catalog)
+                {
+                    Score = score
+                };
                 return new DetailedValidationOutcome.Succeeded(report);
+
             }
             finally
             {
@@ -182,7 +213,7 @@ namespace Validator.Application.Validation
                 succeeded.Csv.DateRange);
         }
 
-        private static async ValueTask<(CheckExecution[] Checks, DetailedSummary Summary)> RunChecksAsync(
+        private static async ValueTask<(CheckExecution[] Checks, DetailedSummary Summary, long? ExpectedCandles)> RunChecksAsync(
             IReadOnlyList<PriceCandle> candles,
             IReadOnlyList<MalformedRow> malformedRows,
             Timeframe timeframe,
@@ -190,6 +221,7 @@ namespace Validator.Application.Validation
             IDetailedFindingSink sink,
             CancellationToken cancellationToken)
         {
+
             var ordered = candles
                 .OrderBy(candle => candle.Timestamp)
                 .ThenBy(candle => candle.SourceLine)
@@ -217,6 +249,10 @@ namespace Validator.Application.Validation
             var sequenceReason = "Fewer than two open-market timestamps bound an expected sequence.";
             CheckExecution missingExecution;
             CheckExecution gapsExecution;
+            // Expected open-market candles are counted only when the sequence
+            // checks actually run; otherwise the population is unknown and must
+            // stay null so the time-based metrics can report NotApplicable.
+            long? expectedCandles = null;
             if (openTimestamps.Length < 2)
             {
                 missingExecution = new CheckExecution(CheckName.MissingCandles, CheckStatus.NotApplicable, sequenceReason);
@@ -226,7 +262,7 @@ namespace Validator.Application.Validation
             {
                 missingExecution = new CheckExecution(CheckName.MissingCandles, CheckStatus.Completed);
                 gapsExecution = new CheckExecution(CheckName.TimeGaps, CheckStatus.Completed);
-                await RunSequenceChecksAsync(
+                expectedCandles = await RunSequenceChecksAsync(
                     openTimestamps,
                     occupied,
                     timeframe,
@@ -236,6 +272,7 @@ namespace Validator.Application.Validation
                     sink,
                     cancellationToken).ConfigureAwait(false);
             }
+
 
             await RunDuplicateCheckAsync(ordered, counters, allocator, sink, cancellationToken).ConfigureAwait(false);
             await RunInvalidOhlcCheckAsync(ordered, counters, allocator, sink, cancellationToken).ConfigureAwait(false);
@@ -260,10 +297,15 @@ namespace Validator.Application.Validation
                 counters[(int)FindingCategory.TimeGap],
                 counters[(int)FindingCategory.MalformedRow]);
 
-            return (checks, summary);
+            return (checks, summary, expectedCandles);
         }
 
-        private static async ValueTask RunSequenceChecksAsync(
+        // Runs the missing-candle and time-gap checks over one expected sequence
+        // and returns the number of expected open-market slots it visited. That
+        // count is the shared population for both time-based metrics and, being
+        // produced by the same walk that reported the missing candles, cannot
+        // disagree with them.
+        private static async ValueTask<long> RunSequenceChecksAsync(
             DateTimeOffset[] openTimestamps,
             HashSet<DateTimeOffset> occupied,
             Timeframe timeframe,
@@ -279,6 +321,8 @@ namespace Validator.Application.Validation
             var gapStart = (DateTimeOffset?)null;
             var gapPreviousObserved = (DateTimeOffset?)null;
             var gapCandles = new List<FindingReference>();
+            var expectedOpenCandles = 0L;
+
 
             async ValueTask CloseGapAsync()
             {
@@ -357,6 +401,11 @@ namespace Validator.Application.Validation
                     continue;
                 }
 
+                // Every open-market slot in the evaluated range is one expected
+                // candle, whether or not the source actually contains it. This is
+                // the denominator both time-based metrics are scored against.
+                expectedOpenCandles++;
+
                 if (occupied.Contains(expected))
                 {
                     await CloseGapAsync().ConfigureAwait(false);
@@ -374,7 +423,9 @@ namespace Validator.Application.Validation
             }
 
             await CloseGapAsync().ConfigureAwait(false);
+            return expectedOpenCandles;
         }
+
 
         private static async ValueTask RunDuplicateCheckAsync(
             PriceCandle[] ordered,

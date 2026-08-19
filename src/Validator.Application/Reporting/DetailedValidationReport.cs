@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Validator.Application.Abstractions;
 using Validator.Application.Ingestion;
+using Validator.Application.Scoring;
 using Validator.Domain.Findings;
 
 namespace Validator.Application.Reporting
@@ -22,6 +23,12 @@ namespace Validator.Application.Reporting
         public DetailedSummary Summary { get; }
         public ReportReconciliation Reconciliation { get; }
         public ICompletedFindingCatalog Findings { get; }
+
+        // The optional scoring section. It is null unless scoring was requested,
+        // so every existing consumer of a report is unaffected and the feature
+        // stays additive.
+        public DatasetScoreReport? Score { get; init; }
+
 
         public DetailedValidationReport(
             SourceIdentity source,
