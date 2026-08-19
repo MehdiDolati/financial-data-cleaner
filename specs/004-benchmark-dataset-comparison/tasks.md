@@ -80,8 +80,8 @@
 - [x] T023 [US1] Implement `BenchmarkName` value object in `src/Validator.Application/Benchmark/BenchmarkName.cs` — derive safe directory name from user input: lowercase, spaces to hyphens, remove non-alphanumeric, no path separators
 - [x] T024 [US1] Implement `FileBenchmarkStore` in `src/Validator.Infrastructure/Benchmark/FileBenchmarkStore.cs` — file-based IBenchmarkStore: save benchmark.json + source.csv atomically, load with SHA-256 verification, delete directory, list existing benchmarks
 - [x] T025 [US1] Implement `BenchmarkSnapshotJsonSerializer` in `src/Validator.Infrastructure/Benchmark/BenchmarkSnapshotJsonSerializer.cs` — serialize/deserialize BenchmarkSnapshot to/from JSON contract v1; handle all nested types (SourceIdentity, ValidationContextSnapshot, MetricScore, etc.)
-- [ ] T026 [US1] Extend `ValidateCommand` CLI in `src/Validator.Cli/Commands/ValidateCommand.cs` — add `--benchmark <name>` option; when specified, run validation, then call EstablishBenchmarkUseCase; add `--benchmark-dir <path>` option with default `./benchmarks/`; add `--benchmark-delete <name>` option with `--yes` confirmation flag
-- [ ] T027 [US1] Run and pass all US1 tests (`dotnet test --filter "Benchmark"`)
+- [x] T026 [US1] Extend `ValidateCommand` CLI in `src/Validator.Cli/Commands/ValidateCommand.cs` — add `--benchmark <name>` option; when specified, run validation, then call EstablishBenchmarkUseCase; add `--benchmark-dir <path>` option with default `./benchmarks/`; add `--benchmark-delete <name>` option with `--yes` confirmation flag
+- [x] T027 [US1] Run and pass all US1 tests (`dotnet test --filter "Benchmark"`)
 
 **Checkpoint**: Benchmark establishment is fully functional. User can create, list, and delete benchmarks from the CLI.
 

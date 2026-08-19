@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Validator.Application.Abstractions;
+using Validator.Application.Benchmark;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
 using Validator.Application.Scoring;
@@ -8,6 +9,7 @@ using Validator.Application.Validation;
 
 using Validator.Domain.Calendars;
 using Validator.Domain.Timeframes;
+using Validator.Infrastructure.Benchmark;
 using Validator.Infrastructure.Calendars;
 using Validator.Infrastructure.Csv;
 using Validator.Infrastructure.Findings;
@@ -40,9 +42,15 @@ public static class ValidateCommand
           --verbose                           Append finding details in text mode
           --score                             Report per-metric quality scores and one dataset average
           --score-weights <list>              Override the average's weighting (requires --score)
+          --benchmark <name>                  Establish a named benchmark from the validated dataset
+          --benchmark-dir <path>              Benchmark storage directory (default: ./benchmarks/)
+          --benchmark-delete <name>           Delete a stored benchmark
+          --yes                               Skip confirmation prompt for benchmark deletion
           --help                              Show this help
 
         JSON scoring requires '--report-version 2'; '--score' with the version 1 JSON contract is rejected.
+        '--benchmark' requires '--score' and '--report-version 2'.
+        '--benchmark-delete' does not require an input file.
 
         Examples:
           validator EURUSD_H1.csv
@@ -52,6 +60,8 @@ public static class ValidateCommand
           validator prices.csv --timestamp-format "yyyy-MM-dd HH:mm:ss" --timestamp-column 1 --tz-offset +00:00
           validator equities.csv --market equities --timeframe M30 --verbose
           validator custom.csv --market custom --calendar market-hours.json --output report.json --format json
+          validator EURUSD_H1.csv --benchmark audusd-d1 --score --report-version 2 --format json
+          validator --benchmark-delete audusd-d1 --yes
         """;
 
 
@@ -69,6 +79,10 @@ public static class ValidateCommand
             return 0;
         }
 
+        // --benchmark-delete doesn't need an input file, but ParseArguments
+        // requires one. Detect it early so we can handle it specially.
+        var hasBenchmarkDelete = args.Any(a => a == "--benchmark-delete");
+
         ParsedArguments parsed;
         try
         {
@@ -85,6 +99,22 @@ public static class ValidateCommand
                     "The supplied options could not be applied to this run.",
                     exception.Message))
                 : WriteText(exception.Message);
+        }
+
+        // --benchmark-delete is a standalone action that doesn't need an input file
+        if (parsed.BenchmarkDelete is not null)
+        {
+            return await RunBenchmarkDeleteAsync(parsed).ConfigureAwait(false);
+        }
+
+        // --benchmark requires --score with a v2 JSON report to establish a benchmark
+        if (parsed.BenchmarkName is not null && parsed.Score is null)
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "INVALID_ARGUMENT",
+                "Option '--benchmark' requires '--score'.",
+                "Add '--score --report-version 2 --format json' to enable benchmark establishment.",
+                null));
         }
 
         // Version selection is resolved before unrelated options, so any later
@@ -165,7 +195,7 @@ public static class ValidateCommand
 
     private static ParsedArguments ParseArguments(IReadOnlyList<string> args)
     {
-        var inputPath = args[0];
+        string? inputPath = args.Count > 0 && !args[0].StartsWith('-') ? args[0] : null;
         string? timeframe = null;
         var format = ReportFormat.Text;
         string? outputPath = null;
@@ -176,8 +206,13 @@ public static class ValidateCommand
         var reportVersion = 1;
         var score = false;
         string? scoreWeights = null;
+        string? benchmarkName = null;
+        string? benchmarkDir = null;
+        string? benchmarkDelete = null;
+        var yes = false;
 
-        for (var index = 1; index < args.Count; index++)
+        var startIndex = inputPath is not null ? 1 : 0;
+        for (var index = startIndex; index < args.Count; index++)
         {
             var option = args[index];
             switch (option)
@@ -233,9 +268,44 @@ public static class ValidateCommand
                 case "-v":
                     verbose = true;
                     break;
+                case "--benchmark":
+                    benchmarkName = RequireValue(args, ref index, option);
+                    break;
+                case "--benchmark-dir":
+                    benchmarkDir = RequireValue(args, ref index, option);
+                    break;
+                case "--benchmark-delete":
+                    benchmarkDelete = RequireValue(args, ref index, option);
+                    break;
+                case "--yes":
+                case "-y":
+                    yes = true;
+                    break;
+                case "--help":
+                case "-h":
+                    // Handled earlier in RunAsync
+                    break;
                 default:
                     throw new ArgumentException($"Unknown option '{option}'. Use --help for usage.");
             }
+        }
+
+        // --benchmark-delete is a standalone action — skip remaining validation
+        if (benchmarkDelete is not null)
+        {
+            return new ParsedArguments(
+                inputPath ?? string.Empty,
+                timeframe, format, outputPath, verbose, market, calendarPath,
+                csv, reportVersion, Score: null,
+                BenchmarkName: null,
+                BenchmarkDir: benchmarkDir ?? "./benchmarks/",
+                BenchmarkDelete: benchmarkDelete,
+                Yes: yes);
+        }
+
+        if (inputPath is null)
+        {
+            throw new ArgumentException("Input file is required. Use --help for usage.");
         }
 
         // A contract version is only meaningful for JSON, so a text request that
@@ -286,7 +356,11 @@ public static class ValidateCommand
             calendarPath,
             csv,
             reportVersion,
-            scoreRequest);
+            Score: scoreRequest,
+            BenchmarkName: benchmarkName,
+            BenchmarkDir: benchmarkDir ?? "./benchmarks/",
+            BenchmarkDelete: null,
+            Yes: yes);
     }
 
 
@@ -397,12 +471,86 @@ public static class ValidateCommand
                     $"Validation complete: findings={report.Summary.TotalFindings}; clean={report.Summary.IsClean.ToString().ToLowerInvariant()}; report={parsed.OutputPath}");
             }
 
+            // After successful validation, establish benchmark if requested (FR-001)
+            if (parsed.BenchmarkName is not null)
+            {
+                var benchmarkExitCode = await EstablishBenchmarkAsync(parsed, report).ConfigureAwait(false);
+                if (benchmarkExitCode != 0)
+                    return benchmarkExitCode;
+            }
+
             return report.Summary.IsClean ? 0 : 1;
         }
         finally
         {
             await report.Findings.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    // Establishes a benchmark from the validated report.
+    private static async Task<int> EstablishBenchmarkAsync(ParsedArguments parsed, DetailedValidationReport report)
+    {
+        try
+        {
+            var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
+            Directory.CreateDirectory(benchmarkDir);
+            var store = new FileBenchmarkStore(benchmarkDir);
+            var useCase = new EstablishBenchmarkUseCase(store);
+
+            var snapshot = await useCase.ExecuteAsync(
+                report,
+                parsed.BenchmarkName!,
+                Path.GetFullPath(parsed.InputPath)).ConfigureAwait(false);
+
+            Console.Out.WriteLine($"Benchmark established: {snapshot.Name} at {benchmarkDir}/{snapshot.Name}");
+            return 0;
+        }
+        catch (Exception exception) when (exception is
+            InvalidOperationException or
+            FileNotFoundException or
+            IOException or
+            UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Failed to establish benchmark: {exception.Message}");
+            return 2;
+        }
+    }
+
+    // Deletes a stored benchmark by name.
+    private static async Task<int> RunBenchmarkDeleteAsync(ParsedArguments parsed)
+    {
+        var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
+        var name = new BenchmarkName(parsed.BenchmarkDelete!);
+        var store = new FileBenchmarkStore(benchmarkDir);
+
+        // Check if the benchmark exists
+        if (!await store.ExistsAsync(parsed.BenchmarkDelete!).ConfigureAwait(false))
+        {
+            Console.Error.WriteLine($"Benchmark '{parsed.BenchmarkDelete}' not found in {benchmarkDir}.");
+            return 2;
+        }
+
+        // Prompt for confirmation unless --yes
+        if (!parsed.Yes)
+        {
+            Console.Out.Write($"Delete benchmark '{parsed.BenchmarkDelete}'? [y/N] ");
+            var input = Console.In.ReadLine()?.Trim().ToLowerInvariant();
+            if (input is not ("y" or "yes"))
+            {
+                Console.Out.WriteLine("Deletion cancelled.");
+                return 0;
+            }
+        }
+
+        var deleted = await store.DeleteAsync(parsed.BenchmarkDelete!).ConfigureAwait(false);
+        if (deleted)
+        {
+            Console.Out.WriteLine($"Benchmark '{parsed.BenchmarkDelete}' deleted.");
+            return 0;
+        }
+
+        Console.Error.WriteLine($"Benchmark '{parsed.BenchmarkDelete}' could not be deleted.");
+        return 2;
     }
 
     // Classifies an ingestion failure that stopped the run before any report
@@ -614,7 +762,7 @@ public static class ValidateCommand
         }
 
         Directory.CreateDirectory(directory);
-        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        var temporaryPath = Path.Combine($".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
         try
         {
             File.WriteAllText(temporaryPath, content, new System.Text.UTF8Encoding(false));
@@ -639,7 +787,9 @@ public static class ValidateCommand
         string? CalendarPath,
         CsvInputOptions CsvOptions,
         int ReportVersion,
-        ScoreRequest? Score);
+        ScoreRequest? Score,
+        string? BenchmarkName = null,
+        string? BenchmarkDir = "./benchmarks/",
+        string? BenchmarkDelete = null,
+        bool Yes = false);
 }
-
-
