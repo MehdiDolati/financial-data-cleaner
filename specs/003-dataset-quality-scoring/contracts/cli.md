@@ -81,21 +81,42 @@ A scored text run begins with the six established summary lines, unchanged in
 content, order, and format, then emits one labelled scoring section:
 
 ```text
-Missing candles: 2
+Missing candles: 1
 Duplicate records: 1
-Invalid OHLC: 1
+Invalid OHLC: 2
 Closed-market records: 0
 Time gaps: 2
 Malformed rows: 0
 
 Quality scores (0-100, higher is better):
-- Missing candles: 97.62 (count=2; population=84 expected candles; weight=1; share=0.25)
+- Missing candles: 98.81 (count=1; population=84 expected candles; weight=1; share=0.17)
+- Duplicate records: 98.00 (count=1; population=50 accepted rows; weight=1; share=0.17)
+- Invalid OHLC: 96.00 (count=2; population=50 accepted rows; weight=1; share=0.17)
+- Closed-market records: 100.00 (count=0; population=50 accepted rows; weight=1; share=0.17)
+- Time gaps: 97.62 (count=2; population=84 expected candles; weight=1; share=0.17)
+- Malformed rows: 100.00 (count=0; population=50 examined rows; weight=1; share=0.17)
+Dataset average: 98.40 (covers 6 of 6 metrics)
+```
+
+The average above is `98.40`, not `98.41`. It is the weighted mean of the
+**unrounded** scores — `(8300/84 + 98 + 96 + 100 + 8200/84 + 100) / 6 =
+98.4047…` → `98.40`. Averaging the printed two-decimal values instead gives
+`98.405` → `98.41`, which FR-011 forbids. An implementation that reproduces
+`98.41` here has rounded too early.
+
+Both time-based metrics share the single expected-candle population, so they are
+always scored or excluded together. When the sequence checks cannot run, the
+section states that fact for both and the average narrows its coverage:
+
+```text
+Quality scores (0-100, higher is better):
+- Missing candles: not applicable (reason: Fewer than two open-market timestamps bound an expected sequence.)
 - Duplicate records: 98.00 (count=1; population=50 accepted rows; weight=1; share=0.25)
-- Invalid OHLC: 98.00 (count=1; population=50 accepted rows; weight=1; share=0.25)
+- Invalid OHLC: 96.00 (count=2; population=50 accepted rows; weight=1; share=0.25)
 - Closed-market records: 100.00 (count=0; population=50 accepted rows; weight=1; share=0.25)
-- Time gaps: not scored (population=0 expected candles; reason: ...)
-- Malformed rows: not applicable (reason: ...)
-Dataset average: 98.41 (covers 4 of 6 metrics; excluded: Time gaps, Malformed rows)
+- Time gaps: not applicable (reason: Fewer than two open-market timestamps bound an expected sequence.)
+- Malformed rows: 100.00 (count=0; population=50 examined rows; weight=1; share=0.25)
+Dataset average: 98.50 (covers 4 of 6 metrics; excluded: Missing candles, Time gaps)
 ```
 
 - Every metric appears in the established category order with exactly one state:
@@ -103,6 +124,9 @@ Dataset average: 98.41 (covers 4 of 6 metrics; excluded: Time gaps, Malformed ro
   carries no value.
 - Each scored line states its count, population, population kind, resolved
   weight, and normalised share, so the score can be checked by hand.
+- Each normalised share is rounded independently for presentation, so the printed
+  shares need not sum to exactly `1.00` (six equal shares print as `0.17` and sum
+  to `1.02`). The unrounded shares always sum to exactly 1.
 - The average states how many metrics it covers and which were excluded.
 - When no average is available, the line states it explicitly with the reason and
   shows no number:
@@ -135,8 +159,10 @@ human-readable text.
 
 ## Fatal Behaviour
 
-- A fatal run emits no score. The diagnostic makes clear that scoring did not
-  occur, and no partial scoring output appears on any stream.
+- A fatal run emits no score on any stream, and no partial scoring output
+  appears. When the fatal cause is itself a scoring problem — invalid weights,
+  the v1 conflict, or an impossible defect rate — the diagnostic names that
+  cause.
 - Invalid weights and the v1 conflict are `INVALID_ARGUMENT`
   (Configuration/ArgumentValidation) and are raised before the source is opened.
 - A count exceeding its population is an internal inconsistency reported as

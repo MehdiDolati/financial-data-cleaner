@@ -74,6 +74,8 @@ lines, and CLI option plumbing that ALL user stories depend on
 - [ ] T017 [P] Write failing process-level tests for `--score` acceptance, `--score-weights` requiring `--score`, and the `--score` + v1 JSON configuration conflict (exit 2, empty stdout, message naming `--report-version 2`) in `tests/Validator.Cli.Tests/ScoringOptionsE2ETests.cs`
 - [ ] T018 Add `--score` and `--score-weights` parsing plus the v1 conflict rejection as `INVALID_ARGUMENT` (Configuration/ArgumentValidation) before the source is opened, in `src/Validator.Cli/Commands/ValidateCommand.cs`
 - [ ] T019 Route scored text runs through the detailed pipeline by extending the existing verbose routing condition in `src/Validator.Cli/Commands/ValidateCommand.cs`
+- [ ] T019a [P] Extend `RequiredOptions` with `--score` and `--score-weights`, and `RequiredExamples` with `validator EURUSD_H1.csv --timeframe H1 --score`, in `tests/Validator.Cli.Tests/HelpE2ETests.cs` (fails until T019b)
+- [ ] T019b Add `--score` and `--score-weights` to the Options block and the scored example to the Examples block of the help text in `src/Validator.Cli/Commands/ValidateCommand.cs`, stating that JSON scoring requires `--report-version 2`
 
 **Checkpoint**: Exact arithmetic, populations, the optional report slot, shared
 summary lines, and opt-in routing all exist. User story work can begin.
@@ -134,6 +136,7 @@ including when some metrics are not applicable.
 - [ ] T037 [P] [US2] Write failing tests asserting the average is exactly `100.00` only when every covered metric scored `100.00`, in `tests/Validator.Application.Tests/Scoring/FlawlessAverageTests.cs`
 - [ ] T038 [P] [US2] Write failing tests asserting an unavailable average is reported with its reason and never as `0.00`, `100.00`, or any substitute, in `tests/Validator.Application.Tests/Scoring/UnavailableAverageTests.cs`
 - [ ] T039 [P] [US2] Write failing tests asserting the average is computed from unrounded metric scores and rounded once for presentation, in `tests/Validator.Application.Tests/Scoring/AverageRoundingTests.cs`
+- [ ] T039a [P] [US2] Write a failing test using the documented `contracts/cli.md` example (missing=1/84, duplicates=1/50, invalidOhlc=2/50, closedMarket=0/50, timeGaps=2/84, malformedRows=0/50) asserting the average is exactly `98.40` and explicitly NOT `98.41`, which is what averaging the rounded scores would produce, in `tests/Validator.Application.Tests/Scoring/AverageRoundingTests.cs`
 - [ ] T040 [P] [US2] Write a failing test asserting the average text line states its value and metric coverage, or its explicit unavailability with a reason, in `tests/Validator.Infrastructure.Tests/Reporting/ScoringAverageTextTests.cs`
 
 ### Implementation for User Story 2
@@ -164,7 +167,7 @@ that every invalid weight input is rejected before scanning begins.
 - [ ] T047 [P] [US3] Write failing tests asserting default weights are equal for all six metrics and are reported as resolved, in `tests/Validator.Application.Tests/Scoring/DefaultWeightingTests.cs`
 - [ ] T048 [P] [US3] Write failing tests asserting supplied weights change only the average and leave every per-metric score, count, population, and applicability state unchanged, in `tests/Validator.Application.Tests/Scoring/WeightIsolationTests.cs`
 - [ ] T049 [P] [US3] Write failing tests asserting a zero weight still scores and reports its metric while contributing nothing to the average, in `tests/Validator.Application.Tests/Scoring/ZeroWeightTests.cs`
-- [ ] T050 [P] [US3] Write failing tests asserting normalised shares are reported only for metrics included in the average and sum to `1.00` after rounding, in `tests/Validator.Application.Tests/Scoring/NormalisedShareTests.cs`
+- [ ] T050 [P] [US3] Write failing tests asserting normalised shares are reported only for metrics included in the average, that the unrounded shares sum to exactly 1, and that each share is rounded independently so six equal shares print as `0.17` and need not sum to `1.00`, in `tests/Validator.Application.Tests/Scoring/NormalisedShareTests.cs`
 - [ ] T051 [P] [US3] Write failing process-level tests asserting invalid weights exit `2` before any dataset content is read and produce no report, in `tests/Validator.Cli.Tests/ScoringWeightRejectionTests.cs`
 
 ### Implementation for User Story 3
@@ -191,15 +194,20 @@ determinism, v1 immutability, source safety, and no-score-on-fatal.
 output, then read every score, weight, population, and applicability value from
 documented machine-readable fields alone.
 
+### Contract Resolution for User Story 4
+
+- [ ] T058a [US4] Copy the feature-003 contracts into the schema-test output by adding `..\..\specs\003-dataset-quality-scoring\contracts\*.schema.json` to the `Contracts\%(Filename)%(Extension)` link glob in `tests/Validator.Cli.Tests/Validator.Cli.Tests.csproj`
+- [ ] T058b [US4] Register `scoring-v2.schema.json` in `SchemaRegistry` before evaluation so the amended v2 schema's `$ref` resolves offline without a network fetch, and extend the `PublishedContract_IsAParseableSchemaDocument` theory with `[InlineData("scoring-v2.schema.json")]`, in `tests/Validator.Cli.Tests/SchemaValidationTests.cs`
+
 ### Tests for User Story 4 ⚠️
 
-- [ ] T059 [P] [US4] Write a failing test validating a scored v2 document against `specs/003-dataset-quality-scoring/contracts/scoring-v2.schema.json` and asserting `contractVersion` remains `2`, in `tests/Validator.Cli.Tests/SchemaValidationTests.cs`
+- [ ] T059 [P] [US4] Write a failing test asserting a scored v2 document validates against the amended `detailed-report-v2.schema.json` and that its `scoring` member validates against `specs/003-dataset-quality-scoring/contracts/scoring-v2.schema.json`, with `contractVersion` still `2`, in `tests/Validator.Cli.Tests/SchemaValidationTests.cs`
 - [ ] T060 [P] [US4] Write a failing test asserting an unscored v2 document contains no `scoring` member and still validates, in `tests/Validator.Cli.Tests/DetailedReportV2E2ETests.cs`
 - [ ] T061 [P] [US4] Write a failing test asserting every score, count, population, population kind, state, reason, resolved weight, normalised share, average, metric coverage, excluded metrics, and unavailability reason is a separate documented field, in `tests/Validator.Infrastructure.Tests/Reporting/ScoringV2WriterTests.cs`
 - [ ] T062 [P] [US4] Write a failing test asserting repeated scored runs over identical bytes produce byte-identical output including formatting, in `tests/Validator.Cli.Tests/DeterminismTests.cs`
 - [ ] T063 [P] [US4] Write a failing test asserting an unscored run's output is byte-identical to the recorded golden output and that a scored run's six summary lines, findings, finding order, and exit code are byte-identical to the same run without `--score`, in `tests/Validator.Cli.Tests/ScoringAdditiveOutputTests.cs`
 - [ ] T064 [P] [US4] Write a failing test asserting v1 output is unchanged by this feature, in `tests/Validator.Cli.Tests/ReportCompatibilityTests.cs`
-- [ ] T065 [P] [US4] Write a failing test asserting a fatal run with scoring requested emits no score on any stream and its diagnostic makes clear scoring did not occur, in `tests/Validator.Cli.Tests/FatalV2RoutingTests.cs`
+- [ ] T065 [P] [US4] Write a failing test asserting a fatal run with `--score` requested emits no scoring output on stdout or stderr, and that a fatal caused by scoring itself (invalid weights, the v1 conflict, an impossible defect rate) names that cause in its `reason`/`guidance`, in `tests/Validator.Cli.Tests/FatalV2RoutingTests.cs`
 - [ ] T066 [P] [US4] Write a failing test asserting the source dataset hash is unchanged by a scored run, in `tests/Validator.Cli.Tests/ScoringSourceProtectionTests.cs`
 
 ### Implementation for User Story 4
@@ -254,14 +262,18 @@ automatable and auditable.
 - T011 must precede T012: populations cannot be resolved before the expected-candle count is returned from the walk.
 - T016 must precede T033: the summary labels must be centralised before a second writer emits the scoring section, otherwise SC-006 cannot be guaranteed.
 - T018 must precede T019: the options must parse before routing can branch on them.
+- T019a must precede T019b: the help assertions must fail before the help text satisfies them. T019b also edits `ValidateCommand.cs`, so it must not run in parallel with T018, T019, or T056.
 - T030, T043, and T055 all edit `ScoreSectionBuilder.cs` and must run sequentially, never in parallel.
 - T032, T044, and T057 all edit `ScoringTextSectionWriter.cs` and must run sequentially.
+- T058a and T058b must both precede T059, T060, and T068: `scoring-v2.schema.json` cannot be loaded until it is copied to the test output, and the amended v2 schema's `$ref` cannot resolve until the section schema is registered. Without them T059/T060 fail on a missing file rather than on a contract defect.
+- T058b and T059 both edit `SchemaValidationTests.cs` and must run sequentially.
 - T068 amends a published schema and must land in the same commit as T067 so the contract and its producer never disagree.
+- T039 and T039a both edit `AverageRoundingTests.cs` and must run sequentially.
 
 ### Parallel Opportunities
 
 - All Setup tasks (T001–T004) can run in parallel
-- T005, T007, T009, T010, T013, T015, T017 can be written in parallel within Foundational
+- T005, T007, T009, T010, T013, T015, T017, T019a can be written in parallel within Foundational
 - All test tasks within a single story phase are marked [P] and can be written in parallel
 - Once Foundational completes, US1 and US4's rendering tests can be drafted in parallel by different developers
 

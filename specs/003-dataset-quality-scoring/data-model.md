@@ -141,9 +141,11 @@ The resolved weight of one metric.
 | `NormalisedShare` | `decimal?` | The metric's share of the weights actually used for the average, to two decimals; `null` when the metric is excluded from the average. |
 
 **Rules**: `NormalisedShare` is non-null exactly for metrics with
-`State == Scored` when an average is available, and the non-null shares sum to
-`1.00` after rounding for presentation. A weight of zero is retained and reported;
-it contributes nothing to the average but never suppresses the metric's own score.
+`State == Scored` when an average is available. The unrounded shares sum to
+exactly 1; each share is rounded independently for presentation, so the printed
+shares need not sum to `1.00` (six equal shares print as `0.17` and sum to
+`1.02`). A weight of zero is retained and reported; it contributes nothing to the
+average but never suppresses the metric's own score.
 
 ### `ScoreWeighting`
 

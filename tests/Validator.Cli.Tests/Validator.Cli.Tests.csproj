@@ -31,9 +31,15 @@
   </ItemGroup>
 
   <!-- The published contracts are validated as-is, so the schema tests cannot
-       drift from the documents the feature promises. -->
+       drift from the documents the feature promises. Feature 003's scoring
+       section is a separate document referenced by the amended v2 schema, so it
+       must be copied alongside it for that reference to resolve offline. -->
   <ItemGroup>
     <None Include="..\..\specs\002-detailed-error-report\contracts\*.schema.json"
+          Link="Contracts\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\specs\003-dataset-quality-scoring\contracts\*.schema.json"
           Link="Contracts\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

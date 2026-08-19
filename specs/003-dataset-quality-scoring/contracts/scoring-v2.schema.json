@@ -50,8 +50,7 @@
       "type": "number",
       "minimum": 0,
       "maximum": 100,
-      "multipleOf": 0.01,
-      "description": "A score on the 0-to-100 scale at exactly two decimal places, where 100 is flawless."
+      "description": "A score on the 0-to-100 scale, rendered at exactly two decimal places, where 100 is flawless. Two-decimal precision is guaranteed by the producer and pinned by its own tests rather than by multipleOf, which is unreliable across double-based validators."
     },
     "weight": {
       "type": "number",
@@ -62,8 +61,7 @@
       "type": "number",
       "minimum": 0,
       "maximum": 1,
-      "multipleOf": 0.01,
-      "description": "Share of the weights actually used for the average, at two decimal places."
+      "description": "Share of the weights actually used for the average, rendered at two decimal places. Each share is rounded independently, so the shares in one document need not sum to exactly 1."
     },
     "populationKind": {
       "type": "string",
