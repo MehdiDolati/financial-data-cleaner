@@ -33,28 +33,28 @@
 
 ### Domain Entities
 
-- [ ] T003 [P] Create `OhlcvField` enum in `src/Validator.Domain/Comparison/OhlcvField.cs` — values: Open, High, Low, Close, Volume
-- [ ] T004 [P] Create `ToleranceDecision` discriminated union in `src/Validator.Domain/Comparison/ToleranceDecision.cs` — variants: AcceptedByAbsolute, AcceptedByRelative, MaterialDifference
-- [ ] T005 [P] Create `TimestampMode` enum in `src/Validator.Domain/Comparison/TimestampMode.cs` — value: Exact
-- [ ] T006 [P] Create `FieldDiscrepancy` record in `src/Validator.Domain/Comparison/FieldDiscrepancy.cs` — fields: TimestampUtc, Field, BenchmarkValue, CandidateValue, Difference, DirectionalDifference, ResolvedAbsoluteTolerance, ResolvedRelativeTolerance, ToleranceDecision; immutable with validation (Difference must be non-negative)
-- [ ] T007 [P] Create `ComparisonCoverage` record in `src/Validator.Domain/Comparison/ComparisonCoverage.cs` — fields: BenchmarkRecordCount, CandidateRecordCount, MatchedCount, MissingFromCandidateCount, ExtraInCandidateCount, OverlappingRange; enforce count invariants
-- [ ] T008 [P] Create `ToleratedDifferenceAggregate` record in `src/Validator.Domain/Comparison/ToleratedDifferenceAggregate.cs` — fields: Field, TotalCompared, AcceptedCount, AcceptedByAbsoluteCount, AcceptedByRelativeCount, MaterialCount
-- [ ] T009 [P] Create `BenchmarkAgreementScore` record in `src/Validator.Domain/Comparison/BenchmarkAgreementScore.cs` — fields: Score (ScoreValue?), Formula, MatchedPopulation, MaterialDiscrepancyCount, UnavailableReason; enforce that Score is null iff UnavailableReason is non-null
-- [ ] T010 [P] Create `ComparedField` record in `src/Validator.Domain/Comparison/ComparedField.cs` — fields: Field, Enabled, AbsoluteTolerance (decimal?), RelativeTolerance (decimal?), ResolvedAbsolute, ResolvedRelative
-- [ ] T011 [P] Create `ComparisonConfiguration` record in `src/Validator.Domain/Comparison/ComparisonConfiguration.cs` — fields: BenchmarkName, Fields (IReadOnlyList<ComparedField>), TimestampMode; validate no duplicate fields, all tolerances non-negative
+- [x] T003 [P] Create `OhlcvField` enum in `src/Validator.Domain/Comparison/OhlcvField.cs` — values: Open, High, Low, Close, Volume
+- [x] T004 [P] Create `ToleranceDecision` discriminated union in `src/Validator.Domain/Comparison/ToleranceDecision.cs` — variants: AcceptedByAbsolute, AcceptedByRelative, MaterialDifference
+- [x] T005 [P] Create `TimestampMode` enum in `src/Validator.Domain/Comparison/TimestampMode.cs` — value: Exact
+- [x] T006 [P] Create `FieldDiscrepancy` record in `src/Validator.Domain/Comparison/FieldDiscrepancy.cs` — fields: TimestampUtc, Field, BenchmarkValue, CandidateValue, Difference, DirectionalDifference, ResolvedAbsoluteTolerance, ResolvedRelativeTolerance, ToleranceDecision; immutable with validation (Difference must be non-negative)
+- [x] T007 [P] Create `ComparisonCoverage` record in `src/Validator.Domain/Comparison/ComparisonCoverage.cs` — fields: BenchmarkRecordCount, CandidateRecordCount, MatchedCount, MissingFromCandidateCount, ExtraInCandidateCount, OverlappingRange; enforce count invariants
+- [x] T008 [P] Create `ToleratedDifferenceAggregate` record in `src/Validator.Domain/Comparison/ToleratedDifferenceAggregate.cs` — fields: Field, TotalCompared, AcceptedCount, AcceptedByAbsoluteCount, AcceptedByRelativeCount, MaterialCount
+- [x] T009 [P] Create `BenchmarkAgreementScore` record in `src/Validator.Domain/Comparison/BenchmarkAgreementScore.cs` — fields: Score (ScoreValue?), Formula, MatchedPopulation, MaterialDiscrepancyCount, UnavailableReason; enforce that Score is null iff UnavailableReason is non-null
+- [x] T010 [P] Create `ComparedField` record in `src/Validator.Domain/Comparison/ComparedField.cs` — fields: Field, Enabled, AbsoluteTolerance (decimal?), RelativeTolerance (decimal?), ResolvedAbsolute, ResolvedRelative
+- [x] T011 [P] Create `ComparisonConfiguration` record in `src/Validator.Domain/Comparison/ComparisonConfiguration.cs` — fields: BenchmarkName, Fields (IReadOnlyList<ComparedField>), TimestampMode; validate no duplicate fields, all tolerances non-negative
 
 ### Application Interfaces
 
-- [ ] T012 [P] Create `IBenchmarkStore` interface in `src/Validator.Application/Benchmark/IBenchmarkStore.cs` — methods: SaveAsync(BenchmarkSnapshot), LoadAsync(string name), DeleteAsync(string name), ExistsAsync(string name), ListAsync()
-- [ ] T013 [P] Create `BenchmarkSnapshot` record in `src/Validator.Application/Benchmark/BenchmarkSnapshot.cs` — fields: Name, EstablishedAtUtc, Source (SourceIdentity), Context (ValidationContextSnapshot), Coverage (ScanCoverage), Checks (IReadOnlyList<CheckExecution>), Metrics (IReadOnlyList<MetricScore>), Dataset (DatasetScore), Weighting (ScoreWeighting)
-- [ ] T014 [P] Create `CandidateIdentity` record in `src/Validator.Application/Comparison/CandidateIdentity.cs` — fields: Source (SourceIdentity), Context (ValidationContextSnapshot)
+- [x] T012 [P] Create `IBenchmarkStore` interface in `src/Validator.Application/Benchmark/IBenchmarkStore.cs` — methods: SaveAsync(BenchmarkSnapshot), LoadAsync(string name), DeleteAsync(string name), ExistsAsync(string name), ListAsync()
+- [x] T013 [P] Create `BenchmarkSnapshot` record in `src/Validator.Application/Benchmark/BenchmarkSnapshot.cs` — fields: Name, EstablishedAtUtc, Source (SourceIdentity), Context (ValidationContextSnapshot), Coverage (ScanCoverage), Checks (IReadOnlyList<CheckExecution>), Metrics (IReadOnlyList<MetricScore>), Dataset (DatasetScore), Weighting (ScoreWeighting)
+- [x] T014 [P] Create `CandidateIdentity` record in `src/Validator.Application/Comparison/CandidateIdentity.cs` — fields: Source (SourceIdentity), Context (ValidationContextSnapshot)
 
 ### Unit Tests for Foundational Entities
 
-- [ ] T015 [P] Write unit tests for `FieldDiscrepancy` validation in `tests/Validator.Domain.Tests/Comparison/FieldDiscrepancyTests.cs` — test non-negative difference, correct directional difference, tolerance decision variants
-- [ ] T016 [P] Write unit tests for `ComparisonCoverage` invariant enforcement in `tests/Validator.Domain.Tests/Comparison/ComparisonCoverageTests.cs` — test count relationships, zero-match edge case
-- [ ] T017 [P] Write unit tests for `BenchmarkAgreementScore` null/unavailable invariant in `tests/Validator.Domain.Tests/Comparison/BenchmarkAgreementScoreTests.cs` — test available vs unavailable states, formula correctness
-- [ ] T018 [P] Write unit tests for `ComparisonConfiguration` validation in `tests/Validator.Domain.Tests/Comparison/ComparisonConfigurationTests.cs` — test duplicate field rejection, negative tolerance rejection
+- [x] T015 [P] Write unit tests for `FieldDiscrepancy` validation in `tests/Validator.Domain.Tests/Comparison/FieldDiscrepancyTests.cs` — test non-negative difference, correct directional difference, tolerance decision variants
+- [x] T016 [P] Write unit tests for `ComparisonCoverage` invariant enforcement in `tests/Validator.Domain.Tests/Comparison/ComparisonCoverageTests.cs` — test count relationships, zero-match edge case
+- [x] T017 [P] Write unit tests for `BenchmarkAgreementScore` null/unavailable invariant in `tests/Validator.Domain.Tests/Comparison/BenchmarkAgreementScoreTests.cs` — test available vs unavailable states, formula correctness
+- [x] T018 [P] Write unit tests for `ComparisonConfiguration` validation in `tests/Validator.Domain.Tests/Comparison/ComparisonConfigurationTests.cs` — test duplicate field rejection, negative tolerance rejection
 
 **Checkpoint**: Foundation ready — user story implementation can now begin.
 
