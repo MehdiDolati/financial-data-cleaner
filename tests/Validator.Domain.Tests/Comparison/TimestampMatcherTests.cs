@@ -178,5 +178,50 @@ namespace Validator.Domain.Tests.Comparison
             Assert.Throws<ArgumentNullException>(
                 () => TimestampMatcher.Match(Array.Empty<DateTimeOffset>(), null!, 0, 0));
         }
+
+        [Fact]
+        public void Match_NegativeBenchmarkRecordCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => TimestampMatcher.Match(Array.Empty<DateTimeOffset>(), Array.Empty<DateTimeOffset>(), -1, 0));
+        }
+
+        [Fact]
+        public void Match_NegativeCandidateRecordCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => TimestampMatcher.Match(Array.Empty<DateTimeOffset>(), Array.Empty<DateTimeOffset>(), 0, -1));
+        }
+
+        [Fact]
+        public void TimestampMatchResult_NullMatchedTimestamps_Throws()
+        {
+            var coverage = new ComparisonCoverage(0, 0, 0, 0, 0);
+            Assert.Throws<ArgumentNullException>(() =>
+                new TimestampMatchResult(null!, Array.Empty<DateTimeOffset>(), Array.Empty<DateTimeOffset>(), coverage));
+        }
+
+        [Fact]
+        public void TimestampMatchResult_NullMissingTimestamps_Throws()
+        {
+            var coverage = new ComparisonCoverage(0, 0, 0, 0, 0);
+            Assert.Throws<ArgumentNullException>(() =>
+                new TimestampMatchResult(Array.Empty<DateTimeOffset>(), null!, Array.Empty<DateTimeOffset>(), coverage));
+        }
+
+        [Fact]
+        public void TimestampMatchResult_NullExtraTimestamps_Throws()
+        {
+            var coverage = new ComparisonCoverage(0, 0, 0, 0, 0);
+            Assert.Throws<ArgumentNullException>(() =>
+                new TimestampMatchResult(Array.Empty<DateTimeOffset>(), Array.Empty<DateTimeOffset>(), null!, coverage));
+        }
+
+        [Fact]
+        public void TimestampMatchResult_NullCoverage_Throws()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                new TimestampMatchResult(Array.Empty<DateTimeOffset>(), Array.Empty<DateTimeOffset>(), Array.Empty<DateTimeOffset>(), null!));
+        }
     }
 }

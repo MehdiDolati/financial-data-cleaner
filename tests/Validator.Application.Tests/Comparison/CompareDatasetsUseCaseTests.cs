@@ -18,8 +18,6 @@ namespace Validator.Application.Tests.Comparison
 {
     public class CompareDatasetsUseCaseTests
     {
-        private static readonly string[] CanonicalTimeframe = ["MissingCandles", "DuplicateRecords", "InvalidOhlc", "ClosedMarketRecords", "TimeGaps", "MalformedRows"];
-
         [Fact]
         public void Compare_IdenticalData_NoDiscrepanciesPerfectScore()
         {
@@ -254,6 +252,69 @@ namespace Validator.Application.Tests.Comparison
 
             // CandidateScore is null by default (caller sets it if --score is used)
             Assert.Null(report.CandidateScore);
+        }
+
+        [Fact]
+        public void Compare_VolumeWithinRelative_AcceptsByRelative()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            // Volume difference within 5% relative tolerance
+            // 125000 vs 120000 = 4% difference, within 5% relative
+            candidateCandles[0] = candidateCandles[0] with { Volume = 120000m };
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(
+                benchmark, benchmarkCandles, candidateCandles, CreateCandidateIdentity());
+
+            Assert.Empty(report.MaterialDiscrepancies);
+            var volumeSummary = report.ToleratedSummary.First(s => s.Field == OhlcvField.Volume);
+            Assert.Equal(5, volumeSummary.AcceptedCount);
+            Assert.Equal(1, volumeSummary.AcceptedByRelativeCount);
+        }
+
+        [Fact]
+        public void Compare_VolumeExceedsRelative_MaterialDifference()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            // Volume difference exceeds 5% relative tolerance
+            // 125000 vs 118200 = 5.44% difference, exceeds 5%
+            candidateCandles[0] = candidateCandles[0] with { Volume = 118200m };
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(
+                benchmark, benchmarkCandles, candidateCandles, CreateCandidateIdentity());
+
+            Assert.Single(report.MaterialDiscrepancies);
+            Assert.Equal(OhlcvField.Volume, report.MaterialDiscrepancies[0].Field);
+        }
+
+        [Fact]
+        public void Compare_DisabledField_SkippedInComparison()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            // Disable Open field
+            var overrides = new[]
+            {
+                new ComparedField(OhlcvField.Open, false, null, null, 0, 0)
+            };
+
+            // Modify Open to have material difference - should be ignored
+            candidateCandles[0] = candidateCandles[0] with { Open = 0.63421m + 0.00050m };
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(
+                benchmark, benchmarkCandles, candidateCandles, CreateCandidateIdentity(), overrides);
+
+            Assert.Empty(report.MaterialDiscrepancies);
         }
 
         #region Test Helpers

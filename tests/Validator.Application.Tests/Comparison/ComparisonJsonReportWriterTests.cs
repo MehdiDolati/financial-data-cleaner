@@ -161,6 +161,163 @@ namespace Validator.Application.Tests.Comparison
             Assert.Throws<ArgumentNullException>(() => writer.Write(null!));
         }
 
+        [Fact]
+        public void WriteSection_NullWriter_Throws()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonJsonReportWriter();
+            Assert.Throws<ArgumentNullException>(() => writer.WriteSection(null!, report));
+        }
+
+        [Fact]
+        public void WriteSection_NullReport_Throws()
+        {
+            using var stream = new System.IO.MemoryStream();
+            using var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream);
+            var writer = new ComparisonJsonReportWriter();
+            Assert.Throws<ArgumentNullException>(() => writer.WriteSection(jsonWriter, null!));
+        }
+
+        [Fact]
+        public void WriteSection_WritesCorrectJsonStructure()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonJsonReportWriter();
+            using var stream = new System.IO.MemoryStream();
+            using (var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream))
+            {
+                jsonWriter.WriteStartObject();
+                writer.WriteSection(jsonWriter, report);
+                jsonWriter.WriteEndObject();
+            }
+            stream.Position = 0;
+            using var doc = JsonDocument.Parse(stream);
+            var root = doc.RootElement.GetProperty("benchmarkComparison");
+            Assert.Equal(1, root.GetProperty("contractVersion").GetInt32());
+            Assert.True(root.TryGetProperty("benchmark", out _));
+            Assert.True(root.TryGetProperty("configuration", out _));
+            Assert.True(root.TryGetProperty("comparisonCoverage", out _));
+            Assert.True(root.TryGetProperty("materialDiscrepancies", out _));
+            Assert.True(root.TryGetProperty("toleratedSummary", out _));
+            Assert.True(root.TryGetProperty("agreementScore", out _));
+        }
+
+        [Fact]
+        public void WriteSection_WithOverlappingRange_IncludesRange()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonJsonReportWriter();
+            using var stream = new System.IO.MemoryStream();
+            using (var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream))
+            {
+                jsonWriter.WriteStartObject();
+                writer.WriteSection(jsonWriter, report);
+                jsonWriter.WriteEndObject();
+            }
+            stream.Position = 0;
+            using var doc = JsonDocument.Parse(stream);
+            var coverage = doc.RootElement.GetProperty("benchmarkComparison").GetProperty("comparisonCoverage");
+            Assert.True(coverage.TryGetProperty("overlappingRange", out var range));
+            Assert.True(range.TryGetProperty("start", out _));
+            Assert.True(range.TryGetProperty("end", out _));
+        }
+
+        [Fact]
+        public void WriteSection_NoOverlap_NoOverlappingRange()
+        {
+            var report = CreateReportNoOverlap();
+            var writer = new ComparisonJsonReportWriter();
+            using var stream = new System.IO.MemoryStream();
+            using (var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream))
+            {
+                jsonWriter.WriteStartObject();
+                writer.WriteSection(jsonWriter, report);
+                jsonWriter.WriteEndObject();
+            }
+            stream.Position = 0;
+            using var doc = JsonDocument.Parse(stream);
+            var coverage = doc.RootElement.GetProperty("benchmarkComparison").GetProperty("comparisonCoverage");
+            Assert.False(coverage.TryGetProperty("overlappingRange", out _));
+        }
+
+        [Fact]
+        public void WriteSection_WithDiscrepancies_IncludesAllFields()
+        {
+            var report = CreateReportWithDiscrepancies();
+            var writer = new ComparisonJsonReportWriter();
+            using var stream = new System.IO.MemoryStream();
+            using (var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream))
+            {
+                jsonWriter.WriteStartObject();
+                writer.WriteSection(jsonWriter, report);
+                jsonWriter.WriteEndObject();
+            }
+            stream.Position = 0;
+            using var doc = JsonDocument.Parse(stream);
+            var disc = doc.RootElement.GetProperty("benchmarkComparison").GetProperty("materialDiscrepancies");
+            Assert.Equal(1, disc.GetArrayLength());
+            var first = disc[0];
+            Assert.True(first.TryGetProperty("timestampUtc", out _));
+            Assert.True(first.TryGetProperty("field", out _));
+            Assert.True(first.TryGetProperty("benchmarkValue", out _));
+            Assert.True(first.TryGetProperty("candidateValue", out _));
+            Assert.True(first.TryGetProperty("difference", out _));
+            Assert.True(first.TryGetProperty("directionalDifference", out _));
+            Assert.True(first.TryGetProperty("resolvedAbsoluteTolerance", out _));
+            Assert.True(first.TryGetProperty("resolvedRelativeTolerance", out _));
+            Assert.True(first.TryGetProperty("toleranceDecision", out _));
+        }
+
+        [Fact]
+        public void WriteSection_NoOverlap_AgreementScoreUnavailable()
+        {
+            var report = CreateReportNoOverlap();
+            var writer = new ComparisonJsonReportWriter();
+            using var stream = new System.IO.MemoryStream();
+            using (var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream))
+            {
+                jsonWriter.WriteStartObject();
+                writer.WriteSection(jsonWriter, report);
+                jsonWriter.WriteEndObject();
+            }
+            stream.Position = 0;
+            using var doc = JsonDocument.Parse(stream);
+            var score = doc.RootElement.GetProperty("benchmarkComparison").GetProperty("agreementScore");
+            Assert.True(score.TryGetProperty("unavailableReason", out _));
+        }
+
+        [Fact]
+        public void Write_WithCandidateScore_IncludesScore()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+            var metrics = MetricPopulationMap.CanonicalOrder.Select(cat =>
+                MetricScoreCalculator.ScoreMetric(cat, 0, 100, MetricPopulationMap.KindFor(cat))
+            ).ToList();
+            var weighting = ScoreWeightResolver.Default();
+            var datasetScore = DatasetScore.Available(
+                new ScoreValue(new ExactRatio(100, 1)),
+                MetricPopulationMap.CanonicalOrder.ToList(),
+                new List<ExcludedMetric>());
+            var candidateScore = new DatasetScoreReport(metrics, weighting, datasetScore);
+
+            var report = new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                candidateScore,
+                BenchmarkAgreementScore.Available(5, 0),
+                DateTimeOffset.UtcNow);
+
+            var jsonWriter = new ComparisonJsonReportWriter();
+            var json = jsonWriter.Write(report);
+            using var doc = JsonDocument.Parse(json);
+            // The report should serialize correctly even with candidateScore
+            Assert.True(doc.RootElement.TryGetProperty("contractVersion", out _));
+        }
+
         #region Test Helpers
 
         private static ComparisonReport CreateReport()

@@ -135,5 +135,25 @@ namespace Validator.Domain.Tests.Comparison
             Assert.Equal(0.0001m, discrepancy.ResolvedRelativeTolerance);
             Assert.IsType<ToleranceDecision.MaterialDifference>(discrepancy.ToleranceDecision);
         }
+
+        [Fact]
+        public void Compare_NegativeBenchmark_ExceedsAbsolute_WithinRelative_AcceptsByRelative()
+        {
+            // Negative benchmark: -1.0, candidate: -1.00020
+            // Absolute difference = 0.00020, absolute tolerance = 0.00010 (exceeds)
+            // Relative threshold = 0.0005 * 1.0 = 0.0005 (within)
+            var result = FieldComparator.Compare(-1.0m, -1.00020m, 0.00010m, 0.0005m);
+            Assert.IsType<ToleranceDecision.AcceptedByRelative>(result);
+        }
+
+        [Fact]
+        public void Compare_NegativeBenchmark_ExceedsBothTolerances_IsMaterial()
+        {
+            // Negative benchmark: -1.0, candidate: -1.00100
+            // Absolute difference = 0.00100, absolute tolerance = 0.00010 (exceeds)
+            // Relative threshold = 0.0001 * 1.0 = 0.00010 (exceeds)
+            var result = FieldComparator.Compare(-1.0m, -1.00100m, 0.00010m, 0.0001m);
+            Assert.IsType<ToleranceDecision.MaterialDifference>(result);
+        }
     }
 }

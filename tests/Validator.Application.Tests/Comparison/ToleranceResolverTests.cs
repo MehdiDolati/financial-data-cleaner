@@ -130,6 +130,19 @@ namespace Validator.Application.Tests.Comparison
         }
 
         [Fact]
+        public void ParseOverrides_BothAbsoluteAndRelative()
+        {
+            var json = """{"High": {"absolute": 0.0002, "relative": 0.0005}}""";
+            var overrides = ToleranceResolver.ParseOverrides(json);
+
+            Assert.Single(overrides);
+            var high = overrides.First();
+            Assert.Equal(OhlcvField.High, high.Field);
+            Assert.Equal(0.0002m, high.AbsoluteTolerance);
+            Assert.Equal(0.0005m, high.RelativeTolerance);
+        }
+
+        [Fact]
         public void ParseOverrides_EmptyString_ReturnsEmpty()
         {
             var overrides = ToleranceResolver.ParseOverrides("");
@@ -165,6 +178,13 @@ namespace Validator.Application.Tests.Comparison
         }
 
         [Fact]
+        public void ResolveField_FieldMismatch_Throws()
+        {
+            var overrideField = new ComparedField(OhlcvField.High, true, 0.001m, null, 0, 0);
+            Assert.Throws<ArgumentException>(() => ToleranceResolver.ResolveField(OhlcvField.Open, overrideField));
+        }
+
+        [Fact]
         public void ResolveField_ZeroPrice_AbsoluteApplies()
         {
             // Zero price edge case: relative tolerance is unstable, only absolute applies
@@ -186,6 +206,32 @@ namespace Validator.Application.Tests.Comparison
         {
             var config = ToleranceResolver.Resolve(null, "my-audusd-benchmark");
             Assert.Equal("my-audusd-benchmark", config.BenchmarkName);
+        }
+
+        [Fact]
+        public void ResolveField_Volume_DefaultsApplied()
+        {
+            var result = ToleranceResolver.ResolveField(OhlcvField.Volume, null);
+            Assert.Equal(0m, result.ResolvedAbsolute);
+            Assert.Equal(0.05m, result.ResolvedRelative);
+            Assert.True(result.Enabled);
+        }
+
+        [Fact]
+        public void Resolve_NullOverrides_UsesDefaults()
+        {
+            var config = ToleranceResolver.Resolve(null, "test");
+            Assert.Equal(5, config.Fields.Count);
+            var open = config.Fields.First(f => f.Field == OhlcvField.Open);
+            Assert.Equal(0.0001m, open.ResolvedAbsolute);
+        }
+
+        [Fact]
+        public void ParseOverrides_MultipleFields_AllParsed()
+        {
+            var json = """{"Open": {"absolute": 0.00005}, "High": {"relative": 0.0002}, "Volume": {"absolute": 100}}""";
+            var overrides = ToleranceResolver.ParseOverrides(json);
+            Assert.Equal(3, overrides.Count);
         }
     }
 }
