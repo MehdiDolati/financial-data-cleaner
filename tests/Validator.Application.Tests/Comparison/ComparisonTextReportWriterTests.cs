@@ -140,6 +140,44 @@ namespace Validator.Application.Tests.Comparison
             Assert.DoesNotContain("Overlapping range:", text);
         }
 
+        [Fact]
+        public void Write_WithContextWarnings_ShowsWarningsSection()
+        {
+            var report = CreateReportWithContextWarnings();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("Warnings:", text);
+            Assert.Contains("Calendar profile differs", text);
+        }
+
+        [Fact]
+        public void Write_UnavailableDatasetScore_ShowsNA()
+        {
+            // Create benchmark with unavailable dataset score to exercise FormatScore null path
+            var source = new SourceIdentity("test.csv", 100, Sha256());
+            var metrics = MetricPopulationMap.CanonicalOrder.Select(cat =>
+                MetricScoreCalculator.ScoreMetric(cat, 0, 100, MetricPopulationMap.KindFor(cat))
+            ).ToList();
+            var weighting = ScoreWeightResolver.Default();
+            var datasetScore = DatasetScore.Unavailable("No metrics scored",
+                MetricPopulationMap.CanonicalOrder.ToList(), new List<ExcludedMetric>());
+            var benchmark = new BenchmarkSnapshot(
+                name: "test", establishedAtUtc: DateTimeOffset.UtcNow, source: source,
+                context: CreateContext(), coverage: new ScanCoverage(5, 5, 0),
+                checks: CanonicalChecks(), metrics: metrics, dataset: datasetScore, weighting: weighting);
+            var report = new ComparisonReport(
+                benchmark, CreateCandidateIdentity(), ToleranceResolver.Resolve(null, "test"),
+                new ComparisonCoverage(5, 5, 5, 0, 0),
+                new List<FieldDiscrepancy>(),
+                ToleranceResolver.Resolve(null, "test").Fields.Select(f =>
+                    new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                null, BenchmarkAgreementScore.Available(5, 0),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("Dataset Average: N/A", text);
+        }
+
         #region Test Helpers
 
         private static ComparisonReport CreateReport()
@@ -337,6 +375,24 @@ namespace Validator.Application.Tests.Comparison
                 benchmark, candidateIdentity, config, coverage,
                 new List<FieldDiscrepancy>(), toleratedSummary,
                 candidateScore, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static ComparisonReport CreateReportWithContextWarnings()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0,
+                new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 8, 0, 0, 0, TimeSpan.Zero));
+            var warnings = new List<string> { "Calendar profile differs: benchmark uses 'forex' but candidate uses 'equities'." };
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList();
+            var agreementScore = BenchmarkAgreementScore.Available(5, 0);
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                null, agreementScore, warnings, DateTimeOffset.UtcNow);
         }
 
         private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";

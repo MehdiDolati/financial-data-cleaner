@@ -317,9 +317,191 @@ namespace Validator.Application.Tests.Comparison
             Assert.Empty(report.MaterialDiscrepancies);
         }
 
+        [Fact]
+        public void Compare_DifferentCalendarProfile_ProducesContextWarning()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("equities", "Equities"), // Different calendar
+                    TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                    "comma", false, null));
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            Assert.Contains(report.ContextWarnings, w => w.Contains("Calendar profile differs"));
+        }
+
+        [Fact]
+        public void Compare_DifferentTimezone_ProducesContextWarning()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("forex", "Forex"),
+                    TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+00:00"), // Different offset
+                    "comma", false, null));
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            Assert.Contains(report.ContextWarnings, w => w.Contains("Source timestamp offset differs"));
+        }
+
+        [Fact]
+        public void Compare_DifferentTimestampMode_ProducesContextWarning()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("forex", "Forex"),
+                    TimestampInterpretation.CreateCombined("yyyy.MM.dd HH:mm", "Timestamp", "+02:00"), // Combined mode
+                    "comma", false, null));
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            Assert.Contains(report.ContextWarnings, w => w.Contains("Timestamp interpretation differs"));
+        }
+
+        [Fact]
+        public void Compare_DifferentDateRange_ProducesContextWarning()
+        {
+            // Build benchmark with a specific DateRange
+            var benchmarkContext = new ValidationContextSnapshot(
+                "D1",
+                new CalendarContext("forex", "Forex"),
+                TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                "comma", false,
+                new DateRange(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                    new DateTimeOffset(2026, 5, 14, 0, 0, 0, TimeSpan.Zero)));
+            var benchmark = CreateBenchmarkWithContext("test", benchmarkContext);
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            // Candidate with different date range
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("forex", "Forex"),
+                    TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                    "comma", false,
+                    new DateRange(new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
+                        new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero))));
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            Assert.Contains(report.ContextWarnings, w => w.Contains("Date range differs"));
+        }
+
+        [Fact]
+        public void Compare_DifferentHeaderMode_ProducesContextWarning()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("forex", "Forex"),
+                    TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                    "comma", true, null)); // hasHeader = true vs benchmark's false
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            Assert.Contains(report.ContextWarnings, w => w.Contains("Header mode differs"));
+        }
+
+        [Fact]
+        public void Compare_DifferentHeaderMode_Reverse_ProducesContextWarning()
+        {
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            // Benchmark with hasHeader=true, candidate with hasHeader=false
+            var benchmarkContext = new ValidationContextSnapshot(
+                "D1",
+                new CalendarContext("forex", "Forex"),
+                TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                "comma", true, null);
+            var benchmark = CreateBenchmarkWithContext("test", benchmarkContext);
+
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("forex", "Forex"),
+                    TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                    "comma", false, null));
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            Assert.Contains(report.ContextWarnings, w => w.Contains("Header mode differs"));
+        }
+
+        [Fact]
+        public void Compare_IdenticalContext_NoWarnings()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candles = CreateCandleSet();
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, candles, candles, CreateCandidateIdentity());
+
+            Assert.Empty(report.ContextWarnings);
+        }
+
+        [Fact]
+        public void Compare_NullDateRange_NoDateRangeWarning()
+        {
+            var benchmark = CreateBenchmark("test");
+            var benchmarkCandles = CreateCandleSet();
+            var candidateCandles = CreateCandleSet();
+
+            // Candidate with no date range
+            var candidateIdentity = new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                new ValidationContextSnapshot(
+                    "D1",
+                    new CalendarContext("forex", "Forex"),
+                    TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                    "comma", false, null)); // null date range = benchmark's null date range
+
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchmarkCandles, candidateCandles, candidateIdentity);
+
+            // Should have no date range warning since both are null
+            Assert.DoesNotContain(report.ContextWarnings, w => w.Contains("Date range"));
+        }
+
         #region Test Helpers
 
-        private static BenchmarkSnapshot CreateBenchmark(string name)
+        private static BenchmarkSnapshot CreateBenchmark(string name) =>
+            CreateBenchmarkWithContext(name, CreateContext("D1"));
+
+        private static BenchmarkSnapshot CreateBenchmarkWithContext(string name, ValidationContextSnapshot context)
         {
             var source = new SourceIdentity("AUDUSD_D1_reference.csv", 1024567, Sha256());
             var metrics = MetricPopulationMap.CanonicalOrder.Select(cat =>
@@ -335,7 +517,7 @@ namespace Validator.Application.Tests.Comparison
                 name: name,
                 establishedAtUtc: DateTimeOffset.UtcNow,
                 source: source,
-                context: CreateContext("D1"),
+                context: context,
                 coverage: new ScanCoverage(5, 5, 0),
                 checks: CanonicalChecks(),
                 metrics: metrics,
