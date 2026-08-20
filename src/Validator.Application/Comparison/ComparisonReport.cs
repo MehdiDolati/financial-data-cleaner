@@ -20,6 +20,7 @@ namespace Validator.Application.Comparison
         public IReadOnlyList<ToleratedDifferenceAggregate> ToleratedSummary { get; init; }
         public DatasetScoreReport? CandidateScore { get; init; }
         public BenchmarkAgreementScore AgreementScore { get; init; }
+        public IReadOnlyList<string> ContextWarnings { get; init; }
         public DateTimeOffset ResolutionTimestamp { get; init; }
 
         public ComparisonReport(
@@ -31,7 +32,8 @@ namespace Validator.Application.Comparison
             IReadOnlyList<ToleratedDifferenceAggregate> toleratedSummary,
             DatasetScoreReport? candidateScore,
             BenchmarkAgreementScore agreementScore,
-            DateTimeOffset resolutionTimestamp)
+            IReadOnlyList<string>? contextWarnings = null,
+            DateTimeOffset resolutionTimestamp = default)
         {
             ArgumentNullException.ThrowIfNull(benchmark);
             ArgumentNullException.ThrowIfNull(candidate);
@@ -49,7 +51,8 @@ namespace Validator.Application.Comparison
             ToleratedSummary = toleratedSummary;
             CandidateScore = candidateScore;
             AgreementScore = agreementScore;
-            ResolutionTimestamp = resolutionTimestamp;
+            ContextWarnings = contextWarnings ?? Array.Empty<string>();
+            ResolutionTimestamp = resolutionTimestamp == default ? DateTimeOffset.UtcNow : resolutionTimestamp;
         }
     }
 }

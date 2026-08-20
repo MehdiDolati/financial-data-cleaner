@@ -33,7 +33,8 @@ namespace Validator.Application.Comparison
             ComparisonCoverage coverage,
             IReadOnlyList<FieldComparisonResult> allFieldResults,
             IReadOnlyList<FieldDiscrepancy> materialDiscrepancies,
-            DatasetScoreReport? candidateScore = null)
+            DatasetScoreReport? candidateScore = null,
+            IReadOnlyList<string>? contextWarnings = null)
         {
             ArgumentNullException.ThrowIfNull(benchmark);
             ArgumentNullException.ThrowIfNull(candidateIdentity);
@@ -57,6 +58,7 @@ namespace Validator.Application.Comparison
                 toleratedSummary,
                 candidateScore,
                 agreementScore,
+                contextWarnings,
                 DateTimeOffset.UtcNow);
         }
 

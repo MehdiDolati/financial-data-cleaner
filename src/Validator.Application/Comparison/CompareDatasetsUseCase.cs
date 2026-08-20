@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Validator.Application.Benchmark;
+using Validator.Application.Ingestion;
 using Validator.Application.Scoring;
 using Validator.Domain.Candles;
 using Validator.Domain.Comparison;
@@ -48,10 +49,14 @@ namespace Validator.Application.Comparison
                     $"Timeframe must match for comparison (FR-006).");
             }
 
-            // 2. Resolve tolerances before comparing (FR-019)
+            // 2. Detect context differences and add warnings (FR-006)
+            var contextWarnings = DetectContextDifferences(
+                benchmark.Context, candidateIdentity.Context, benchmark.Source);
+
+            // 3. Resolve tolerances before comparing (FR-019)
             var configuration = ToleranceResolver.Resolve(userToleranceOverrides, benchmark.Name);
 
-            // 3. Match timestamps
+            // 4. Match timestamps
             var benchmarkTimestamps = benchmarkCandles.Select(c => c.Timestamp).ToList();
             var candidateTimestamps = candidateCandles.Select(c => c.Timestamp).ToList();
 
@@ -61,11 +66,11 @@ namespace Validator.Application.Comparison
                 benchmarkCandles.Count,
                 candidateCandles.Count);
 
-            // 4. Build lookup dictionaries for efficient candle access
+            // 5. Build lookup dictionaries for efficient candle access
             var benchmarkLookup = benchmarkCandles.ToDictionary(c => c.Timestamp);
             var candidateLookup = candidateCandles.ToDictionary(c => c.Timestamp);
 
-            // 5. Compare fields for matched timestamps
+            // 6. Compare fields for matched timestamps
             var allDiscrepancies = new List<FieldDiscrepancy>();
             var toleratedCounts = new Dictionary<OhlcvField, FieldToleranceCounts>();
 
@@ -117,13 +122,13 @@ namespace Validator.Application.Comparison
                 .ThenByDescending(d => d.Difference)
                 .ToList();
 
-            // 7. Build tolerated summary
+            // 8. Build tolerated summary
             var toleratedSummary = configuration.Fields
                 .Where(f => f.Enabled)
                 .Select(f => BuildToleratedAggregate(f.Field, toleratedCounts))
                 .ToList();
 
-            // 8. Compute agreement score
+            // 9. Compute agreement score
             var agreementScore = ComputeAgreementScore(
                 matchResult.Coverage.MatchedCount,
                 sortedDiscrepancies);
@@ -137,7 +142,68 @@ namespace Validator.Application.Comparison
                 toleratedSummary,
                 null, // CandidateScore set by caller if --score is used
                 agreementScore,
+                contextWarnings,
                 DateTimeOffset.UtcNow);
+        }
+
+        /// <summary>
+        /// Detects differences between benchmark and candidate contexts that may affect comparison.
+        /// Warnings are informational — they don't block comparison.
+        /// </summary>
+        private static IReadOnlyList<string> DetectContextDifferences(
+            ValidationContextSnapshot benchmarkContext,
+            ValidationContextSnapshot candidateContext,
+            SourceIdentity benchmarkSource)
+        {
+            var warnings = new List<string>();
+
+            // Calendar profile differs
+            if (!string.Equals(benchmarkContext.Calendar.Profile, candidateContext.Calendar.Profile,
+                StringComparison.Ordinal))
+            {
+                warnings.Add(
+                    $"Calendar profile differs: benchmark uses '{benchmarkContext.Calendar.Profile}' " +
+                    $"but candidate uses '{candidateContext.Calendar.Profile}'.");
+            }
+
+            // Timezone offset differs
+            if (!string.Equals(benchmarkContext.Timestamp.SourceOffset, candidateContext.Timestamp.SourceOffset,
+                StringComparison.Ordinal))
+            {
+                warnings.Add(
+                    $"Source timestamp offset differs: benchmark uses '{benchmarkContext.Timestamp.SourceOffset}' " +
+                    $"but candidate uses '{candidateContext.Timestamp.SourceOffset}'.");
+            }
+
+            // Timestamp mode differs
+            if (benchmarkContext.Timestamp.Mode != candidateContext.Timestamp.Mode)
+            {
+                warnings.Add(
+                    $"Timestamp interpretation differs: benchmark uses '{benchmarkContext.Timestamp.Mode}' " +
+                    $"but candidate uses '{candidateContext.Timestamp.Mode}'.");
+            }
+
+            // Date range differs (informational)
+            if (benchmarkContext.DateRange is not null && candidateContext.DateRange is not null)
+            {
+                if (benchmarkContext.DateRange.Start != candidateContext.DateRange.Start ||
+                    benchmarkContext.DateRange.End != candidateContext.DateRange.End)
+                {
+                    warnings.Add(
+                        $"Date range differs: benchmark covers {benchmarkContext.DateRange.Start:yyyy-MM-dd} to {benchmarkContext.DateRange.End:yyyy-MM-dd}, " +
+                        $"candidate covers {candidateContext.DateRange.Start:yyyy-MM-dd} to {candidateContext.DateRange.End:yyyy-MM-dd}.");
+                }
+            }
+
+            // HasHeader differs
+            if (benchmarkContext.HasHeader != candidateContext.HasHeader)
+            {
+                warnings.Add(
+                    $"Header mode differs: benchmark {(benchmarkContext.HasHeader ? "has" : "lacks")} a CSV header, " +
+                    $"candidate {(candidateContext.HasHeader ? "has" : "lacks")} one.");
+            }
+
+            return warnings;
         }
 
         /// <summary>

@@ -159,7 +159,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 new List<FieldDiscrepancy>(), toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static ComparisonReport CreateReportWithDiscrepancies()
@@ -185,7 +185,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 discrepancies, toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static ComparisonReport CreateReportNoOverlap()
@@ -204,7 +204,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 new List<FieldDiscrepancy>(), toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static BenchmarkSnapshot CreateBenchmark(string name)
@@ -280,7 +280,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 discrepancies, toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static ComparisonReport CreateReportWithZeroBenchmarkDiscrepancy()
@@ -306,7 +306,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 discrepancies, toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static ComparisonReport CreateReportWithCandidateScore()
@@ -336,7 +336,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 new List<FieldDiscrepancy>(), toleratedSummary,
-                candidateScore, agreementScore, DateTimeOffset.UtcNow);
+                candidateScore, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";

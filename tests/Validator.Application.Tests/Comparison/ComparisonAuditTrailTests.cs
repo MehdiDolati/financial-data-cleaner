@@ -183,7 +183,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 discrepancies, toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static BenchmarkSnapshot CreateBenchmark(string name)

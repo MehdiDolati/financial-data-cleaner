@@ -112,6 +112,12 @@ Run `dotnet $validator --help` for the complete examples included with the CLI.
 | `--verbose` | Append complete canonical finding details to text output | Off |
 | `--score` | Report per-metric quality scores and one dataset average | Off |
 | `--score-weights <list>` | Reweight the average with six `metric=weight` pairs; requires `--score` | Equal weights |
+| `--benchmark <name>` | Establish a named benchmark from the validated dataset | None |
+| `--benchmark-dir <path>` | Benchmark storage directory | `./benchmarks/` |
+| `--benchmark-delete <name>` | Delete a stored benchmark | None |
+| `--compare <name>` | Compare candidate against a stored benchmark | None |
+| `--tolerances <json>` | Custom per-field tolerance overrides (JSON) | Defaults |
+| `--yes` | Skip confirmation prompt for benchmark deletion | Off |
 | `--help` | Show all options and required examples | None |
 
 
@@ -204,6 +210,61 @@ and applied additively to the v2 report per
 requested. Because the version 1 JSON contract is frozen, `--score` with
 `--format json` (v1) is rejected with exit code `2` and a message directing you
 to `--format json --report-version 2`.
+
+## Benchmarks and Comparison
+
+Establish a validated dataset as a named immutable benchmark snapshot, then
+compare a candidate dataset against that benchmark to detect material OHLCV
+discrepancies while tolerating acceptable broker-level differences.
+
+### Establish a Benchmark
+
+```powershell
+dotnet $validator prices.csv --timeframe D1 --score --report-version 2 --format json \
+  --benchmark my-benchmark
+```
+
+This creates `./benchmarks/my-benchmark/` containing `benchmark.json` and
+`source.csv`. The benchmark is immutable — establishing a second benchmark with
+the same name fails with exit code 2.
+
+### List and Delete Benchmarks
+
+```powershell
+# Delete a benchmark (prompts for confirmation)
+dotnet $validator --benchmark-delete my-benchmark
+
+# Skip confirmation
+dotnet $validator --benchmark-delete my-benchmark --yes
+```
+
+### Compare Against a Benchmark
+
+```powershell
+dotnet $validator candidate.csv --timeframe D1 --score --report-version 2 --format json \
+  --compare my-benchmark
+```
+
+The comparison reports:
+- **Material discrepancies**: OHLCV values exceeding both absolute and relative
+  tolerances
+- **Tolerated differences**: Values within acceptable tolerance bands
+- **Coverage**: Matched, missing, and extra timestamps
+- **Benchmark-agreement score**: Percentage of matched timestamps with no material
+  discrepancies
+
+### Custom Tolerances
+
+Override default tolerances per field with a JSON object:
+
+```powershell
+dotnet $validator candidate.csv --timeframe D1 --score --report-version 2 --format json \
+  --compare my-benchmark \
+  --tolerances '{"Open": {"absolute": 0.00005}, "Volume": {"relative": 0.02}}'
+```
+
+Default tolerances: price fields use 0.0001 absolute + 0.01% relative; volume
+uses 5% relative.
 
 ## Exit Codes
 

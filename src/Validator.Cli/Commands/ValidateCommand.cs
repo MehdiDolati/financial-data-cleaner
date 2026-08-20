@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Validator.Application.Abstractions;
 using Validator.Application.Benchmark;
+using Validator.Application.Comparison;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
 using Validator.Application.Scoring;
@@ -9,6 +10,8 @@ using Validator.Application.Validation;
 
 using Validator.Domain.Calendars;
 using Validator.Domain.Timeframes;
+using Validator.Domain.Candles;
+using Validator.Domain.Comparison;
 using Validator.Infrastructure.Benchmark;
 using Validator.Infrastructure.Calendars;
 using Validator.Infrastructure.Csv;
@@ -46,10 +49,13 @@ public static class ValidateCommand
           --benchmark-dir <path>              Benchmark storage directory (default: ./benchmarks/)
           --benchmark-delete <name>           Delete a stored benchmark
           --yes                               Skip confirmation prompt for benchmark deletion
+          --compare <benchmark-name>           Compare candidate against a stored benchmark
+          --tolerances <json>                  Custom per-field tolerance overrides (JSON)
           --help                              Show this help
 
         JSON scoring requires '--report-version 2'; '--score' with the version 1 JSON contract is rejected.
         '--benchmark' requires '--score' and '--report-version 2'.
+        '--compare' requires '--score' and '--report-version 2'.
         '--benchmark-delete' does not require an input file.
 
         Examples:
@@ -114,6 +120,16 @@ public static class ValidateCommand
                 "INVALID_ARGUMENT",
                 "Option '--benchmark' requires '--score'.",
                 "Add '--score --report-version 2 --format json' to enable benchmark establishment.",
+                null));
+        }
+
+        // --compare requires --score
+        if (parsed.CompareBenchmark is not null && parsed.Score is null)
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "INVALID_ARGUMENT",
+                "Option '--compare' requires '--score'.",
+                "Add '--score --report-version 2 --format json' to enable benchmark comparison.",
                 null));
         }
 
@@ -210,6 +226,8 @@ public static class ValidateCommand
         string? benchmarkDir = null;
         string? benchmarkDelete = null;
         var yes = false;
+        string? compareBenchmark = null;
+        string? tolerances = null;
 
         var startIndex = inputPath is not null ? 1 : 0;
         for (var index = startIndex; index < args.Count; index++)
@@ -277,6 +295,12 @@ public static class ValidateCommand
                 case "--benchmark-delete":
                     benchmarkDelete = RequireValue(args, ref index, option);
                     break;
+                case "--compare":
+                    compareBenchmark = RequireValue(args, ref index, option);
+                    break;
+                case "--tolerances":
+                    tolerances = RequireValue(args, ref index, option);
+                    break;
                 case "--yes":
                 case "-y":
                     yes = true;
@@ -300,7 +324,9 @@ public static class ValidateCommand
                 BenchmarkName: null,
                 BenchmarkDir: benchmarkDir ?? "./benchmarks/",
                 BenchmarkDelete: benchmarkDelete,
-                Yes: yes);
+                Yes: yes,
+                CompareBenchmark: null,
+                Tolerances: null);
         }
 
         if (inputPath is null)
@@ -360,7 +386,9 @@ public static class ValidateCommand
             BenchmarkName: benchmarkName,
             BenchmarkDir: benchmarkDir ?? "./benchmarks/",
             BenchmarkDelete: null,
-            Yes: yes);
+            Yes: yes,
+            CompareBenchmark: compareBenchmark,
+            Tolerances: tolerances);
     }
 
 
@@ -477,6 +505,13 @@ public static class ValidateCommand
                 var benchmarkExitCode = await EstablishBenchmarkAsync(parsed, report).ConfigureAwait(false);
                 if (benchmarkExitCode != 0)
                     return benchmarkExitCode;
+            }
+
+            // After successful validation, compare against benchmark if requested
+            if (parsed.CompareBenchmark is not null)
+            {
+                var compareExitCode = await CompareAgainstBenchmarkAsync(parsed, report).ConfigureAwait(false);
+                return compareExitCode;
             }
 
             return report.Summary.IsClean ? 0 : 1;
@@ -777,6 +812,105 @@ public static class ValidateCommand
         }
     }
 
+    private static async Task<int> CompareAgainstBenchmarkAsync(ParsedArguments parsed, DetailedValidationReport report)
+    {
+        try
+        {
+            // Parse tolerances before loading data (FR-019)
+            IReadOnlyList<ComparedField>? toleranceOverrides = null;
+            if (!string.IsNullOrWhiteSpace(parsed.Tolerances))
+            {
+                toleranceOverrides = ToleranceResolver.ParseOverrides(parsed.Tolerances);
+            }
+
+            var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
+            var store = new FileBenchmarkStore(benchmarkDir);
+
+            // Load benchmark snapshot
+            if (!await store.ExistsAsync(parsed.CompareBenchmark!).ConfigureAwait(false))
+            {
+                Console.Error.WriteLine(
+                    $"Benchmark '{parsed.CompareBenchmark}' not found in {benchmarkDir}. " +
+                    $"Establish it first with '--benchmark {parsed.CompareBenchmark}'.");
+                return 2;
+            }
+
+            var benchmark = await store.LoadAsync(parsed.CompareBenchmark!).ConfigureAwait(false);
+
+            // Load benchmark source candles
+            var benchmarkSourcePath = Path.Combine(benchmarkDir, new BenchmarkName(parsed.CompareBenchmark!).Safe, "source.csv");
+            var benchmarkSource = new CsvCandleSource(benchmarkSourcePath);
+            var benchmarkCandles = new List<PriceCandle>();
+            await foreach (var candle in benchmarkSource.ReadAllAsync().ConfigureAwait(false))
+            {
+                benchmarkCandles.Add(candle);
+            }
+            benchmarkCandles.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+
+            // Load candidate source candles
+            var candidateSource = new CsvCandleSource(parsed.InputPath, parsed.CsvOptions);
+            var candidateCandles = new List<PriceCandle>();
+            await foreach (var candle in candidateSource.ReadAllAsync().ConfigureAwait(false))
+            {
+                candidateCandles.Add(candle);
+            }
+            candidateCandles.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+
+            // Build candidate identity from the validation context
+            var candidateIdentity = new CandidateIdentity(
+                report.Source,
+                report.Context);
+
+            // Run comparison
+            var useCase = new CompareDatasetsUseCase();
+            var comparisonReport = useCase.Compare(
+                benchmark,
+                benchmarkCandles,
+                candidateCandles,
+                candidateIdentity,
+                toleranceOverrides);
+
+            // Render and output the comparison report
+            string comparisonText;
+            if (parsed.Format == ReportFormat.Json)
+            {
+                comparisonText = new ComparisonJsonReportWriter().Write(comparisonReport);
+            }
+            else
+            {
+                comparisonText = new ComparisonTextReportWriter().Write(comparisonReport);
+            }
+
+            if (parsed.OutputPath is not null)
+            {
+                // Write comparison report to a sibling file
+                var comparisonOutputPath = Path.ChangeExtension(parsed.OutputPath, ".comparison" + Path.GetExtension(parsed.OutputPath));
+                WriteAtomically(comparisonOutputPath, comparisonText);
+                Console.Out.WriteLine(
+                    $"Comparison complete: {comparisonReport.MaterialDiscrepancies.Count} material discrepancies; " +
+                    $"agreement={comparisonReport.AgreementScore.Score?.Format() ?? "UNAVAILABLE"}; " +
+                    $"report={comparisonOutputPath}");
+            }
+            else
+            {
+                Console.Out.WriteLine(comparisonText);
+            }
+
+            return comparisonReport.MaterialDiscrepancies.Count == 0 ? 0 : 1;
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            InvalidOperationException or
+            FileNotFoundException or
+            FormatException or
+            IOException or
+            UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Comparison failed: {exception.Message}");
+            return 2;
+        }
+    }
+
     private sealed record ParsedArguments(
         string InputPath,
         string? Timeframe,
@@ -791,5 +925,7 @@ public static class ValidateCommand
         string? BenchmarkName = null,
         string? BenchmarkDir = "./benchmarks/",
         string? BenchmarkDelete = null,
-        bool Yes = false);
+        bool Yes = false,
+        string? CompareBenchmark = null,
+        string? Tolerances = null);
 }

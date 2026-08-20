@@ -309,7 +309,7 @@ namespace Validator.Application.Tests.Comparison
                 config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
                 candidateScore,
                 BenchmarkAgreementScore.Available(5, 0),
-                DateTimeOffset.UtcNow);
+                resolutionTimestamp: DateTimeOffset.UtcNow);
 
             var jsonWriter = new ComparisonJsonReportWriter();
             var json = jsonWriter.Write(report);
@@ -337,7 +337,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 new List<FieldDiscrepancy>(), toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static ComparisonReport CreateReportWithDiscrepancies()
@@ -363,7 +363,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 discrepancies, toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static ComparisonReport CreateReportNoOverlap()
@@ -382,7 +382,7 @@ namespace Validator.Application.Tests.Comparison
             return new ComparisonReport(
                 benchmark, candidateIdentity, config, coverage,
                 new List<FieldDiscrepancy>(), toleratedSummary,
-                null, agreementScore, DateTimeOffset.UtcNow);
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
         }
 
         private static BenchmarkSnapshot CreateBenchmark(string name)

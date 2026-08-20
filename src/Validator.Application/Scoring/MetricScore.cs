@@ -25,7 +25,8 @@ namespace Validator.Application.Scoring
 
         public string? Reason { get; }
 
-        private MetricScore(
+        [System.Text.Json.Serialization.JsonConstructor]
+        internal MetricScore(
             FindingCategory category,
             MetricScoreState state,
             long count,

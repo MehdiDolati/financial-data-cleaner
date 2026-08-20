@@ -44,6 +44,17 @@ namespace Validator.Application.Reporting
             WriteOverlappingRange(sb, report.Coverage);
             sb.AppendLine();
 
+            // Context warnings section
+            if (report.ContextWarnings.Count > 0)
+            {
+                sb.AppendLine("Warnings:");
+                foreach (var warning in report.ContextWarnings)
+                {
+                    sb.AppendLine($"  - {warning}");
+                }
+                sb.AppendLine();
+            }
+
             // Material discrepancies section
             if (report.MaterialDiscrepancies.Count > 0)
             {

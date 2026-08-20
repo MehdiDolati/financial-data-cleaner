@@ -49,7 +49,8 @@ namespace Validator.Application.Scoring
 
         public string? UnavailableReason { get; }
 
-        private DatasetScore(
+        [System.Text.Json.Serialization.JsonConstructor]
+        internal DatasetScore(
             ScoreValue? average,
             int metricsCovered,
             IReadOnlyList<FindingCategory> coveredCategories,

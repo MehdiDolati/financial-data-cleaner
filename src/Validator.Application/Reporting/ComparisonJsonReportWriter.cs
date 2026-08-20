@@ -99,6 +99,7 @@ namespace Validator.Application.Reporting
                         }
                         : null
                 },
+                contextWarnings = report.ContextWarnings,
                 materialDiscrepancies = report.MaterialDiscrepancies,
                 toleratedSummary = report.ToleratedSummary,
                 agreementScore = new
