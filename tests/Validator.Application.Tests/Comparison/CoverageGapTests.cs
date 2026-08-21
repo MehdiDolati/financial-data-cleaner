@@ -246,6 +246,351 @@ namespace Validator.Application.Tests.Comparison
             }
         }
 
+        // --- T076: ComparisonReport new constructor with missing/extra timestamps ---
+
+        [Fact]
+        public void ComparisonReport_WithMissingExtraTimestamps_AreCarriedToReport()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 3, 2, 2);
+
+            var missingTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 6, 0, 0, 0, TimeSpan.Zero)
+            };
+            var extraTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 21, 0, 0, 0, TimeSpan.Zero)
+            };
+
+            var report = new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 0, 0, 0, 0, 0)).ToList(),
+                missingTimestamps, extraTimestamps,
+                null, BenchmarkAgreementScore.Unavailable("No overlap"),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+
+            Assert.Equal(2, report.MissingFromCandidateTimestamps.Count);
+            Assert.Equal(2, report.ExtraInCandidateTimestamps.Count);
+            Assert.Equal(new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero),
+                report.MissingFromCandidateTimestamps[0]);
+            Assert.Equal(new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
+                report.ExtraInCandidateTimestamps[0]);
+        }
+
+        // --- T078: Coverage rates in text report ---
+
+        [Fact]
+        public void TextReport_WithDifferentCandidateCount_ShowsCandidateCoverage()
+        {
+            // Cover the candidateRate path in ComparisonTextReportWriter
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            // Benchmark has 5 records, candidate has 7, 4 matched
+            var coverage = new ComparisonCoverage(5, 7, 4, 1, 3);
+            var missingTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero)
+            };
+            var extraTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 21, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 22, 0, 0, 0, TimeSpan.Zero)
+            };
+
+            var report = new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 0, 0, 0, 0, 0)).ToList(),
+                missingTimestamps, extraTimestamps,
+                null, BenchmarkAgreementScore.Unavailable("No overlap"),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Coverage rate:", text);
+            Assert.Contains("Candidate coverage:", text);
+            Assert.Contains("Matched: 4", text);
+            Assert.Contains("Missing: 1", text);
+            Assert.Contains("Extra: 3", text);
+        }
+
+        // --- T076/T078: JSON report with missing/extra timestamps ---
+
+        [Fact]
+        public void JsonReport_WithMissingExtraTimestamps_IncludesArraysInBuildSection()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 3, 2, 2);
+            var missingTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero)
+            };
+            var extraTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero)
+            };
+
+            var report = new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 0, 0, 0, 0, 0)).ToList(),
+                missingTimestamps, extraTimestamps,
+                null, BenchmarkAgreementScore.Unavailable("No overlap"),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+
+            var writer = new ComparisonJsonReportWriter();
+            var json = writer.Write(report);
+            using var doc = JsonDocument.Parse(json);
+
+            Assert.True(doc.RootElement.TryGetProperty("missingFromCandidateTimestamps", out var missing));
+            Assert.Equal(1, missing.GetArrayLength());
+            Assert.Contains("2026-01-03", missing[0].GetString());
+
+            Assert.True(doc.RootElement.TryGetProperty("extraInCandidateTimestamps", out var extra));
+            Assert.Equal(1, extra.GetArrayLength());
+            Assert.Contains("2026-01-20", extra[0].GetString());
+        }
+
+        [Fact]
+        public void WriteSection_WithMissingExtraTimestamps_IncludesArrays()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 3, 2, 2);
+            var missingTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero)
+            };
+            var extraTimestamps = new List<DateTimeOffset>
+            {
+                new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero)
+            };
+
+            var report = new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 0, 0, 0, 0, 0)).ToList(),
+                missingTimestamps, extraTimestamps,
+                null, BenchmarkAgreementScore.Unavailable("No overlap"),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+
+            var writer = new ComparisonJsonReportWriter();
+            using var stream = new System.IO.MemoryStream();
+            using (var jsonWriter = new System.Text.Json.Utf8JsonWriter(stream))
+            {
+                jsonWriter.WriteStartObject();
+                writer.WriteSection(jsonWriter, report);
+                jsonWriter.WriteEndObject();
+            }
+            stream.Position = 0;
+            using var doc = JsonDocument.Parse(stream);
+            var section = doc.RootElement.GetProperty("benchmarkComparison");
+            Assert.True(section.TryGetProperty("missingFromCandidateTimestamps", out var missing));
+            Assert.Equal(1, missing.GetArrayLength());
+            Assert.True(section.TryGetProperty("extraInCandidateTimestamps", out var extra));
+            Assert.Equal(1, extra.GetArrayLength());
+        }
+
+        // --- T073: InferFractionalStep with various precisions ---
+
+        [Fact]
+        public void InferFractionalStep_TwoDecimalPlaces_ReturnsOneCent()
+        {
+            // Prices like 65000.50 → 2 decimal places → fractional step = 0.01
+            var candles = new List<PriceCandle>();
+            var baseDate = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
+            for (int i = 0; i < 5; i++)
+            {
+                candles.Add(new PriceCandle(
+                    baseDate.AddDays(i),
+                    65000.50m + i * 0.50m, 65100.75m + i * 0.50m,
+                    64900.25m + i * 0.50m, 65050.60m + i * 0.50m, 1000m + i * 10));
+            }
+
+            var step = ToleranceResolver.InferFractionalStep(candles);
+            Assert.Equal(0.01m, step);
+        }
+
+        [Fact]
+        public void InferFractionalStep_SixDecimalPlaces_ReturnsCorrectStep()
+        {
+            // Prices like 1.234567 → 6 decimal places → fractional step = 0.000001
+            var candles = new List<PriceCandle>();
+            var baseDate = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
+            for (int i = 0; i < 5; i++)
+            {
+                candles.Add(new PriceCandle(
+                    baseDate.AddDays(i),
+                    1.234567m + i * 0.000001m, 1.235568m + i * 0.000001m,
+                    1.233566m + i * 0.000001m, 1.235067m + i * 0.000001m, 1000m + i * 10));
+            }
+
+            var step = ToleranceResolver.InferFractionalStep(candles);
+            Assert.Equal(0.000001m, step);
+        }
+
+        // --- ComparisonReport default constructor branches ---
+
+        [Fact]
+        public void ComparisonReport_DefaultConstructor_SetsEmptyTimestamps()
+        {
+            // Covers the old constructor branch where MissingFromCandidateTimestamps/ExtraInCandidateTimestamps
+            // default to empty arrays
+            var benchmark = CreateBenchmark("test");
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+            var report = new ComparisonReport(
+                benchmark, CreateCandidateIdentity(), config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                null, BenchmarkAgreementScore.Available(5, 0));
+
+            Assert.Empty(report.MissingFromCandidateTimestamps);
+            Assert.Empty(report.ExtraInCandidateTimestamps);
+        }
+
+        [Fact]
+        public void ComparisonReport_NullContextWarnings_DefaultsToEmpty()
+        {
+            // Covers the contextWarnings ?? Array.Empty<string>() branch
+            var benchmark = CreateBenchmark("test");
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+            var report = new ComparisonReport(
+                benchmark, CreateCandidateIdentity(), config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                null, BenchmarkAgreementScore.Available(5, 0),
+                contextWarnings: null);
+
+            Assert.NotNull(report.ContextWarnings);
+            Assert.Empty(report.ContextWarnings);
+        }
+
+        [Fact]
+        public void ComparisonReport_NewConstructor_EmptyTimestamps_PreservesValues()
+        {
+            // Covers the new constructor paths
+            var benchmark = CreateBenchmark("test");
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+            var report = new ComparisonReport(
+                benchmark, CreateCandidateIdentity(), config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                new List<DateTimeOffset>(), new List<DateTimeOffset>(),
+                (DatasetScoreReport?)null,
+                BenchmarkAgreementScore.Available(5, 0));
+
+            Assert.Empty(report.MissingFromCandidateTimestamps);
+            Assert.Empty(report.ExtraInCandidateTimestamps);
+            Assert.Empty(report.ContextWarnings);
+        }
+
+        // --- ToleranceResolver ResolveField branches ---
+
+        [Fact]
+        public void ResolveField_WithInferredStep_UsesInferredForPrice()
+        {
+            // Covers the inferredFractionalStep parameter branch in ResolveField
+            var result = ToleranceResolver.ResolveField(
+                OhlcvField.Open, null, inferredFractionalStep: 0.00001m);
+            Assert.Equal(0.00001m, result.ResolvedAbsolute);
+        }
+
+        [Fact]
+        public void ResolveField_WithInferredStep_IgnoredForVolume()
+        {
+            // Volume field ignores the inferred fractional step
+            var result = ToleranceResolver.ResolveField(
+                OhlcvField.Volume, null, inferredFractionalStep: 0.00001m);
+            Assert.Equal(0m, result.ResolvedAbsolute); // Default volume absolute
+        }
+
+        // --- T069: Injectable clock tests ---
+
+        [Fact]
+        public void CompareDatasetsUseCase_WithCustomClock_UsesInjectedTime()
+        {
+            var fixedTime = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
+            var clock = new FixedClock(fixedTime);
+            var benchmark = CreateBenchmark("test");
+            var candles = CreateCandleSet();
+
+            var useCase = new CompareDatasetsUseCase(clock);
+            var report = useCase.Compare(benchmark, candles, candles, CreateCandidateIdentity());
+
+            Assert.Equal(fixedTime, report.ResolutionTimestamp);
+        }
+
+        [Fact]
+        public void Compare_IdenticalData_NoDiscrepanciesPerfectScore_ViaClock()
+        {
+            var fixedTime = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
+            var clock = new FixedClock(fixedTime);
+            var benchmark = CreateBenchmark("test");
+            var candles = CreateCandleSet();
+
+            var useCase = new CompareDatasetsUseCase(clock);
+            var report = useCase.Compare(benchmark, candles, candles, CreateCandidateIdentity());
+
+            Assert.Equal(fixedTime, report.ResolutionTimestamp);
+            Assert.Equal(100m, report.AgreementScore.Score!.Value.Rounded);
+        }
+
+        // --- T070: PowerOfTen method edge cases ---
+
+        [Fact]
+        public void InferFractionalStep_VeryHighPrecision_StillWorks()
+        {
+            // 8 decimal places (the cap)
+            var candles = new List<PriceCandle>();
+            var baseDate = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
+            for (int i = 0; i < 5; i++)
+            {
+                candles.Add(new PriceCandle(
+                    baseDate.AddDays(i),
+                    1.12345678m + i * 0.00000001m, 1.12345679m + i * 0.00000001m,
+                    1.12345677m + i * 0.00000001m, 1.12345678m + i * 0.00000001m, 1000m + i * 10));
+            }
+
+            var step = ToleranceResolver.InferFractionalStep(candles);
+            Assert.Equal(0.00000001m, step);
+        }
+
+        // --- Coverage: ComparisonReport constructor with empty timestamps ---
+
+        [Fact]
+        public void ComparisonReport_DefaultTimestamps_AreEmptyArrays()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+
+            var report = new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(),
+                config.Fields.Select(f => new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                null, BenchmarkAgreementScore.Available(5, 0),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+
+            Assert.Empty(report.MissingFromCandidateTimestamps);
+            Assert.Empty(report.ExtraInCandidateTimestamps);
+        }
+
         [Fact]
         public void Compare_ConditionalWarnings_DateRangeBenchmarkOnly()
         {
@@ -403,5 +748,14 @@ namespace Validator.Application.Tests.Comparison
         private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";
 
         #endregion
+
+        /// <summary>
+        /// A test clock that returns a fixed time for deterministic tests.
+        /// </summary>
+        private sealed class FixedClock : Validator.Application.Abstractions.IApplicationClock
+        {
+            public FixedClock(DateTimeOffset fixedTime) => UtcNow = fixedTime;
+            public DateTimeOffset UtcNow { get; }
+        }
     }
 }
