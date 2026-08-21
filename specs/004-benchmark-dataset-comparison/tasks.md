@@ -282,3 +282,18 @@ With multiple developers:
 - All numeric values use `decimal` (never `float`/`double`) per constitution
 - All timestamps are UTC-normalized per constitution
 - Total tasks: 56 (2 Setup + 16 Foundational + 9 US1 + 11 US2 + 8 US3 + 5 US4 + 5 Polish)
+
+## Phase 8: Convergence
+
+- [ ] T057 Close the remaining Domain/Application coverage gaps and add tests for all feature paths until the merged business-logic coverage reaches 100% line and branch coverage per Constitution II (contradicts)
+- [ ] T058 Stage benchmark establishment and comparison together with validation output so no validation report or score is published when a benchmark or comparison failure occurs, per FR-030 and Constitution V (contradicts)
+- [ ] T059 Complete the benchmark snapshot identity and persistence contract by adding unambiguous instrument identity, `contractVersion`, documented enum/string representations, exact score serialization, and unknown-version validation in `src/Validator.Application/Benchmark/BenchmarkSnapshot.cs` and `src/Validator.Infrastructure/Benchmark/BenchmarkSnapshotJsonSerializer.cs`, per FR-001 and `contracts/benchmark-contract.md` (missing)
+- [ ] T060 Infer the default price fractional-step tolerance from benchmark OHLC observations and carry the resolved value through comparison configuration and reporting instead of using a fixed constant, per FR-015, Q5, and SC-004a (partial)
+- [ ] T061 Implement explicit per-field tolerance disabling and reject incomplete, duplicate, contradictory, or otherwise ambiguous tolerance JSON before reading input data, per FR-016 and FR-019 (partial)
+- [ ] T062 Integrate comparison into the existing v2 validation report as one deterministic output document, including the candidate independent six-metric score, benchmark scores, candidate identity, and `benchmarkComparison` section while preserving the no-`--compare` behavior, per FR-021, FR-027, FR-028, FR-029, and plan decision T045 (partial)
+- [ ] T063 Change completed advisory comparisons to return exit code 0 regardless of discrepancy findings and reserve exit code 2 for fatal comparison failures, per Q6 and FR-026 (contradicts)
+- [ ] T064 Complete machine-readable comparison audit fields and deterministic UTC formatting by emitting candidate source lines, candidate identity, explicit unavailable score values, and UTC `Z` timestamps, per FR-013, FR-028, FR-031, and FR-032 (partial)
+- [ ] T065 Add comparison coverage rates and the explicit no-overlap/unavailable message to human-readable output, per FR-022, FR-025, and `contracts/comparison-report-contract.md` (partial)
+- [ ] T066 Add CLI end-to-end tests covering benchmark establishment, comparison exit semantics, combined v2 output, tolerance overrides and disablement, no-overlap handling, fatal atomicity, and repeated-output determinism, per SC-005, SC-006, and quickstart scenarios 1–8 (missing)
+
+**Severity**: T057 and T058 are CRITICAL constitution-remediation tasks and must be completed before the feature can be considered done.
