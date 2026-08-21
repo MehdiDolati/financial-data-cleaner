@@ -1,0 +1,285 @@
+{
+  "name": "audusd-daily",
+  "establishedAtUtc": "2026-08-20T13:39:07.2427806+00:00",
+  "source": {
+    "fileName": "AUDUSD_D1_reference.csv",
+    "byteSize": 5376,
+    "sha256": "5bf4645a53d6033fb350a17693192002bab146273c57a6a48f2d2c445618a890"
+  },
+  "context": {
+    "timeframe": "D1",
+    "calendar": {
+      "profile": "forex",
+      "name": "Forex",
+      "sessions": []
+    },
+    "timestamp": {
+      "mode": 0,
+      "dateFormat": "yyyy.MM.dd",
+      "timeFormat": "HH:mm",
+      "sourceOffset": "\u002B02:00"
+    },
+    "delimiter": "comma",
+    "hasHeader": false,
+    "dateRange": {
+      "start": "2026-01-01T22:00:00+00:00",
+      "end": "2026-05-14T22:00:00+00:00"
+    }
+  },
+  "coverage": {
+    "physicalRowsExamined": 96,
+    "acceptedRows": 96,
+    "malformedRows": 0,
+    "isReconciled": true
+  },
+  "checks": [
+    {
+      "check": 0,
+      "status": 0
+    },
+    {
+      "check": 1,
+      "status": 0
+    },
+    {
+      "check": 2,
+      "status": 0
+    },
+    {
+      "check": 3,
+      "status": 0
+    },
+    {
+      "check": 4,
+      "status": 0
+    },
+    {
+      "check": 5,
+      "status": 0
+    }
+  ],
+  "metrics": [
+    {
+      "category": 0,
+      "state": 0,
+      "count": 8,
+      "population": 96,
+      "populationKind": 0,
+      "score": {
+        "exact": {
+          "numerator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": false,
+            "sign": 1
+          },
+          "denominator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": false,
+            "sign": 1
+          }
+        },
+        "rounded": 91.67
+      }
+    },
+    {
+      "category": 1,
+      "state": 0,
+      "count": 0,
+      "population": 96,
+      "populationKind": 1,
+      "score": {
+        "exact": {
+          "numerator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": true,
+            "sign": 1
+          },
+          "denominator": {
+            "isPowerOfTwo": true,
+            "isZero": false,
+            "isOne": true,
+            "isEven": false,
+            "sign": 1
+          }
+        },
+        "rounded": 100
+      }
+    },
+    {
+      "category": 2,
+      "state": 0,
+      "count": 0,
+      "population": 96,
+      "populationKind": 1,
+      "score": {
+        "exact": {
+          "numerator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": true,
+            "sign": 1
+          },
+          "denominator": {
+            "isPowerOfTwo": true,
+            "isZero": false,
+            "isOne": true,
+            "isEven": false,
+            "sign": 1
+          }
+        },
+        "rounded": 100
+      }
+    },
+    {
+      "category": 3,
+      "state": 0,
+      "count": 8,
+      "population": 96,
+      "populationKind": 1,
+      "score": {
+        "exact": {
+          "numerator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": false,
+            "sign": 1
+          },
+          "denominator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": false,
+            "sign": 1
+          }
+        },
+        "rounded": 91.67
+      }
+    },
+    {
+      "category": 4,
+      "state": 0,
+      "count": 8,
+      "population": 96,
+      "populationKind": 0,
+      "score": {
+        "exact": {
+          "numerator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": false,
+            "sign": 1
+          },
+          "denominator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": false,
+            "sign": 1
+          }
+        },
+        "rounded": 91.67
+      }
+    },
+    {
+      "category": 5,
+      "state": 0,
+      "count": 0,
+      "population": 96,
+      "populationKind": 2,
+      "score": {
+        "exact": {
+          "numerator": {
+            "isPowerOfTwo": false,
+            "isZero": false,
+            "isOne": false,
+            "isEven": true,
+            "sign": 1
+          },
+          "denominator": {
+            "isPowerOfTwo": true,
+            "isZero": false,
+            "isOne": true,
+            "isEven": false,
+            "sign": 1
+          }
+        },
+        "rounded": 100
+      }
+    }
+  ],
+  "dataset": {
+    "average": {
+      "exact": {
+        "numerator": {
+          "isPowerOfTwo": false,
+          "isZero": false,
+          "isOne": false,
+          "isEven": false,
+          "sign": 1
+        },
+        "denominator": {
+          "isPowerOfTwo": false,
+          "isZero": false,
+          "isOne": false,
+          "isEven": true,
+          "sign": 1
+        }
+      },
+      "rounded": 95.83
+    },
+    "metricsCovered": 6,
+    "coveredCategories": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "excludedCategories": []
+  },
+  "weighting": {
+    "source": 0,
+    "weights": [
+      {
+        "category": 0,
+        "weight": 1,
+        "normalisedShare": 0.17
+      },
+      {
+        "category": 1,
+        "weight": 1,
+        "normalisedShare": 0.17
+      },
+      {
+        "category": 2,
+        "weight": 1,
+        "normalisedShare": 0.17
+      },
+      {
+        "category": 3,
+        "weight": 1,
+        "normalisedShare": 0.17
+      },
+      {
+        "category": 4,
+        "weight": 1,
+        "normalisedShare": 0.17
+      },
+      {
+        "category": 5,
+        "weight": 1,
+        "normalisedShare": 0.17
+      }
+    ]
+  }
+}

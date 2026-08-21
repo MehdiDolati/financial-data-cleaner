@@ -112,6 +112,13 @@ Run `dotnet $validator --help` for the complete examples included with the CLI.
 | `--verbose` | Append complete canonical finding details to text output | Off |
 | `--score` | Report per-metric quality scores and one dataset average | Off |
 | `--score-weights <list>` | Reweight the average with six `metric=weight` pairs; requires `--score` | Equal weights |
+| `--instrument <identity>` | Explicit instrument identity for benchmark establishment or comparison | None |
+| `--benchmark <name>` | Establish a named benchmark from the validated dataset | None |
+| `--benchmark-dir <path>` | Benchmark storage directory | `./benchmarks/` |
+| `--benchmark-delete <name>` | Delete a stored benchmark | None |
+| `--compare <name>` | Compare candidate against a stored benchmark | None |
+| `--tolerances <json>` | Custom per-field tolerance overrides (JSON) | Defaults |
+| `--yes` | Skip confirmation prompt for benchmark deletion | Off |
 | `--help` | Show all options and required examples | None |
 
 
@@ -205,14 +212,70 @@ requested. Because the version 1 JSON contract is frozen, `--score` with
 `--format json` (v1) is rejected with exit code `2` and a message directing you
 to `--format json --report-version 2`.
 
+## Benchmarks and Comparison
+
+Establish a validated dataset as a named immutable benchmark snapshot, then
+compare a candidate dataset against that benchmark to detect material OHLCV
+discrepancies while tolerating acceptable broker-level differences.
+
+### Establish a Benchmark
+
+```powershell
+dotnet $validator prices.csv --timeframe D1 --score --report-version 2 --format json \
+  --instrument AUDUSD --benchmark my-benchmark
+```
+
+This creates `./benchmarks/my-benchmark/` containing `benchmark.json` and
+`source.csv`. The benchmark is immutable — establishing a second benchmark with
+the same name fails with exit code 2.
+
+### List and Delete Benchmarks
+
+```powershell
+# Delete a benchmark (prompts for confirmation)
+dotnet $validator --benchmark-delete my-benchmark
+
+# Skip confirmation
+dotnet $validator --benchmark-delete my-benchmark --yes
+```
+
+### Compare Against a Benchmark
+
+```powershell
+dotnet $validator candidate.csv --timeframe D1 --score --report-version 2 --format json \
+  --instrument AUDUSD --compare my-benchmark
+```
+
+The comparison reports:
+- **Material discrepancies**: OHLCV values exceeding both absolute and relative
+  tolerances
+- **Tolerated differences**: Values within acceptable tolerance bands
+- **Coverage**: Matched, missing, and extra timestamps
+- **Benchmark-agreement score**: Percentage of matched timestamps with no material
+  discrepancies
+
+### Custom Tolerances
+
+Override default tolerances per field with a JSON object:
+
+```powershell
+dotnet $validator candidate.csv --timeframe D1 --score --report-version 2 --format json \
+  --compare my-benchmark \
+  --tolerances '{"Open": {"absolute": 0.00005}, "Volume": {"relative": 0.02}}'
+```
+
+Default tolerances: price fields use the greater of the inferred fractional
+quote-unit step and 0.01% relative; volume uses 5% relative. The inferred and
+resolved tolerances are included in comparison output for auditability.
+
 ## Exit Codes
 
 
 | Code | Meaning |
 | ---: | --- |
-| `0` | Help requested, or validation completed with no findings |
+| `0` | Help requested, validation completed with no findings, or an advisory comparison completed regardless of discrepancies/findings |
 | `1` | Validation completed with one or more findings |
-| `2` | Fatal dataset, configuration, ingestion, timeframe, calendar, reconciliation, or report-write failure |
+| `2` | Fatal dataset, configuration, ingestion, benchmark/comparison, timeframe, calendar, reconciliation, or report-write failure |
 
 Fatal failures write diagnostics to stderr and do not emit a data-quality report.
 
@@ -225,11 +288,14 @@ The solution uses four inward-facing projects:
 - `Validator.Infrastructure`: CSV, sorting, calendar, finding, and report adapters
 - `Validator.Cli`: argument handling and composition
 
-Domain is held to 100% line and branch coverage. Application is covered at
-99.69% line and 99.03% branch coverage; the remaining paths are unreachable by
-construction and are documented in the final feature review. Infrastructure
-uses real-file integration tests, and the CLI uses end-to-end tests. The feature
-contracts and runnable walkthroughs are in
+Domain is held to 100% line and branch coverage. The merged Domain/Application
+coverage workflow currently measures 99.28% line and 97.97% branch coverage and
+enforces 99.2% and 97.9% ratchet thresholds; the remaining paths are defensive
+arms that cannot be reached through valid public compositions and are documented
+in `.github/workflows/coverage.yml`. Infrastructure uses real-file integration
+tests, and the CLI uses end-to-end tests. The feature contracts and runnable walkthroughs are in
 [`specs/001-ohlcv-data-quality-validator/`](specs/001-ohlcv-data-quality-validator/)
 and
-[`specs/002-detailed-error-report/`](specs/002-detailed-error-report/).
+[`specs/002-detailed-error-report/`](specs/002-detailed-error-report/),
+[`specs/003-dataset-quality-scoring/`](specs/003-dataset-quality-scoring/), and
+[`specs/004-benchmark-dataset-comparison/`](specs/004-benchmark-dataset-comparison/).

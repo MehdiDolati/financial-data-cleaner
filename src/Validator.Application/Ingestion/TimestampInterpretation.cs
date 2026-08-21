@@ -26,7 +26,8 @@ namespace Validator.Application.Ingestion
         public string? TimestampColumn { get; }
         public string SourceOffset { get; }
 
-        private TimestampInterpretation(
+        [System.Text.Json.Serialization.JsonConstructor]
+        internal TimestampInterpretation(
             TimestampMode mode,
             string? dateFormat,
             string? timeFormat,
