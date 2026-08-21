@@ -13,33 +13,34 @@
 
 **Goal**: Create a named benchmark from a validated dataset.
 
-```bash
+```powershell
 # Build the project
 dotnet build
 
 # Establish AUDUSD benchmark from a known dataset
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_reference.csv \
-  --timeframe D1 \
-  --market forex \
-  --format json \
-  --report-version 2 \
-  --score \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_reference.csv `
+  --timeframe D1 `
+  --market forex `
+  --format json `
+  --report-version 2 `
+  --score `
+  --instrument AUDUSD `
   --benchmark audusd-daily
 ```
 
 **Expected outcome**:
-- Exit code 0 (clean dataset) or 1 (findings present, but benchmark still established)
+- Exit code 0 (clean dataset) or 1 (validation findings present, but benchmark still established)
 - A `benchmarks/audusd-daily/` directory is created containing `benchmark.json` and `source.csv`
 - Console output confirms benchmark establishment with source identity and scores
 
 **Verify**:
-```bash
+```powershell
 # Confirm benchmark file exists
-ls benchmarks/audusd-daily/
+Get-ChildItem benchmarks/audusd-daily/
 
 # Confirm metadata is valid JSON
-cat benchmarks/audusd-daily/benchmark.json | python3 -m json.tool > /dev/null && echo "Valid JSON"
+Get-Content benchmarks/audusd-daily/benchmark.json -Raw | ConvertFrom-Json | Out-Null
 ```
 
 ---
@@ -48,15 +49,16 @@ cat benchmarks/audusd-daily/benchmark.json | python3 -m json.tool > /dev/null &&
 
 **Goal**: Verify that comparing identical inputs produces no discrepancies and a perfect agreement score.
 
-```bash
+```powershell
 # Compare the same file against its own benchmark
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_reference.csv \
-  --timeframe D1 \
-  --market forex \
-  --format json \
-  --report-version 2 \
-  --score \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_reference.csv `
+  --timeframe D1 `
+  --market forex `
+  --format json `
+  --report-version 2 `
+  --score `
+  --instrument AUDUSD `
   --compare audusd-daily
 ```
 
@@ -70,24 +72,26 @@ dotnet run --project src/Validator.Cli -- \
 
 ## Scenario 3: Compare Candidate With Known Differences
 
-**Goal**: Verify that a candidate with one material price difference, one tolerated broker difference, one missing candle, and one extra candle is correctly reported.
+**Goal**: Verify that a candidate with one material price difference and one
+tolerated broker difference is correctly reported.
 
 **Setup**: Use `tests/Fixtures/` test data that includes these deliberate variations.
 
-```bash
+```powershell
 # Compare candidate with known variations
-dotnet run --project src/Validator.Cli -- \
-  tests/Fixtures/AUDUSD_D1_candidate_with_differences.csv \
-  --timeframe D1 \
-  --market forex \
-  --format json \
-  --report-version 2 \
-  --score \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_candidate_with_differences.csv `
+  --timeframe D1 `
+  --market forex `
+  --format json `
+  --report-version 2 `
+  --score `
+  --instrument AUDUSD `
   --compare audusd-daily
 ```
 
 **Expected outcome**:
-- Coverage shows: 1 missing candle from candidate, 1 extra candle in candidate
+- Coverage shows all 96 timestamps matched
 - Exactly 1 material price discrepancy at the correct timestamp and field
 - Tolerated broker-level differences are not flagged as material
 - Agreement score reflects only the material discrepancy count
@@ -99,21 +103,22 @@ dotnet run --project src/Validator.Cli -- \
 
 **Goal**: Verify that custom tolerance overrides are applied correctly.
 
-```bash
+```powershell
 # Compare with stricter price tolerance
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_candidate.csv \
-  --timeframe D1 \
-  --market forex \
-  --format json \
-  --report-version 2 \
-  --score \
-  --compare audusd-daily \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_candidate_with_differences.csv `
+  --timeframe D1 `
+  --market forex `
+  --format json `
+  --report-version 2 `
+  --score `
+  --instrument AUDUSD `
+  --compare audusd-daily `
   --tolerances '{"Open": {"absolute": 0.00005}, "Volume": {"relative": 0.02}}'
 ```
 
 **Expected outcome**:
-- The Open field uses the custom absolute tolerance of 0.00005 instead of the default
+- The Open field uses the custom absolute tolerance of 0.00005 instead of the inferred default
 - The Volume field uses the custom relative tolerance of 2% instead of the default 5%
 - The resolved tolerances are recorded in the report for auditability
 
@@ -123,16 +128,17 @@ dotnet run --project src/Validator.Cli -- \
 
 **Goal**: Verify graceful handling when datasets have no overlapping timestamps.
 
-```bash
+```powershell
 # Compare datasets from completely different time periods
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_2020.csv \
-  --timeframe D1 \
-  --market forex \
-  --format json \
-  --report-version 2 \
-  --score \
-  --compare audusd-daily-2026
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_candidate_no_overlap.csv `
+  --timeframe D1 `
+  --market forex `
+  --format json `
+  --report-version 2 `
+  --score `
+  --instrument AUDUSD `
+  --compare audusd-daily
 ```
 
 **Expected outcome**:
@@ -147,19 +153,21 @@ dotnet run --project src/Validator.Cli -- \
 
 **Goal**: Verify that creating a benchmark with an existing name fails cleanly.
 
-```bash
+```powershell
 # First establishment succeeds
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_reference.csv \
-  --timeframe D1 --market forex \
-  --format json --report-version 2 --score \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_reference.csv `
+  --timeframe D1 --market forex `
+  --format json --report-version 2 --score `
+  --instrument AUDUSD `
   --benchmark audusd-daily
 
 # Second establishment with same name fails
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_reference.csv \
-  --timeframe D1 --market forex \
-  --format json --report-version 2 --score \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_reference.csv `
+  --timeframe D1 --market forex `
+  --format json --report-version 2 --score `
+  --instrument AUDUSD `
   --benchmark audusd-daily
 ```
 
@@ -174,19 +182,20 @@ dotnet run --project src/Validator.Cli -- \
 
 **Goal**: Verify that invalid tolerance options are rejected before data is read.
 
-```bash
+```powershell
 # Negative tolerance
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1.csv \
-  --timeframe D1 --market forex \
-  --format json --report-version 2 --score \
-  --compare audusd-daily \
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_candidate_identical.csv `
+  --timeframe D1 --market forex `
+  --format json --report-version 2 --score `
+  --instrument AUDUSD `
+  --compare audusd-daily `
   --tolerances '{"Open": {"absolute": -0.001}}'
 ```
 
 **Expected outcome**:
 - Exit code 2 (fatal error)
-- Error message: "Tolerance for Open must be non-negative."
+- Error message identifies the negative Open tolerance as invalid
 - No dataset bytes are read
 
 ---
@@ -195,34 +204,36 @@ dotnet run --project src/Validator.Cli -- \
 
 **Goal**: Verify that repeated comparisons produce byte-identical output.
 
-```bash
+```powershell
 # Run comparison twice
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_candidate.csv \
-  --timeframe D1 --market forex \
-  --format json --report-version 2 --score \
-  --compare audusd-daily \
-  --output /tmp/report1.json
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_candidate_with_differences.csv `
+  --timeframe D1 --market forex `
+  --format json --report-version 2 --score `
+  --instrument AUDUSD `
+  --compare audusd-daily `
+  --output report1.json
 
-dotnet run --project src/Validator.Cli -- \
-  AUDUSD_D1_candidate.csv \
-  --timeframe D1 --market forex \
-  --format json --report-version 2 --score \
-  --compare audusd-daily \
-  --output /tmp/report2.json
+dotnet run --project src/Validator.Cli -- `
+  tests/Fixtures/AUDUSD_D1_candidate_with_differences.csv `
+  --timeframe D1 --market forex `
+  --format json --report-version 2 --score `
+  --instrument AUDUSD `
+  --compare audusd-daily `
+  --output report2.json
 
-# Compare (excluding timestamp fields)
-diff /tmp/report1.json /tmp/report2.json
+# Compare
+Compare-Object (Get-Content report1.json) (Get-Content report2.json)
 ```
 
 **Expected outcome**:
-- `diff` reports no differences (byte-identical output, SC-006)
+- `Compare-Object` emits no differences (byte-identical output, SC-006)
 
 ---
 
 ## Running Tests
 
-```bash
+```powershell
 # Run all tests
 dotnet test
 
@@ -235,4 +246,6 @@ dotnet test --verbosity normal
 
 **Expected outcome**:
 - All tests pass
-- 100% line and branch coverage on Domain and Application layers
+- Domain remains at 100% line and branch coverage, and the merged
+  Domain/Application coverage ratchet passes the thresholds documented in
+  `.github/workflows/coverage.yml`.
