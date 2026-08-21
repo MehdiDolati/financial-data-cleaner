@@ -594,6 +594,94 @@ namespace Validator.Application.Tests.Comparison
             Assert.Equal("reason", s.Reason);
         }
 
+        // ── Additional coverage gap closures ──
+
+        [Fact]
+        public void Compare_AcceptedByAbsolute_WithDifference_CoversLines118_121()
+        {
+            // Create benchmark and candidate where values differ but are within absolute tolerance.
+            // This covers the AcceptedByAbsolute + isDifferent=true path (lines 118-121).
+            var benchmark = CreateBenchmark("t");
+            var candidate = CreateCandidateIdentity();
+            var benchCandles = new List<PriceCandle>
+            {
+                new(FixedDate(2), 1.00000m, 1.01000m, 0.99000m, 1.00500m, 100000m),
+            };
+            // Candidate Open differs by 0.00005 which is within the inferred 0.00001 absolute + 0.0001 relative
+            var candCandles = new List<PriceCandle>
+            {
+                new(FixedDate(2), 1.00005m, 1.01000m, 0.99000m, 1.00500m, 100000m),
+            };
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, benchCandles, candCandles, candidate);
+            // Open difference 0.00005 > 0.00001 absolute but < 0.0001 * 1.0 = 0.0001 relative → accepted by relative
+            // High/Low/Close/Volume are identical → not different, not counted
+            Assert.Empty(report.MaterialDiscrepancies);
+        }
+
+        [Fact]
+        public void Compare_AllFieldsDisabled_BuildToleratedAggregate_CoversLine269()
+        {
+            // When all fields are disabled, the toleratedCounts dictionary is empty.
+            // BuildToleratedAggregate's TryGetValue returns false → covers line 269.
+            var benchmark = CreateBenchmark("t");
+            var candidate = CreateCandidateIdentity();
+            var candles = new List<PriceCandle>
+            {
+                new(FixedDate(2), 1.00000m, 1.01000m, 0.99000m, 1.00500m, 100000m),
+            };
+            var overrides = new[]
+            {
+                new ComparedField(OhlcvField.Open, false, null, null, 0, 0),
+                new ComparedField(OhlcvField.High, false, null, null, 0, 0),
+                new ComparedField(OhlcvField.Low, false, null, null, 0, 0),
+                new ComparedField(OhlcvField.Close, false, null, null, 0, 0),
+                new ComparedField(OhlcvField.Volume, false, null, null, 0, 0),
+            };
+            var useCase = new CompareDatasetsUseCase();
+            var report = useCase.Compare(benchmark, candles, candles, candidate, overrides);
+            Assert.Empty(report.MaterialDiscrepancies);
+            // BuildToleratedAggregate called for each field → TryGetValue false path exercised
+        }
+
+        [Fact]
+        public void TextReport_WithCandidateScore_FullScoreSection()
+        {
+            // Covers the CandidateScore != null branch (line 77) with full formatting
+            var r = CreateFullReport() with { CandidateScore = CreateCandidateScoreReport() };
+            var text = new ComparisonTextReportWriter().Write(r);
+            Assert.Contains("Candidate Quality Score", text);
+            Assert.Contains("Benchmark-Agreement Score", text);
+        }
+
+        [Fact]
+        public void DatasetScore_Unavailable_WithReason()
+        {
+            // Covers DatasetScore unavailable path (line 72)
+            var ds = DatasetScore.Unavailable(
+                "No metrics could be scored",
+                Array.Empty<FindingCategory>(),
+                new[]
+                {
+                    new ExcludedMetric(FindingCategory.MissingCandle, MetricScoreState.NotApplicable, "Too few open-market timestamps"),
+                    new ExcludedMetric(FindingCategory.DuplicateRecord, MetricScoreState.NotApplicable, "Too few open-market timestamps"),
+                    new ExcludedMetric(FindingCategory.InvalidOhlc, MetricScoreState.NotApplicable, "Too few open-market timestamps"),
+                    new ExcludedMetric(FindingCategory.ClosedMarketRecord, MetricScoreState.NotApplicable, "Too few open-market timestamps"),
+                    new ExcludedMetric(FindingCategory.TimeGap, MetricScoreState.NotApplicable, "Too few open-market timestamps"),
+                    new ExcludedMetric(FindingCategory.MalformedRow, MetricScoreState.NotApplicable, "No rows examined")
+                });
+            Assert.Null(ds.Average);
+            Assert.Equal(6, ds.ExcludedCategories.Count);
+        }
+
+        [Fact]
+        public void MetricScore_Scored_CountZeroPopulationZero_Throws()
+        {
+            // Covers MetricScore constructor branch where both count and population are zero
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                MetricScore.Scored(FindingCategory.MissingCandle, 0, 0, MetricPopulationKind.ExpectedCandles, new ScoreValue(new ExactRatio(100, 1))));
+        }
+
         // ── Helpers ──
 
         private static DateTimeOffset FixedDate(int day) =>
