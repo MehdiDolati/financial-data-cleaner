@@ -860,9 +860,10 @@ public static class ValidateCommand
 
             var benchmark = await store.LoadAsync(parsed.CompareBenchmark!).ConfigureAwait(false);
 
-            // Load benchmark source candles
+            // Load benchmark source candles with the benchmark's recorded ingestion context (T075)
             var benchmarkSourcePath = Path.Combine(benchmarkDir, new BenchmarkName(parsed.CompareBenchmark!).Safe, "source.csv");
-            var benchmarkSource = new CsvCandleSource(benchmarkSourcePath);
+            var benchmarkCsvOptions = BuildCsvOptionsFromContext(benchmark.Context);
+            var benchmarkSource = new CsvCandleSource(benchmarkSourcePath, benchmarkCsvOptions);
             var benchmarkCandles = new List<PriceCandle>();
             await foreach (var candle in benchmarkSource.ReadAllAsync().ConfigureAwait(false))
             {
@@ -904,6 +905,32 @@ public static class ValidateCommand
             Console.Error.WriteLine($"Comparison failed: {exception.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Builds CsvInputOptions from a ValidationContextSnapshot, preserving the delimiter,
+    /// header mode, timestamp interpretation, and source offset recorded at benchmark establishment.
+    /// </summary>
+    private static CsvInputOptions BuildCsvOptionsFromContext(ValidationContextSnapshot context)
+    {
+        var tzOffset = TimeSpan.TryParse(context.Timestamp.SourceOffset, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : TimeSpan.FromHours(2);
+
+        return new CsvInputOptions
+        {
+            HasHeader = context.HasHeader,
+            Delimiter = context.Delimiter,
+            DateFormat = context.Timestamp.Mode == Application.Ingestion.TimestampMode.SeparateDateTime
+                ? context.Timestamp.DateFormat : null,
+            TimeFormat = context.Timestamp.Mode == Application.Ingestion.TimestampMode.SeparateDateTime
+                ? context.Timestamp.TimeFormat : null,
+            TimestampFormat = context.Timestamp.Mode == Application.Ingestion.TimestampMode.CombinedTimestamp
+                ? context.Timestamp.TimestampFormat : null,
+            TimestampColumn = context.Timestamp.Mode == Application.Ingestion.TimestampMode.CombinedTimestamp
+                ? context.Timestamp.TimestampColumn : null,
+            TzOffset = tzOffset
+        };
     }
 
     private sealed record ParsedArguments(

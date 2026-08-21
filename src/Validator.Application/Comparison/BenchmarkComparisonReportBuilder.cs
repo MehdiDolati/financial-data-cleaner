@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Validator.Application.Abstractions;
 using Validator.Application.Benchmark;
 using Validator.Application.Scoring;
 using Validator.Domain.Comparison;
@@ -59,7 +60,7 @@ namespace Validator.Application.Comparison
                 candidateScore,
                 agreementScore,
                 contextWarnings,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow); // Caller must supply clock for determinism
         }
 
         /// <summary>

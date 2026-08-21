@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Validator.Application.Abstractions;
 using Validator.Application.Reporting;
 
 namespace Validator.Application.Benchmark
@@ -13,10 +14,15 @@ namespace Validator.Application.Benchmark
     public sealed class EstablishBenchmarkUseCase
     {
         private readonly IBenchmarkStore _store;
+        private readonly IApplicationClock _clock;
 
         public EstablishBenchmarkUseCase(IBenchmarkStore store)
+            : this(store, SystemClock.Instance) { }
+
+        public EstablishBenchmarkUseCase(IBenchmarkStore store, IApplicationClock clock)
         {
             _store = store ?? throw new ArgumentNullException(nameof(store));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
         /// <summary>
@@ -53,7 +59,7 @@ namespace Validator.Application.Benchmark
             // Build the snapshot from the report
             var snapshot = new BenchmarkSnapshot(
                 name: name,
-                establishedAtUtc: DateTimeOffset.UtcNow,
+                establishedAtUtc: _clock.UtcNow,
                 source: report.Source,
                 context: report.Context,
                 coverage: report.Coverage,

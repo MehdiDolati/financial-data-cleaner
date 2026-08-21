@@ -21,9 +21,6 @@ namespace Validator.Application.Comparison
         private const decimal DefaultVolumeAbsoluteTolerance = 0m;
         private const decimal DefaultVolumeRelativeTolerance = 0.05m;   // 5%
 
-        // Minimum number of candles needed for reliable precision inference
-        private const int MinCandlesForInference = 10;
-
         /// <summary>
         /// Resolves tolerances for all OHLCV fields, applying user overrides where provided
         /// and defaults otherwise. When benchmarkCandles are provided, infers the fractional-step
@@ -38,7 +35,7 @@ namespace Validator.Application.Comparison
             string benchmarkName,
             IReadOnlyList<Validator.Domain.Candles.PriceCandle>? benchmarkCandles = null)
         {
-            var inferredFractionalStep = benchmarkCandles is not null && benchmarkCandles.Count >= MinCandlesForInference
+            var inferredFractionalStep = benchmarkCandles is not null && benchmarkCandles.Count > 0
                 ? InferFractionalStep(benchmarkCandles)
                 : DefaultPriceAbsoluteTolerance;
 
@@ -75,14 +72,35 @@ namespace Validator.Application.Comparison
                 maxPrecision = Math.Max(maxPrecision, GetDecimalPlaces(candle.Close));
             }
 
-            // Cap at 8 decimal places to avoid extreme values
-            maxPrecision = Math.Min(maxPrecision, 8);
-
             // If no meaningful precision detected, use default
             if (maxPrecision <= 0)
                 return DefaultPriceAbsoluteTolerance;
 
-            return 1m / (decimal)Math.Pow(10, maxPrecision);
+            // Pure decimal arithmetic: 10^(-maxPrecision) without Math.Pow or double
+            return PowerOfTen(-maxPrecision);
+        }
+
+        /// <summary>
+        /// Computes 10^n as a decimal value using pure integer arithmetic.
+        /// Supports negative exponents for fractional results.
+        /// </summary>
+        private static decimal PowerOfTen(int exponent)
+        {
+            if (exponent >= 0)
+            {
+                var result = 1m;
+                for (var i = 0; i < exponent; i++)
+                    result *= 10m;
+                return result;
+            }
+            else
+            {
+                // For negative exponents, divide: 10^(-n) = 1 / 10^n
+                var denominator = 1m;
+                for (var i = 0; i < -exponent; i++)
+                    denominator *= 10m;
+                return 1m / denominator;
+            }
         }
 
         private static int GetDecimalPlaces(decimal value)
@@ -209,6 +227,17 @@ namespace Validator.Application.Comparison
                     resolvedAbsolute: 0, // Will be resolved by ResolveField
                     resolvedRelative: 0));
             }
+
+            // Validate no duplicate fields (FR-019)
+            var duplicateFields = result
+                .GroupBy(f => f.Field)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+            if (duplicateFields.Count > 0)
+                throw new ArgumentException(
+                    $"Duplicate field overrides detected: {string.Join(", ", duplicateFields)}. " +
+                    $"Each field may appear at most once (FR-019).", nameof(jsonOverrides));
 
             return result;
         }

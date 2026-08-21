@@ -249,14 +249,14 @@ namespace Validator.Application.Tests.Comparison
         }
 
         [Fact]
-        public void Resolve_WithFewCandles_UsesDefault()
+        public void Resolve_WithFewCandles_InfersFromAvailableData()
         {
-            // Fewer than 10 candles → cannot infer, falls back to default
+            // Any number of candles can be used for inference (no minimum threshold)
             var candles = CreateForexCandles(5);
             var config = ToleranceResolver.Resolve(null, "test", candles);
 
             var open = config.Fields.First(f => f.Field == OhlcvField.Open);
-            Assert.Equal(0.0001m, open.ResolvedAbsolute); // default
+            Assert.Equal(0.00001m, open.ResolvedAbsolute); // inferred from 5-digit prices
         }
 
         [Fact]
@@ -326,6 +326,14 @@ namespace Validator.Application.Tests.Comparison
         {
             // An entry with no tolerance values or enabled flag is ambiguous
             var json = """{"Open": {}}""";
+            Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides(json));
+        }
+
+        [Fact]
+        public void ParseOverrides_DuplicateField_Throws()
+        {
+            // Duplicate field entries are rejected (FR-019)
+            var json = """{"Open": {"absolute": 0.001}, "open": {"relative": 0.01}}""";
             Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides(json));
         }
 

@@ -43,16 +43,17 @@ namespace Validator.Infrastructure.Benchmark
 
             // First peek at contractVersion before full deserialization
             using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("contractVersion", out var versionProp))
-            {
-                var version = versionProp.GetInt32();
-                if (version != SupportedContractVersion)
-                    throw new InvalidDataException(
-                        $"Incompatible benchmark contract version {version}. " +
-                        $"This application supports version {SupportedContractVersion}. " +
-                        $"Re-establish the benchmark with the current version.");
-            }
-            // Missing contractVersion is acceptable for backwards compatibility with v0 snapshots
+            if (!doc.RootElement.TryGetProperty("contractVersion", out var versionProp))
+                throw new InvalidDataException(
+                    "Missing required 'contractVersion' field in benchmark snapshot. " +
+                    "Re-establish the benchmark with the current version.");
+
+            var version = versionProp.GetInt32();
+            if (version != SupportedContractVersion)
+                throw new InvalidDataException(
+                    $"Incompatible benchmark contract version {version}. " +
+                    $"This application supports version {SupportedContractVersion}. " +
+                    $"Re-establish the benchmark with the current version.");
 
             return JsonSerializer.Deserialize<BenchmarkSnapshot>(json, Options)
                 ?? throw new InvalidDataException("Failed to deserialize benchmark snapshot: result was null.");

@@ -181,15 +181,11 @@ namespace Validator.Application.Tests.Comparison
         }
 
         [Fact]
-        public void ParseOverrides_DuplicateField_ParsesBothEntries()
+        public void ParseOverrides_DuplicateField_Throws()
         {
-            // System.Text.Json EnumerateObject enumerates all properties including duplicates
+            // FR-019: Duplicate field entries are rejected as ambiguous
             var json = """{"Open": {"absolute": 0.001}, "Open": {"absolute": 0.002}}""";
-            var overrides = ToleranceResolver.ParseOverrides(json);
-            // Both entries are parsed (no dedup at this level)
-            Assert.Equal(2, overrides.Count);
-            Assert.Equal(0.001m, overrides[0].AbsoluteTolerance);
-            Assert.Equal(0.002m, overrides[1].AbsoluteTolerance);
+            Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides(json));
         }
 
         [Fact]

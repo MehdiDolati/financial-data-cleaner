@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Validator.Application.Abstractions;
 using Validator.Application.Benchmark;
 using Validator.Application.Ingestion;
 using Validator.Application.Scoring;
@@ -17,6 +18,15 @@ namespace Validator.Application.Comparison
     /// </summary>
     public sealed class CompareDatasetsUseCase
     {
+        private readonly IApplicationClock _clock;
+
+        public CompareDatasetsUseCase() : this(SystemClock.Instance) { }
+
+        public CompareDatasetsUseCase(IApplicationClock clock)
+        {
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        }
+
         /// <summary>
         /// Compares pre-loaded candidate candles against a loaded benchmark snapshot.
         /// Tolerance resolution happens before comparison (FR-019).
@@ -140,10 +150,12 @@ namespace Validator.Application.Comparison
                 matchResult.Coverage,
                 sortedDiscrepancies,
                 toleratedSummary,
+                matchResult.MissingFromCandidateTimestamps,
+                matchResult.ExtraInCandidateTimestamps,
                 null, // CandidateScore set by caller if --score is used
                 agreementScore,
                 contextWarnings,
-                DateTimeOffset.UtcNow);
+                _clock.UtcNow);
         }
 
         /// <summary>

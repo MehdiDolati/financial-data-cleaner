@@ -57,6 +57,12 @@ namespace Validator.Application.Reporting
             writer.WritePropertyName("comparisonCoverage");
             WriteCoverage(writer, report.Coverage);
 
+            // Missing and Extra timestamps (T076)
+            writer.WritePropertyName("missingFromCandidateTimestamps");
+            WriteTimestampArray(writer, report.MissingFromCandidateTimestamps);
+            writer.WritePropertyName("extraInCandidateTimestamps");
+            WriteTimestampArray(writer, report.ExtraInCandidateTimestamps);
+
             // Material Discrepancies
             writer.WritePropertyName("materialDiscrepancies");
             WriteDiscrepancies(writer, report.MaterialDiscrepancies);
@@ -109,6 +115,8 @@ namespace Validator.Application.Reporting
                         }
                         : null
                 },
+                missingFromCandidateTimestamps = report.MissingFromCandidateTimestamps,
+                extraInCandidateTimestamps = report.ExtraInCandidateTimestamps,
                 contextWarnings = report.ContextWarnings,
                 materialDiscrepancies = report.MaterialDiscrepancies,
                 toleratedSummary = report.ToleratedSummary,
@@ -189,6 +197,16 @@ namespace Validator.Application.Reporting
                 writer.WriteEndObject();
             }
 
+            writer.WriteEndArray();
+        }
+
+        private static void WriteTimestampArray(Utf8JsonWriter writer, IReadOnlyList<DateTimeOffset> timestamps)
+        {
+            writer.WriteStartArray();
+            foreach (var ts in timestamps)
+            {
+                writer.WriteStringValue(ToUtcZ(ts));
+            }
             writer.WriteEndArray();
         }
 

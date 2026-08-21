@@ -42,11 +42,16 @@ namespace Validator.Application.Reporting
             sb.AppendLine($"  Missing from candidate: {report.Coverage.MissingFromCandidateCount:N0}");
             sb.AppendLine($"  Extra in candidate: {report.Coverage.ExtraInCandidateCount:N0}");
 
-            // Coverage rates (FR-022, FR-025)
+            // Coverage rates (FR-022, FR-025) — pure decimal arithmetic, no double
             if (report.Coverage.BenchmarkRecordCount > 0)
             {
-                var matchedRate = (double)report.Coverage.MatchedCount / report.Coverage.BenchmarkRecordCount * 100;
-                sb.AppendLine($"  Coverage rate: {matchedRate:F2}% of benchmark timestamps matched");
+                var matchedRate = report.Coverage.MatchedCount * 100m / report.Coverage.BenchmarkRecordCount;
+                sb.AppendLine($"  Coverage rate: {matchedRate.ToString("F2", CultureInfo.InvariantCulture)}% of benchmark timestamps matched");
+            }
+            if (report.Coverage.CandidateRecordCount > 0)
+            {
+                var candidateRate = report.Coverage.MatchedCount * 100m / report.Coverage.CandidateRecordCount;
+                sb.AppendLine($"  Candidate coverage: {candidateRate.ToString("F2", CultureInfo.InvariantCulture)}% of candidate timestamps matched");
             }
 
             WriteOverlappingRange(sb, report.Coverage);
@@ -91,11 +96,14 @@ namespace Validator.Application.Reporting
             }
 
             // Tolerated differences section
+            // Counts and rates summary (FR-022)
             sb.AppendLine("Tolerated Differences:");
             foreach (var summary in report.ToleratedSummary)
             {
                 sb.AppendLine($"  {summary.Field}: {summary.AcceptedCount:N0} of {summary.TotalCompared:N0} accepted ({summary.MaterialCount:N0} material)");
             }
+            sb.AppendLine();
+            sb.AppendLine($"Matched: {report.Coverage.MatchedCount:N0} | Missing: {report.Coverage.MissingFromCandidateCount:N0} | Extra: {report.Coverage.ExtraInCandidateCount:N0}");
             sb.AppendLine();
 
             // Scores section
