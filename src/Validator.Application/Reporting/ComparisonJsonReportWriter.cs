@@ -49,6 +49,17 @@ namespace Validator.Application.Reporting
             writer.WritePropertyName("benchmark");
             JsonSerializer.Serialize(writer, report.Benchmark, Options);
 
+            writer.WriteStartObject("candidateIdentity");
+            writer.WriteString("instrument", report.Candidate.Instrument);
+            writer.WriteStartObject("source");
+            writer.WriteString("fileName", report.Candidate.Source.FileName);
+            writer.WriteNumber("byteSize", report.Candidate.Source.ByteSize);
+            writer.WriteString("sha256", report.Candidate.Source.Sha256);
+            writer.WriteEndObject();
+            writer.WritePropertyName("context");
+            JsonSerializer.Serialize(writer, report.Candidate.Context, Options);
+            writer.WriteEndObject();
+
             // Configuration
             writer.WritePropertyName("configuration");
             JsonSerializer.Serialize(writer, report.Configuration, Options);
@@ -62,6 +73,15 @@ namespace Validator.Application.Reporting
             WriteTimestampArray(writer, report.MissingFromCandidateTimestamps);
             writer.WritePropertyName("extraInCandidateTimestamps");
             WriteTimestampArray(writer, report.ExtraInCandidateTimestamps);
+            writer.WritePropertyName("missingFromCandidateRecords");
+            WriteAlignmentReferences(writer, report.MissingFromCandidateRecords);
+            writer.WritePropertyName("extraInCandidateRecords");
+            WriteAlignmentReferences(writer, report.ExtraInCandidateRecords);
+
+            writer.WriteStartArray("contextWarnings");
+            foreach (var warning in report.ContextWarnings)
+                writer.WriteStringValue(warning);
+            writer.WriteEndArray();
 
             // Material Discrepancies
             writer.WritePropertyName("materialDiscrepancies");
@@ -75,6 +95,12 @@ namespace Validator.Application.Reporting
             writer.WritePropertyName("agreementScore");
             WriteAgreementScore(writer, report.AgreementScore);
 
+            writer.WritePropertyName("candidateScore");
+            if (report.CandidateScore is null)
+                writer.WriteNullValue();
+            else
+                JsonSerializer.Serialize(writer, report.CandidateScore, Options);
+
             writer.WriteEndObject();
         }
 
@@ -86,6 +112,7 @@ namespace Validator.Application.Reporting
                 benchmark = report.Benchmark,
                 candidateIdentity = new
                 {
+                    instrument = report.Candidate.Instrument,
                     source = new
                     {
                         fileName = report.Candidate.Source.FileName,
@@ -117,9 +144,12 @@ namespace Validator.Application.Reporting
                 },
                 missingFromCandidateTimestamps = report.MissingFromCandidateTimestamps,
                 extraInCandidateTimestamps = report.ExtraInCandidateTimestamps,
+                missingFromCandidateRecords = report.MissingFromCandidateRecords,
+                extraInCandidateRecords = report.ExtraInCandidateRecords,
                 contextWarnings = report.ContextWarnings,
                 materialDiscrepancies = report.MaterialDiscrepancies,
                 toleratedSummary = report.ToleratedSummary,
+                candidateScore = report.CandidateScore,
                 agreementScore = new
                 {
                     score = report.AgreementScore.Score.HasValue
@@ -145,6 +175,10 @@ namespace Validator.Application.Reporting
             writer.WriteNumber("matchedCount", coverage.MatchedCount);
             writer.WriteNumber("missingFromCandidateCount", coverage.MissingFromCandidateCount);
             writer.WriteNumber("extraInCandidateCount", coverage.ExtraInCandidateCount);
+            WriteRate(writer, "matchedBenchmarkRate", coverage.MatchedCount, coverage.BenchmarkRecordCount);
+            WriteRate(writer, "missingBenchmarkRate", coverage.MissingFromCandidateCount, coverage.BenchmarkRecordCount);
+            WriteRate(writer, "matchedCandidateRate", coverage.MatchedCount, coverage.CandidateRecordCount);
+            WriteRate(writer, "extraCandidateRate", coverage.ExtraInCandidateCount, coverage.CandidateRecordCount);
 
             if (coverage.OverlappingRangeStart.HasValue && coverage.OverlappingRangeEnd.HasValue)
             {
@@ -194,6 +228,8 @@ namespace Validator.Application.Reporting
                 writer.WriteNumber("acceptedByAbsoluteCount", s.AcceptedByAbsoluteCount);
                 writer.WriteNumber("acceptedByRelativeCount", s.AcceptedByRelativeCount);
                 writer.WriteNumber("materialCount", s.MaterialCount);
+                WriteRate(writer, "toleratedRate", s.AcceptedCount, s.TotalCompared);
+                WriteRate(writer, "materialRate", s.MaterialCount, s.TotalCompared);
                 writer.WriteEndObject();
             }
 
@@ -208,6 +244,35 @@ namespace Validator.Application.Reporting
                 writer.WriteStringValue(ToUtcZ(ts));
             }
             writer.WriteEndArray();
+        }
+
+        private static void WriteAlignmentReferences(
+            Utf8JsonWriter writer,
+            IReadOnlyList<TimestampAlignmentReference> references)
+        {
+            writer.WriteStartArray();
+            foreach (var reference in references)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("timestampUtc", ToUtcZ(reference.TimestampUtc));
+                if (reference.BenchmarkSourceLine.HasValue)
+                    writer.WriteNumber("benchmarkSourceLine", reference.BenchmarkSourceLine.Value);
+                if (reference.CandidateSourceLine.HasValue)
+                    writer.WriteNumber("candidateSourceLine", reference.CandidateSourceLine.Value);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+
+        private static void WriteRate(Utf8JsonWriter writer, string propertyName, long numerator, long denominator)
+        {
+            if (denominator == 0)
+            {
+                writer.WriteNull(propertyName);
+                return;
+            }
+
+            writer.WriteString(propertyName, (numerator / (decimal)denominator).ToString(CultureInfo.InvariantCulture));
         }
 
         private static void WriteAgreementScore(Utf8JsonWriter writer, BenchmarkAgreementScore score)

@@ -72,11 +72,11 @@ namespace Validator.Application.Comparison
                 maxPrecision = Math.Max(maxPrecision, GetDecimalPlaces(candle.Close));
             }
 
-            // If no meaningful precision detected, use default
+            // Integral observations represent a unit step of one. No fixed pip
+            // fallback is applied when the benchmark contains whole-unit prices.
             if (maxPrecision <= 0)
-                return DefaultPriceAbsoluteTolerance;
+                return 1m;
 
-            // Pure decimal arithmetic: 10^(-maxPrecision) without Math.Pow or double
             return PowerOfTen(-maxPrecision);
         }
 
@@ -105,20 +105,8 @@ namespace Validator.Application.Comparison
 
         private static int GetDecimalPlaces(decimal value)
         {
-            // Count decimal places by scaling up and checking for non-zero digits
-            var scaled = Math.Abs(value) * 1_000_000_000m;
-            var scaledStr = ((long)scaled).ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-            // Count trailing zeros after the decimal point in the original
-            var str = value.ToString("G", System.Globalization.CultureInfo.InvariantCulture);
-            var decimalIndex = str.IndexOf('.');
-            if (decimalIndex < 0)
-                return 0;
-
-            var decimalPart = str[(decimalIndex + 1)..];
-            // Remove trailing zeros for count
-            var trimmed = decimalPart.TrimEnd('0');
-            return trimmed.Length;
+            var bits = decimal.GetBits(value);
+            return (bits[3] >> 16) & 0x7F;
         }
 
         /// <summary>
@@ -183,17 +171,40 @@ namespace Validator.Application.Comparison
                 return Array.Empty<ComparedField>();
 
             var result = new List<ComparedField>();
-            using var doc = System.Text.Json.JsonDocument.Parse(jsonOverrides);
+            System.Text.Json.JsonDocument doc;
+            try
+            {
+                doc = System.Text.Json.JsonDocument.Parse(jsonOverrides);
+            }
+            catch (System.Text.Json.JsonException exception)
+            {
+                throw new ArgumentException($"Tolerance configuration is not valid JSON: {exception.Message}", nameof(jsonOverrides), exception);
+            }
+            using (doc)
+            {
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+                throw new ArgumentException("Tolerance configuration must be a JSON object.", nameof(jsonOverrides));
+            if (!doc.RootElement.EnumerateObject().Any())
+                throw new ArgumentException("Tolerance configuration must contain at least one field override.", nameof(jsonOverrides));
 
             foreach (var property in doc.RootElement.EnumerateObject())
             {
                 var fieldName = property.Name;
                 var field = ParseOhlcvField(fieldName);
 
+                if (property.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
+                    throw new ArgumentException($"Override for {fieldName} must be a JSON object.", nameof(jsonOverrides));
+
                 // Validate: each entry must have at least one tolerance or an enabled flag
                 var hasAbsolute = property.Value.TryGetProperty("absolute", out var absElement);
                 var hasRelative = property.Value.TryGetProperty("relative", out var relElement);
                 var hasEnabled = property.Value.TryGetProperty("enabled", out var enabledElement);
+
+                foreach (var member in property.Value.EnumerateObject())
+                {
+                    if (member.Name is not ("absolute" or "relative" or "enabled"))
+                        throw new ArgumentException($"Unknown tolerance property '{member.Name}' for {fieldName}.", nameof(jsonOverrides));
+                }
 
                 if (!hasAbsolute && !hasRelative && !hasEnabled)
                     throw new ArgumentException(
@@ -205,13 +216,30 @@ namespace Validator.Application.Comparison
                 var enabled = true;
 
                 if (hasAbsolute)
-                    absolute = absElement.GetDecimal();
+                {
+                    if (absElement.ValueKind != System.Text.Json.JsonValueKind.Number || !absElement.TryGetDecimal(out var parsedAbsolute))
+                        throw new ArgumentException($"'absolute' for {fieldName} must be a decimal number.", nameof(jsonOverrides));
+                    absolute = parsedAbsolute;
+                }
 
                 if (hasRelative)
-                    relative = relElement.GetDecimal();
+                {
+                    if (relElement.ValueKind != System.Text.Json.JsonValueKind.Number || !relElement.TryGetDecimal(out var parsedRelative))
+                        throw new ArgumentException($"'relative' for {fieldName} must be a decimal number.", nameof(jsonOverrides));
+                    relative = parsedRelative;
+                }
 
                 if (hasEnabled)
+                {
+                    if (enabledElement.ValueKind is not (System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False))
+                        throw new ArgumentException($"'enabled' for {fieldName} must be a boolean.", nameof(jsonOverrides));
                     enabled = enabledElement.GetBoolean();
+                }
+
+                if (enabled && !hasAbsolute && !hasRelative)
+                    throw new ArgumentException($"Enabled override for {fieldName} must specify an absolute or relative tolerance.", nameof(jsonOverrides));
+                if (!enabled && (hasAbsolute || hasRelative))
+                    throw new ArgumentException($"Disabled field {fieldName} cannot also specify tolerances.", nameof(jsonOverrides));
 
                 // Validate non-negative tolerances (FR-019)
                 if (absolute is < 0)
@@ -240,6 +268,7 @@ namespace Validator.Application.Comparison
                     $"Each field may appear at most once (FR-019).", nameof(jsonOverrides));
 
             return result;
+            }
         }
 
         private static OhlcvField ParseOhlcvField(string name) => name.Trim().ToLowerInvariant() switch

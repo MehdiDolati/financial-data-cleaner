@@ -311,14 +311,10 @@ namespace Validator.Application.Tests.Comparison
         }
 
         [Fact]
-        public void ParseOverrides_DisabledWithTolerance_Parsed()
+        public void ParseOverrides_DisabledWithTolerance_ThrowsAsContradictory()
         {
             var json = """{"Volume": {"enabled": false, "relative": 0.10}}""";
-            var overrides = ToleranceResolver.ParseOverrides(json);
-
-            Assert.Single(overrides);
-            Assert.False(overrides[0].Enabled);
-            Assert.Equal(0.10m, overrides[0].RelativeTolerance);
+            Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides(json));
         }
 
         [Fact]
@@ -346,6 +342,31 @@ namespace Validator.Application.Tests.Comparison
             Assert.Single(overrides);
             Assert.True(overrides[0].Enabled);
             Assert.Equal(0.001m, overrides[0].AbsoluteTolerance);
+        }
+
+        [Theory]
+        [InlineData("[]")]
+        [InlineData("{}")]
+        [InlineData("{\"Open\": {\"enabled\": true}}")]
+        [InlineData("{\"Open\": {\"enabled\": false, \"absolute\": 0.001}}")]
+        [InlineData("{\"Open\": {\"absolute\": 0.001, \"unexpected\": true}}")]
+        [InlineData("{\"Open\": {\"absolute\": \"wide\"}}")]
+        public void ParseOverrides_AmbiguousOrTypeInvalidJson_ThrowsActionableArgumentException(string json)
+        {
+            var error = Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides(json));
+            Assert.False(string.IsNullOrWhiteSpace(error.Message));
+        }
+
+        [Fact]
+        public void InferFractionalStep_IntegralPrices_UsesRepresentedUnit()
+        {
+            var timestamp = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var candles = new[]
+            {
+                new PriceCandle(timestamp, 100m, 101m, 99m, 100m, 10m)
+            };
+
+            Assert.Equal(1m, ToleranceResolver.InferFractionalStep(candles));
         }
 
         [Fact]

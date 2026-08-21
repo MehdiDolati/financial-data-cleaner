@@ -40,6 +40,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -51,7 +52,8 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
 
         // Exit code 0 = clean, 1 = findings present (both acceptable)
         Assert.InRange(result.ExitCode, 0, 1);
-        Assert.Contains("Benchmark established", result.StdOut);
+        using var report = JsonDocument.Parse(result.StdOut);
+        Assert.Equal(2, report.RootElement.GetProperty("contractVersion").GetInt32());
 
         var benchmarkPath = Path.Combine(_benchmarkDir, "test-establish");
         Assert.True(Directory.Exists(benchmarkPath));
@@ -75,6 +77,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         // First establishment succeeds
         var result1 = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -88,6 +91,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         // Second establishment with same name fails
         var result2 = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -111,6 +115,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -121,8 +126,10 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         ]);
 
         Assert.InRange(result.ExitCode, 0, 1);
-        Assert.Contains("material discrepancies", result.StdOut);
-        Assert.Contains("100.00", result.StdOut); // agreement score
+        using var document = JsonDocument.Parse(result.StdOut);
+        var comparison = document.RootElement.GetProperty("benchmarkComparison");
+        Assert.Empty(comparison.GetProperty("materialDiscrepancies").EnumerateArray());
+        Assert.Equal("100.00", comparison.GetProperty("agreementScore").GetProperty("score").GetProperty("rounded").GetString());
     }
 
     // --- Scenario 3: Compare With Known Differences ---
@@ -135,6 +142,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var candidateFile = Path.Combine(Fixtures, "AUDUSD_D1_candidate_with_differences.csv");
         var result = await InvokeAsync([
             candidateFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -145,7 +153,8 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         ]);
 
         Assert.InRange(result.ExitCode, 0, 1); // advisory: 0 or 1
-        Assert.Contains("material discrepancies", result.StdOut);
+        using var document = JsonDocument.Parse(result.StdOut);
+        Assert.True(document.RootElement.GetProperty("benchmarkComparison").GetProperty("materialDiscrepancies").GetArrayLength() > 0);
     }
 
     // --- Exit code 0 for advisory comparison (Q6, FR-026) ---
@@ -158,6 +167,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var candidateFile = Path.Combine(Fixtures, "AUDUSD_D1_candidate_with_differences.csv");
         var result = await InvokeAsync([
             candidateFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -167,8 +177,50 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
             "--benchmark-dir", _benchmarkDir
         ]);
 
-        // Advisory comparison: exit 0 or 1 on success regardless of discrepancy findings
-        Assert.InRange(result.ExitCode, 0, 1);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public async Task Comparison_JsonStdout_IsExactlyOneCombinedDocument()
+    {
+        await EstablishBenchmark("test-single-document", _benchmarkDir);
+        var candidateFile = Path.Combine(Fixtures, "AUDUSD_D1_candidate_identical.csv");
+
+        var result = await InvokeAsync([
+            candidateFile,
+            "--instrument", "AUDUSD",
+            "--timeframe", "D1",
+            "--market", "forex",
+            "--format", "json",
+            "--report-version", "2",
+            "--score",
+            "--compare", "test-single-document",
+            "--benchmark-dir", _benchmarkDir
+        ]);
+
+        Assert.Equal(0, result.ExitCode);
+        using var document = JsonDocument.Parse(result.StdOut);
+        Assert.True(document.RootElement.TryGetProperty("benchmarkComparison", out var comparison));
+        Assert.Equal("AUDUSD", comparison.GetProperty("candidateIdentity").GetProperty("instrument").GetString());
+    }
+
+    [Fact]
+    public async Task BenchmarkOperation_WithoutInstrument_IsRejectedBeforeSourceRead()
+    {
+        var missingSource = Path.Combine(_benchmarkDir, "does-not-exist.csv");
+        var result = await InvokeAsync([
+            missingSource,
+            "--timeframe", "D1",
+            "--format", "json",
+            "--report-version", "2",
+            "--score",
+            "--benchmark", "missing-instrument",
+            "--benchmark-dir", _benchmarkDir
+        ]);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("--instrument", result.StdErr);
+        Assert.DoesNotContain("does-not-exist", result.StdErr);
     }
 
     // --- Scenario 7: Reject Invalid Tolerance Configuration ---
@@ -181,6 +233,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -205,6 +258,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -216,7 +270,8 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         ]);
 
         Assert.InRange(result.ExitCode, 0, 1);
-        Assert.Contains("material discrepancies", result.StdOut);
+        using var document = JsonDocument.Parse(result.StdOut);
+        Assert.True(document.RootElement.TryGetProperty("benchmarkComparison", out _));
     }
 
     // --- Scenario 5: No Overlap ---
@@ -229,6 +284,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var noOverlapFile = Path.Combine(Fixtures, "AUDUSD_D1_candidate_no_overlap.csv");
         var result = await InvokeAsync([
             noOverlapFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -239,7 +295,10 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         ]);
 
         Assert.InRange(result.ExitCode, 0, 1);
-        Assert.Contains("UNAVAILABLE", result.StdOut);
+        using var document = JsonDocument.Parse(result.StdOut);
+        var agreement = document.RootElement.GetProperty("benchmarkComparison").GetProperty("agreementScore");
+        Assert.Equal(JsonValueKind.Null, agreement.GetProperty("score").ValueKind);
+        Assert.Contains("No overlapping", agreement.GetProperty("unavailableReason").GetString());
     }
 
     // --- Scenario 8: Deterministic Output ---
@@ -259,6 +318,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
             var baseArgs = new[]
             {
                 candidateFile,
+                "--instrument", "AUDUSD",
                 "--timeframe", "D1",
                 "--market", "forex",
                 "--format", "json",
@@ -321,6 +381,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "text",
@@ -343,6 +404,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -366,6 +428,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -389,6 +452,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var identicalFile = Path.Combine(Fixtures, "AUDUSD_D1_candidate_identical.csv");
         var result = await InvokeAsync([
             identicalFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",
@@ -399,7 +463,8 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         ]);
 
         Assert.InRange(result.ExitCode, 0, 1);
-        Assert.Contains("0 material discrepancies", result.StdOut);
+        using var document = JsonDocument.Parse(result.StdOut);
+        Assert.Empty(document.RootElement.GetProperty("benchmarkComparison").GetProperty("materialDiscrepancies").EnumerateArray());
     }
 
     // --- Helpers ---
@@ -425,6 +490,7 @@ public sealed class BenchmarkComparisonE2ETests : IDisposable
         var refFile = Path.Combine(Fixtures, "AUDUSD_D1_reference.csv");
         var result = await InvokeAsync([
             refFile,
+            "--instrument", "AUDUSD",
             "--timeframe", "D1",
             "--market", "forex",
             "--format", "json",

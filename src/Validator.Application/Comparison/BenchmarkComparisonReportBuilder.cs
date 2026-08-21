@@ -60,7 +60,7 @@ namespace Validator.Application.Comparison
                 candidateScore,
                 agreementScore,
                 contextWarnings,
-                DateTimeOffset.UtcNow); // Caller must supply clock for determinism
+                DateTimeOffset.UnixEpoch);
         }
 
         /// <summary>
@@ -78,9 +78,9 @@ namespace Validator.Application.Comparison
 
                 var totalCompared = (long)fieldResults.Count;
                 var acceptedByAbsolute = fieldResults.Count(r =>
-                    r.Decision is ToleranceDecision.AcceptedByAbsolute);
+                    r.BenchmarkValue != r.CandidateValue && r.Decision is ToleranceDecision.AcceptedByAbsolute);
                 var acceptedByRelative = fieldResults.Count(r =>
-                    r.Decision is ToleranceDecision.AcceptedByRelative);
+                    r.BenchmarkValue != r.CandidateValue && r.Decision is ToleranceDecision.AcceptedByRelative);
                 var material = fieldResults.Count(r =>
                     r.Decision is ToleranceDecision.MaterialDifference);
                 var accepted = acceptedByAbsolute + acceptedByRelative;

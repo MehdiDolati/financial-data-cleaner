@@ -119,7 +119,9 @@ namespace Validator.Application.Tests.Comparison
             var writer = new ComparisonTextReportWriter();
             var text = writer.Write(report);
             // Zero benchmark value should not show percentage
-            Assert.DoesNotContain("%)", text);
+            var discrepancyLine = text.Split(Environment.NewLine)
+                .Single(line => line.Contains("Benchmark: 0  Candidate:", StringComparison.Ordinal));
+            Assert.DoesNotContain("%", discrepancyLine);
         }
 
         [Fact]

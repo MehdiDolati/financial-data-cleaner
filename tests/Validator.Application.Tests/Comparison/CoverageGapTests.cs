@@ -162,10 +162,11 @@ namespace Validator.Application.Tests.Comparison
         // --- T057: ToleranceResolver coverage gaps ---
 
         [Fact]
-        public void InferFractionalStep_IntegerPrices_UsesDefault()
+        public void InferFractionalStep_IntegerPrices_UsesRepresentedUnit()
         {
             // Covers the maxPrecision <= 0 path (line 83)
-            // Integer prices like 65000 → 0 decimal places → default fallback
+            // Integer prices represent a one-unit fractional step; no forex pip
+            // fallback is fabricated for an integral instrument.
             var candles = new List<PriceCandle>();
             var baseDate = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
             for (int i = 0; i < 20; i++)
@@ -177,7 +178,7 @@ namespace Validator.Application.Tests.Comparison
             }
 
             var step = ToleranceResolver.InferFractionalStep(candles);
-            Assert.Equal(0.0001m, step); // default
+            Assert.Equal(1m, step);
         }
 
         [Fact]
@@ -189,9 +190,10 @@ namespace Validator.Application.Tests.Comparison
         }
 
         [Fact]
-        public void ParseOverrides_InvalidJson_ThrowsJsonException()
+        public void ParseOverrides_InvalidJson_ThrowsActionableArgumentException()
         {
-            Assert.ThrowsAny<System.Text.Json.JsonException>(() => ToleranceResolver.ParseOverrides("{invalid json"));
+            var error = Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides("{invalid json"));
+            Assert.Contains("valid JSON", error.Message);
         }
 
         // --- T057: ComparisonReport constructor edge case ---

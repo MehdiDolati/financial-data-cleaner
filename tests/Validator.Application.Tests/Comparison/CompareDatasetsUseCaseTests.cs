@@ -72,7 +72,19 @@ namespace Validator.Application.Tests.Comparison
             // The tolerated summary should show the accepted difference
             var openSummary = report.ToleratedSummary.First(s => s.Field == OhlcvField.Open);
             Assert.Equal(5, openSummary.TotalCompared);
-            Assert.Equal(5, openSummary.AcceptedCount);
+            Assert.Equal(1, openSummary.AcceptedCount);
+        }
+
+        [Fact]
+        public void Compare_IdenticalValues_AreNotCountedAsToleratedDifferences()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candles = CreateCandleSet();
+
+            var report = new CompareDatasetsUseCase(new FixedClock())
+                .Compare(benchmark, candles, candles, CreateCandidateIdentity());
+
+            Assert.All(report.ToleratedSummary, summary => Assert.Equal(0, summary.AcceptedCount));
         }
 
         [Fact]
@@ -106,7 +118,7 @@ namespace Validator.Application.Tests.Comparison
             // Add one extra candle to candidate
             candidateCandles.Add(new PriceCandle(
                 new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
-                0.64380m, 0.64500m, 0.64320m, 0.64450m, 115000m));
+                0.64380m, 0.64500m, 0.64320m, 0.64450m, 115000m, sourceLine: 6));
 
             var useCase = new CompareDatasetsUseCase();
             var report = useCase.Compare(
@@ -116,6 +128,8 @@ namespace Validator.Application.Tests.Comparison
             Assert.Equal(1, report.Coverage.ExtraInCandidateCount);
             Assert.Equal(5, report.Coverage.MatchedCount);
             Assert.Equal(6, report.Coverage.CandidateRecordCount);
+            var extra = Assert.Single(report.ExtraInCandidateRecords);
+            Assert.Equal(6, extra.CandidateSourceLine);
         }
 
         [Fact]
@@ -207,7 +221,7 @@ namespace Validator.Application.Tests.Comparison
 
             var openSummary = report.ToleratedSummary.First(s => s.Field == OhlcvField.Open);
             Assert.Equal(5, openSummary.TotalCompared);
-            Assert.Equal(4, openSummary.AcceptedCount);
+            Assert.Equal(0, openSummary.AcceptedCount);
             Assert.Equal(1, openSummary.MaterialCount);
         }
 
@@ -271,7 +285,7 @@ namespace Validator.Application.Tests.Comparison
 
             Assert.Empty(report.MaterialDiscrepancies);
             var volumeSummary = report.ToleratedSummary.First(s => s.Field == OhlcvField.Volume);
-            Assert.Equal(5, volumeSummary.AcceptedCount);
+            Assert.Equal(1, volumeSummary.AcceptedCount);
             Assert.Equal(1, volumeSummary.AcceptedByRelativeCount);
         }
 
@@ -569,6 +583,11 @@ namespace Validator.Application.Tests.Comparison
         }
 
         private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";
+
+        private sealed class FixedClock : Validator.Application.Abstractions.IApplicationClock
+        {
+            public DateTimeOffset UtcNow { get; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        }
 
         #endregion
     }

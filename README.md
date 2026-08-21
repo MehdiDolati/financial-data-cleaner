@@ -287,8 +287,9 @@ The solution uses four inward-facing projects:
 - `Validator.Cli`: argument handling and composition
 
 Domain is held to 100% line and branch coverage. Application is covered at
-99.69% line and 99.03% branch coverage; the remaining paths are unreachable by
-construction and are documented in the final feature review. Infrastructure
+94.50% line and 89.99% branch coverage; the remaining paths are pre-existing
+Domain types already fully covered by Domain.Tests, or are unreachable by
+construction and documented in the final feature review. Infrastructure
 uses real-file integration tests, and the CLI uses end-to-end tests. The feature
 contracts and runnable walkthroughs are in
 [`specs/001-ohlcv-data-quality-validator/`](specs/001-ohlcv-data-quality-validator/)

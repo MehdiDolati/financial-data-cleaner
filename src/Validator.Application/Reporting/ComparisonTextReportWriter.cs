@@ -27,11 +27,16 @@ namespace Validator.Application.Reporting
 
             // Benchmark section
             sb.AppendLine($"Benchmark: {report.Benchmark.Name}");
+            sb.AppendLine($"  Instrument: {report.Benchmark.Instrument}");
             sb.AppendLine($"  Source: {report.Benchmark.Source.FileName} " +
                 $"({report.Benchmark.Source.ByteSize:N0} bytes, " +
                 $"sha256={report.Benchmark.Source.Sha256[..16]}...)");
             sb.AppendLine($"  Scores: {FormatBenchmarkScores(report)}");
             sb.AppendLine($"  Dataset Average: {FormatScore(report.Benchmark.Dataset.Average)}");
+            sb.AppendLine();
+
+            sb.AppendLine($"Candidate: {report.Candidate.Source.FileName}");
+            sb.AppendLine($"  Instrument: {report.Candidate.Instrument}");
             sb.AppendLine();
 
             // Coverage section
@@ -56,6 +61,22 @@ namespace Validator.Application.Reporting
 
             WriteOverlappingRange(sb, report.Coverage);
             sb.AppendLine();
+
+            if (report.MissingFromCandidateRecords.Count > 0)
+            {
+                sb.AppendLine("Missing Candidate Records:");
+                foreach (var record in report.MissingFromCandidateRecords)
+                    sb.AppendLine($"  {ToUtcZ(record.TimestampUtc)} (benchmark line {record.BenchmarkSourceLine?.ToString(CultureInfo.InvariantCulture) ?? "unavailable"})");
+                sb.AppendLine();
+            }
+
+            if (report.ExtraInCandidateRecords.Count > 0)
+            {
+                sb.AppendLine("Extra Candidate Records:");
+                foreach (var record in report.ExtraInCandidateRecords)
+                    sb.AppendLine($"  {ToUtcZ(record.TimestampUtc)} (candidate line {record.CandidateSourceLine?.ToString(CultureInfo.InvariantCulture) ?? "unavailable"})");
+                sb.AppendLine();
+            }
 
             // Context warnings section
             if (report.ContextWarnings.Count > 0)
@@ -100,7 +121,9 @@ namespace Validator.Application.Reporting
             sb.AppendLine("Tolerated Differences:");
             foreach (var summary in report.ToleratedSummary)
             {
-                sb.AppendLine($"  {summary.Field}: {summary.AcceptedCount:N0} of {summary.TotalCompared:N0} accepted ({summary.MaterialCount:N0} material)");
+                var toleratedRate = FormatRate(summary.AcceptedCount, summary.TotalCompared);
+                var materialRate = FormatRate(summary.MaterialCount, summary.TotalCompared);
+                sb.AppendLine($"  {summary.Field}: {summary.AcceptedCount:N0} tolerated ({toleratedRate}); {summary.MaterialCount:N0} material ({materialRate}); denominator={summary.TotalCompared:N0}");
             }
             sb.AppendLine();
             sb.AppendLine($"Matched: {report.Coverage.MatchedCount:N0} | Missing: {report.Coverage.MissingFromCandidateCount:N0} | Extra: {report.Coverage.ExtraInCandidateCount:N0}");
@@ -167,5 +190,13 @@ namespace Validator.Application.Reporting
         {
             return value.ToString("G", CultureInfo.InvariantCulture);
         }
+
+        private static string FormatRate(long numerator, long denominator) =>
+            denominator == 0
+                ? "unavailable"
+                : $"{(numerator * 100m / denominator).ToString("F2", CultureInfo.InvariantCulture)}%";
+
+        private static string ToUtcZ(DateTimeOffset value) =>
+            value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
     }
 }

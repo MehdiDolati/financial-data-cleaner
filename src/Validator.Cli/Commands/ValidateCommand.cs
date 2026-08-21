@@ -45,6 +45,7 @@ public static class ValidateCommand
           --verbose                           Append finding details in text mode
           --score                             Report per-metric quality scores and one dataset average
           --score-weights <list>              Override the average's weighting (requires --score)
+          --instrument <identity>             Explicit instrument identity for benchmark operations
           --benchmark <name>                  Establish a named benchmark from the validated dataset
           --benchmark-dir <path>              Benchmark storage directory (default: ./benchmarks/)
           --benchmark-delete <name>           Delete a stored benchmark
@@ -222,6 +223,7 @@ public static class ValidateCommand
         var reportVersion = 1;
         var score = false;
         string? scoreWeights = null;
+        string? instrument = null;
         string? benchmarkName = null;
         string? benchmarkDir = null;
         string? benchmarkDelete = null;
@@ -240,6 +242,11 @@ public static class ValidateCommand
                     break;
                 case "--score-weights":
                     scoreWeights = RequireValue(args, ref index, option);
+                    break;
+                case "--instrument":
+                    instrument = RequireValue(args, ref index, option).Trim();
+                    if (string.IsNullOrWhiteSpace(instrument) || instrument.Contains('/') || instrument.Contains('\\'))
+                        throw new ArgumentException("Option '--instrument' requires a non-empty identity without path separators.");
                     break;
 
                 case "--timeframe":
@@ -321,12 +328,13 @@ public static class ValidateCommand
                 inputPath ?? string.Empty,
                 timeframe, format, outputPath, verbose, market, calendarPath,
                 csv, reportVersion, Score: null,
+                Instrument: null,
                 BenchmarkName: null,
                 BenchmarkDir: benchmarkDir ?? "./benchmarks/",
                 BenchmarkDelete: benchmarkDelete,
                 Yes: yes,
                 CompareBenchmark: null,
-                Tolerances: null);
+                ToleranceOverrides: null);
         }
 
         if (inputPath is null)
@@ -360,6 +368,23 @@ public static class ValidateCommand
                 "Option '--score' is not available with the version 1 JSON contract. Use '--format json --report-version 2' to obtain scores.");
         }
 
+        if ((benchmarkName is not null || compareBenchmark is not null) && string.IsNullOrWhiteSpace(instrument))
+        {
+            throw new ArgumentException(
+                "Options '--benchmark' and '--compare' require '--instrument <identity>' so dataset identity is unambiguous.");
+        }
+
+        if (tolerances is not null && compareBenchmark is null)
+        {
+            throw new ArgumentException("Option '--tolerances' requires '--compare'.");
+        }
+
+        IReadOnlyList<ComparedField>? toleranceOverrides = null;
+        if (tolerances is not null)
+        {
+            toleranceOverrides = ToleranceResolver.ParseOverrides(tolerances);
+        }
+
         // Weight parsing and full validation are a pure function of the request,
         // so they run here, before any dataset content is read. A rejected
         // weighting therefore produces no report.
@@ -383,12 +408,13 @@ public static class ValidateCommand
             csv,
             reportVersion,
             Score: scoreRequest,
+            Instrument: instrument,
             BenchmarkName: benchmarkName,
             BenchmarkDir: benchmarkDir ?? "./benchmarks/",
             BenchmarkDelete: null,
             Yes: yes,
             CompareBenchmark: compareBenchmark,
-            Tolerances: tolerances);
+            ToleranceOverrides: toleranceOverrides);
     }
 
 
@@ -475,7 +501,10 @@ public static class ValidateCommand
             return Fail(parsed, failed.Diagnostic);
         }
 
-        var report = ((DetailedValidationOutcome.Succeeded)outcome).Report;
+        var report = ((DetailedValidationOutcome.Succeeded)outcome).Report with
+        {
+            Instrument = parsed.Instrument ?? "UNKNOWN"
+        };
         try
         {
             // Run comparison early if --compare is specified, so the result can be
@@ -488,18 +517,30 @@ public static class ValidateCommand
                     return 2; // fatal comparison error
             }
 
+            // Establishment must complete before the report is published. A name
+            // collision or persistence failure therefore leaves stdout and the
+            // destination untouched (FR-030). If publication subsequently fails,
+            // the newly created benchmark is rolled back below.
+            BenchmarkSnapshot? establishedBenchmark = null;
+            if (parsed.BenchmarkName is not null)
+            {
+                establishedBenchmark = await EstablishBenchmarkAsync(parsed, report).ConfigureAwait(false);
+                if (establishedBenchmark is null)
+                    return 2;
+            }
+
             // Both representations render the same completed catalog through the
             // same staged commit, so neither can publish a partial report.
             var commit = await new StageAndCommitWriter(parsed.OutputPath, parsed.InputPath)
                 .PublishAsync(
-                    (staged, token) => parsed.ReportVersion == 2
-                        ? new DetailedReportV2Writer().WriteAsync(report, comparisonReport, staged, token)
-                        : new VerboseReportWriter().WriteAsync(report, staged, token),
+                    (staged, token) => RenderDetailedOutputAsync(parsed, report, comparisonReport, staged, token),
                     Console.Out)
                 .ConfigureAwait(false);
 
             if (commit is ReportCommitResult.Failed commitFailed)
             {
+                if (establishedBenchmark is not null)
+                    await RollBackBenchmarkAsync(parsed, establishedBenchmark.Name).ConfigureAwait(false);
                 return Fail(parsed, commitFailed.Diagnostic);
             }
 
@@ -509,33 +550,9 @@ public static class ValidateCommand
                     $"Validation complete: findings={report.Summary.TotalFindings}; clean={report.Summary.IsClean.ToString().ToLowerInvariant()}; report={parsed.OutputPath}");
             }
 
-            // After successful validation, establish benchmark if requested (FR-001)
-            if (parsed.BenchmarkName is not null)
-            {
-                var benchmarkExitCode = await EstablishBenchmarkAsync(parsed, report).ConfigureAwait(false);
-                if (benchmarkExitCode != 0)
-                    return benchmarkExitCode;
-            }
-
-            // Comparison output was already staged into the v2 report above.
-            // Print the comparison summary to stdout.
-            if (comparisonReport is not null)
-            {
-                var comparisonText = parsed.Format == ReportFormat.Json
-                    ? new ComparisonJsonReportWriter().Write(comparisonReport)
-                    : new ComparisonTextReportWriter().Write(comparisonReport);
-
-                Console.Out.WriteLine();
-                Console.Out.WriteLine(comparisonText);
-
-                Console.Out.WriteLine(
-                    $"Comparison complete: {comparisonReport.MaterialDiscrepancies.Count} material discrepancies; " +
-                    $"agreement={comparisonReport.AgreementScore.Score?.Format() ?? "UNAVAILABLE"}");
-            }
-
             // Advisory comparison: return 0 on success regardless of discrepancy findings.
             // Exit code 2 is reserved for fatal comparison failures only (Q6, FR-026).
-            return report.Summary.IsClean ? 0 : 1;
+            return comparisonReport is not null ? 0 : report.Summary.IsClean ? 0 : 1;
         }
         finally
         {
@@ -544,7 +561,9 @@ public static class ValidateCommand
     }
 
     // Establishes a benchmark from the validated report.
-    private static async Task<int> EstablishBenchmarkAsync(ParsedArguments parsed, DetailedValidationReport report)
+    private static async Task<BenchmarkSnapshot?> EstablishBenchmarkAsync(
+        ParsedArguments parsed,
+        DetailedValidationReport report)
     {
         try
         {
@@ -553,13 +572,10 @@ public static class ValidateCommand
             var store = new FileBenchmarkStore(benchmarkDir);
             var useCase = new EstablishBenchmarkUseCase(store);
 
-            var snapshot = await useCase.ExecuteAsync(
+            return await useCase.ExecuteAsync(
                 report,
                 parsed.BenchmarkName!,
                 Path.GetFullPath(parsed.InputPath)).ConfigureAwait(false);
-
-            Console.Out.WriteLine($"Benchmark established: {snapshot.Name} at {benchmarkDir}/{snapshot.Name}");
-            return 0;
         }
         catch (Exception exception) when (exception is
             InvalidOperationException or
@@ -568,7 +584,20 @@ public static class ValidateCommand
             UnauthorizedAccessException)
         {
             Console.Error.WriteLine($"Failed to establish benchmark: {exception.Message}");
-            return 2;
+            return null;
+        }
+    }
+
+    private static async Task RollBackBenchmarkAsync(ParsedArguments parsed, string benchmarkName)
+    {
+        try
+        {
+            var store = new FileBenchmarkStore(Path.GetFullPath(parsed.BenchmarkDir!));
+            await store.DeleteAsync(benchmarkName).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Console.Error.WriteLine($"Benchmark rollback failed: {exception.Message}");
         }
     }
 
@@ -839,13 +868,6 @@ public static class ValidateCommand
     {
         try
         {
-            // Parse tolerances before loading data (FR-019)
-            IReadOnlyList<ComparedField>? toleranceOverrides = null;
-            if (!string.IsNullOrWhiteSpace(parsed.Tolerances))
-            {
-                toleranceOverrides = ToleranceResolver.ParseOverrides(parsed.Tolerances);
-            }
-
             var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
             var store = new FileBenchmarkStore(benchmarkDir);
 
@@ -883,7 +905,8 @@ public static class ValidateCommand
             // Build candidate identity from the validation context
             var candidateIdentity = new CandidateIdentity(
                 report.Source,
-                report.Context);
+                report.Context,
+                parsed.Instrument!);
 
             // Run comparison
             var useCase = new CompareDatasetsUseCase();
@@ -892,7 +915,10 @@ public static class ValidateCommand
                 benchmarkCandles,
                 candidateCandles,
                 candidateIdentity,
-                toleranceOverrides);
+                parsed.ToleranceOverrides) with
+            {
+                CandidateScore = report.Score
+            };
         }
         catch (Exception exception) when (exception is
             ArgumentException or
@@ -933,6 +959,31 @@ public static class ValidateCommand
         };
     }
 
+    private static async Task RenderDetailedOutputAsync(
+        ParsedArguments parsed,
+        DetailedValidationReport report,
+        ComparisonReport? comparisonReport,
+        TextWriter destination,
+        CancellationToken cancellationToken)
+    {
+        if (parsed.ReportVersion == 2)
+        {
+            await new DetailedReportV2Writer()
+                .WriteAsync(report, comparisonReport, destination, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await new VerboseReportWriter()
+            .WriteAsync(report, destination, cancellationToken)
+            .ConfigureAwait(false);
+        if (comparisonReport is not null)
+        {
+            await destination.WriteLineAsync().ConfigureAwait(false);
+            await destination.WriteAsync(new ComparisonTextReportWriter().Write(comparisonReport)).ConfigureAwait(false);
+        }
+    }
+
     private sealed record ParsedArguments(
         string InputPath,
         string? Timeframe,
@@ -944,10 +995,11 @@ public static class ValidateCommand
         CsvInputOptions CsvOptions,
         int ReportVersion,
         ScoreRequest? Score,
+        string? Instrument = null,
         string? BenchmarkName = null,
         string? BenchmarkDir = "./benchmarks/",
         string? BenchmarkDelete = null,
         bool Yes = false,
         string? CompareBenchmark = null,
-        string? Tolerances = null);
+        IReadOnlyList<ComparedField>? ToleranceOverrides = null);
 }

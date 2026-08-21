@@ -20,7 +20,7 @@ namespace Validator.Application.Comparison
     {
         private readonly IApplicationClock _clock;
 
-        public CompareDatasetsUseCase() : this(SystemClock.Instance) { }
+        public CompareDatasetsUseCase() : this(DeterministicComparisonClock.Instance) { }
 
         public CompareDatasetsUseCase(IApplicationClock clock)
         {
@@ -60,6 +60,12 @@ namespace Validator.Application.Comparison
             }
 
             // 2. Detect context differences and add warnings (FR-006)
+            if (!string.Equals(benchmark.Instrument, candidateIdentity.Instrument, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Instrument mismatch: benchmark uses '{benchmark.Instrument}' but candidate uses '{candidateIdentity.Instrument}'.");
+            }
+
             var contextWarnings = DetectContextDifferences(
                 benchmark.Context, candidateIdentity.Context, benchmark.Source);
 
@@ -103,15 +109,22 @@ namespace Validator.Application.Comparison
 
                     counts.TotalCompared++;
 
+                    var isDifferent = benchmarkValue != candidateValue;
                     switch (decision)
                     {
                         case ToleranceDecision.AcceptedByAbsolute:
-                            counts.AcceptedByAbsoluteCount++;
-                            counts.AcceptedCount++;
+                            if (isDifferent)
+                            {
+                                counts.AcceptedByAbsoluteCount++;
+                                counts.AcceptedCount++;
+                            }
                             break;
                         case ToleranceDecision.AcceptedByRelative:
-                            counts.AcceptedByRelativeCount++;
-                            counts.AcceptedCount++;
+                            if (isDifferent)
+                            {
+                                counts.AcceptedByRelativeCount++;
+                                counts.AcceptedCount++;
+                            }
                             break;
                         case ToleranceDecision.MaterialDifference:
                             counts.MaterialCount++;
@@ -143,6 +156,17 @@ namespace Validator.Application.Comparison
                 matchResult.Coverage.MatchedCount,
                 sortedDiscrepancies);
 
+            var missingRecords = matchResult.MissingFromCandidateTimestamps
+                .Select(timestamp => new TimestampAlignmentReference(
+                    timestamp,
+                    BenchmarkSourceLine: benchmarkLookup.TryGetValue(timestamp, out var candle) ? candle.SourceLine : null))
+                .ToArray();
+            var extraRecords = matchResult.ExtraInCandidateTimestamps
+                .Select(timestamp => new TimestampAlignmentReference(
+                    timestamp,
+                    CandidateSourceLine: candidateLookup.TryGetValue(timestamp, out var candle) ? candle.SourceLine : null))
+                .ToArray();
+
             return new ComparisonReport(
                 benchmark,
                 candidateIdentity,
@@ -155,7 +179,9 @@ namespace Validator.Application.Comparison
                 null, // CandidateScore set by caller if --score is used
                 agreementScore,
                 contextWarnings,
-                _clock.UtcNow);
+                _clock.UtcNow,
+                missingRecords,
+                extraRecords);
         }
 
         /// <summary>
@@ -285,6 +311,12 @@ namespace Validator.Application.Comparison
             public long AcceptedByAbsoluteCount { get; set; }
             public long AcceptedByRelativeCount { get; set; }
             public long MaterialCount { get; set; }
+        }
+
+        private sealed class DeterministicComparisonClock : IApplicationClock
+        {
+            public static DeterministicComparisonClock Instance { get; } = new();
+            public DateTimeOffset UtcNow => DateTimeOffset.UnixEpoch;
         }
     }
 }

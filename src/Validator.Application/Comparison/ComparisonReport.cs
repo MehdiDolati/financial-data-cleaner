@@ -20,6 +20,8 @@ namespace Validator.Application.Comparison
         public IReadOnlyList<ToleratedDifferenceAggregate> ToleratedSummary { get; init; }
         public IReadOnlyList<DateTimeOffset> MissingFromCandidateTimestamps { get; init; }
         public IReadOnlyList<DateTimeOffset> ExtraInCandidateTimestamps { get; init; }
+        public IReadOnlyList<TimestampAlignmentReference> MissingFromCandidateRecords { get; init; }
+        public IReadOnlyList<TimestampAlignmentReference> ExtraInCandidateRecords { get; init; }
         public DatasetScoreReport? CandidateScore { get; init; }
         public BenchmarkAgreementScore AgreementScore { get; init; }
         public IReadOnlyList<string> ContextWarnings { get; init; }
@@ -56,7 +58,9 @@ namespace Validator.Application.Comparison
             CandidateScore = candidateScore;
             AgreementScore = agreementScore;
             ContextWarnings = contextWarnings ?? Array.Empty<string>();
-            ResolutionTimestamp = resolutionTimestamp == default ? DateTimeOffset.UtcNow : resolutionTimestamp;
+            ResolutionTimestamp = resolutionTimestamp == default ? DateTimeOffset.UnixEpoch : resolutionTimestamp.ToUniversalTime();
+            MissingFromCandidateRecords = Array.Empty<TimestampAlignmentReference>();
+            ExtraInCandidateRecords = Array.Empty<TimestampAlignmentReference>();
         }
 
         public ComparisonReport(
@@ -71,7 +75,9 @@ namespace Validator.Application.Comparison
             DatasetScoreReport? candidateScore,
             BenchmarkAgreementScore agreementScore,
             IReadOnlyList<string>? contextWarnings = null,
-            DateTimeOffset resolutionTimestamp = default)
+            DateTimeOffset resolutionTimestamp = default,
+            IReadOnlyList<TimestampAlignmentReference>? missingFromCandidateRecords = null,
+            IReadOnlyList<TimestampAlignmentReference>? extraInCandidateRecords = null)
         {
             ArgumentNullException.ThrowIfNull(benchmark);
             ArgumentNullException.ThrowIfNull(candidate);
@@ -92,7 +98,9 @@ namespace Validator.Application.Comparison
             CandidateScore = candidateScore;
             AgreementScore = agreementScore;
             ContextWarnings = contextWarnings ?? Array.Empty<string>();
-            ResolutionTimestamp = resolutionTimestamp == default ? DateTimeOffset.UtcNow : resolutionTimestamp;
+            ResolutionTimestamp = resolutionTimestamp == default ? DateTimeOffset.UnixEpoch : resolutionTimestamp.ToUniversalTime();
+            MissingFromCandidateRecords = missingFromCandidateRecords ?? Array.Empty<TimestampAlignmentReference>();
+            ExtraInCandidateRecords = extraInCandidateRecords ?? Array.Empty<TimestampAlignmentReference>();
         }
     }
 }

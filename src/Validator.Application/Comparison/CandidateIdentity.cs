@@ -8,14 +8,18 @@ namespace Validator.Application.Comparison
     /// </summary>
     public sealed record CandidateIdentity
     {
+        public string Instrument { get; init; }
         public SourceIdentity Source { get; init; }
         public ValidationContextSnapshot Context { get; init; }
 
-        public CandidateIdentity(SourceIdentity source, ValidationContextSnapshot context)
+        public CandidateIdentity(SourceIdentity source, ValidationContextSnapshot context, string instrument = "UNKNOWN")
         {
             ArgumentNullException.ThrowIfNull(source);
             ArgumentNullException.ThrowIfNull(context);
+            if (string.IsNullOrWhiteSpace(instrument) || instrument.Contains('/') || instrument.Contains('\\'))
+                throw new ArgumentException("Instrument must be a non-empty identity without path separators.", nameof(instrument));
 
+            Instrument = instrument.Trim();
             Source = source;
             Context = context;
         }

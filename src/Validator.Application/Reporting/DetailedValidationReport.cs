@@ -17,6 +17,7 @@ namespace Validator.Application.Reporting
         public ReportStatus Status { get; init; }
         public bool FindingSetComplete { get; init; } = true;
         public SourceIdentity Source { get; }
+        public string Instrument { get; init; } = "UNKNOWN";
         public ValidationContextSnapshot Context { get; }
         public ScanCoverage Coverage { get; }
         public IReadOnlyList<CheckExecution> Checks { get; }

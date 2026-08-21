@@ -66,7 +66,8 @@ namespace Validator.Application.Benchmark
                 checks: report.Checks,
                 metrics: report.Score!.Metrics,
                 dataset: report.Score.Dataset,
-                weighting: report.Score.Weighting);
+                weighting: report.Score.Weighting,
+                instrument: report.Instrument);
 
             // Save the snapshot and source bytes (FR-001, FR-002)
             await _store.SaveAsync(snapshot, sourceFilePath, cancellationToken).ConfigureAwait(false);

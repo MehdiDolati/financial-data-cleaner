@@ -57,15 +57,46 @@ namespace Validator.Infrastructure.Tests.Benchmark
             var deserialized = BenchmarkSnapshotJsonSerializer.Deserialize(json);
 
             Assert.Equal(snapshot.Name, deserialized.Name);
+            Assert.Equal(snapshot.Instrument, deserialized.Instrument);
             Assert.Equal(snapshot.ContractVersion, deserialized.ContractVersion);
             Assert.Equal(snapshot.Source.Sha256, deserialized.Source.Sha256);
             Assert.Equal(snapshot.Source.ByteSize, deserialized.Source.ByteSize);
             Assert.Equal(snapshot.Context.Timeframe, deserialized.Context.Timeframe);
             Assert.Equal(snapshot.Metrics.Count, deserialized.Metrics.Count);
-            // DatasetScore.Average may differ after JSON round-trip due to ScoreValue serialization;
-            // verify the metric scores round-trip correctly instead
-            Assert.Equal(snapshot.Metrics[0].Count, deserialized.Metrics[0].Count);
-            Assert.Equal(snapshot.Metrics[0].Population, deserialized.Metrics[0].Population);
+            Assert.Equal(snapshot.Metrics, deserialized.Metrics);
+            Assert.Equal(snapshot.Dataset.Average, deserialized.Dataset.Average);
+            Assert.Equal(snapshot.Dataset.MetricsCovered, deserialized.Dataset.MetricsCovered);
+            Assert.Equal(snapshot.Dataset.CoveredCategories, deserialized.Dataset.CoveredCategories);
+            Assert.Equal(snapshot.Dataset.ExcludedCategories, deserialized.Dataset.ExcludedCategories);
+            Assert.Equal(snapshot.Weighting.Source, deserialized.Weighting.Source);
+            Assert.Equal(snapshot.Weighting.Weights, deserialized.Weighting.Weights);
+            Assert.Equal(snapshot.Dataset.Average!.Value.Exact, deserialized.Dataset.Average!.Value.Exact);
+        }
+
+        [Fact]
+        public void Serialize_UsesPublishedEnumStringsAndExactScoreShape()
+        {
+            var json = BenchmarkSnapshotJsonSerializer.Serialize(CreateTestSnapshot());
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+            var metric = doc.RootElement.GetProperty("metrics")[0];
+            Assert.Equal("MissingCandle", metric.GetProperty("category").GetString());
+            Assert.Equal("Scored", metric.GetProperty("state").GetString());
+            Assert.Equal("100/1", metric.GetProperty("score").GetProperty("exact").GetString());
+            Assert.Equal("100.00", metric.GetProperty("score").GetProperty("rounded").GetString());
+        }
+
+        [Fact]
+        public void Deserialize_MissingRequiredInstrument_ThrowsInvalidDataException()
+        {
+            var json = BenchmarkSnapshotJsonSerializer.Serialize(CreateTestSnapshot());
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var withoutInstrument = doc.RootElement.EnumerateObject()
+                .Where(property => property.Name != "instrument")
+                .ToDictionary(property => property.Name, property => property.Value.Clone());
+
+            var malformed = System.Text.Json.JsonSerializer.Serialize(withoutInstrument);
+            Assert.Throws<InvalidDataException>(() => BenchmarkSnapshotJsonSerializer.Deserialize(malformed));
         }
 
         [Fact]
@@ -146,7 +177,8 @@ namespace Validator.Infrastructure.Tests.Benchmark
                 },
                 metrics: metrics,
                 dataset: datasetScore,
-                weighting: weighting);
+                weighting: weighting,
+                instrument: "AUDUSD");
         }
 
         private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";

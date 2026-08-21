@@ -17,6 +17,7 @@ namespace Validator.Application.Benchmark
         public int ContractVersion { get; init; } = 1;
 
         public string Name { get; init; }
+        public string Instrument { get; init; }
         public DateTimeOffset EstablishedAtUtc { get; init; }
         public SourceIdentity Source { get; init; }
         public ValidationContextSnapshot Context { get; init; }
@@ -35,10 +36,13 @@ namespace Validator.Application.Benchmark
             IReadOnlyList<CheckExecution> checks,
             IReadOnlyList<MetricScore> metrics,
             DatasetScore dataset,
-            ScoreWeighting weighting)
+            ScoreWeighting weighting,
+            string instrument = "UNKNOWN")
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Name must not be empty.", nameof(name));
+            if (string.IsNullOrWhiteSpace(instrument) || instrument.Contains('/') || instrument.Contains('\\'))
+                throw new ArgumentException("Instrument must be a non-empty identity without path separators.", nameof(instrument));
             ArgumentNullException.ThrowIfNull(source);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(coverage);
@@ -48,6 +52,7 @@ namespace Validator.Application.Benchmark
             ArgumentNullException.ThrowIfNull(weighting);
 
             Name = name;
+            Instrument = instrument.Trim();
             EstablishedAtUtc = establishedAtUtc;
             Source = source;
             Context = context;

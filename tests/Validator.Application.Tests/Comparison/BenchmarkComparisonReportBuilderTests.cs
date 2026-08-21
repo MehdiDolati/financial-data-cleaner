@@ -97,7 +97,8 @@ namespace Validator.Application.Tests.Comparison
             var config = ToleranceResolver.Resolve(null, "test");
             var fieldResults = new List<FieldComparisonResult>();
 
-            // Add 3 results for Open: 2 accepted, 1 material
+            // Add 3 results for Open: 2 identical, 1 material. Identical values
+            // are compared but are not tolerated differences (FR-014).
             fieldResults.Add(new FieldComparisonResult
             {
                 TimestampUtc = new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
@@ -127,8 +128,8 @@ namespace Validator.Application.Tests.Comparison
             var openSummary = summary.First(s => s.Field == OhlcvField.Open);
 
             Assert.Equal(3, openSummary.TotalCompared);
-            Assert.Equal(2, openSummary.AcceptedCount);
-            Assert.Equal(2, openSummary.AcceptedByAbsoluteCount);
+            Assert.Equal(0, openSummary.AcceptedCount);
+            Assert.Equal(0, openSummary.AcceptedByAbsoluteCount);
             Assert.Equal(0, openSummary.AcceptedByRelativeCount);
             Assert.Equal(1, openSummary.MaterialCount);
         }
