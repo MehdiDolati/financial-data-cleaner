@@ -41,6 +41,14 @@ namespace Validator.Application.Reporting
             sb.AppendLine($"  Matched timestamps: {report.Coverage.MatchedCount:N0}");
             sb.AppendLine($"  Missing from candidate: {report.Coverage.MissingFromCandidateCount:N0}");
             sb.AppendLine($"  Extra in candidate: {report.Coverage.ExtraInCandidateCount:N0}");
+
+            // Coverage rates (FR-022, FR-025)
+            if (report.Coverage.BenchmarkRecordCount > 0)
+            {
+                var matchedRate = (double)report.Coverage.MatchedCount / report.Coverage.BenchmarkRecordCount * 100;
+                sb.AppendLine($"  Coverage rate: {matchedRate:F2}% of benchmark timestamps matched");
+            }
+
             WriteOverlappingRange(sb, report.Coverage);
             sb.AppendLine();
 
@@ -55,21 +63,31 @@ namespace Validator.Application.Reporting
                 sb.AppendLine();
             }
 
-            // Material discrepancies section
-            if (report.MaterialDiscrepancies.Count > 0)
+            // No-overlap unavailable state (FR-025)
+            if (report.Coverage.MatchedCount == 0)
             {
-                sb.AppendLine($"Material Discrepancies ({report.MaterialDiscrepancies.Count} found):");
+                sb.AppendLine("Comparison: UNAVAILABLE — no overlapping timestamps between benchmark and candidate.");
+                sb.AppendLine("A benchmark-agreement score cannot be computed.");
                 sb.AppendLine();
-
-                for (var i = 0; i < report.MaterialDiscrepancies.Count; i++)
-                {
-                    WriteDiscrepancy(sb, report.MaterialDiscrepancies[i], i + 1);
-                }
             }
-            else if (report.Coverage.MatchedCount > 0)
+            else
             {
-                sb.AppendLine("Material Discrepancies (0 found):");
-                sb.AppendLine();
+                // Material discrepancies section
+                if (report.MaterialDiscrepancies.Count > 0)
+                {
+                    sb.AppendLine($"Material Discrepancies ({report.MaterialDiscrepancies.Count} found):");
+                    sb.AppendLine();
+
+                    for (var i = 0; i < report.MaterialDiscrepancies.Count; i++)
+                    {
+                        WriteDiscrepancy(sb, report.MaterialDiscrepancies[i], i + 1);
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("Material Discrepancies (0 found):");
+                    sb.AppendLine();
+                }
             }
 
             // Tolerated differences section

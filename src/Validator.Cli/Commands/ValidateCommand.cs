@@ -478,12 +478,22 @@ public static class ValidateCommand
         var report = ((DetailedValidationOutcome.Succeeded)outcome).Report;
         try
         {
+            // Run comparison early if --compare is specified, so the result can be
+            // included in the staged v2 report (FR-029, T062).
+            ComparisonReport? comparisonReport = null;
+            if (parsed.CompareBenchmark is not null)
+            {
+                comparisonReport = await RunComparisonAsync(parsed, report).ConfigureAwait(false);
+                if (comparisonReport is null)
+                    return 2; // fatal comparison error
+            }
+
             // Both representations render the same completed catalog through the
             // same staged commit, so neither can publish a partial report.
             var commit = await new StageAndCommitWriter(parsed.OutputPath, parsed.InputPath)
                 .PublishAsync(
                     (staged, token) => parsed.ReportVersion == 2
-                        ? new DetailedReportV2Writer().WriteAsync(report, staged, token)
+                        ? new DetailedReportV2Writer().WriteAsync(report, comparisonReport, staged, token)
                         : new VerboseReportWriter().WriteAsync(report, staged, token),
                     Console.Out)
                 .ConfigureAwait(false);
@@ -507,13 +517,24 @@ public static class ValidateCommand
                     return benchmarkExitCode;
             }
 
-            // After successful validation, compare against benchmark if requested
-            if (parsed.CompareBenchmark is not null)
+            // Comparison output was already staged into the v2 report above.
+            // Print the comparison summary to stdout.
+            if (comparisonReport is not null)
             {
-                var compareExitCode = await CompareAgainstBenchmarkAsync(parsed, report).ConfigureAwait(false);
-                return compareExitCode;
+                var comparisonText = parsed.Format == ReportFormat.Json
+                    ? new ComparisonJsonReportWriter().Write(comparisonReport)
+                    : new ComparisonTextReportWriter().Write(comparisonReport);
+
+                Console.Out.WriteLine();
+                Console.Out.WriteLine(comparisonText);
+
+                Console.Out.WriteLine(
+                    $"Comparison complete: {comparisonReport.MaterialDiscrepancies.Count} material discrepancies; " +
+                    $"agreement={comparisonReport.AgreementScore.Score?.Format() ?? "UNAVAILABLE"}");
             }
 
+            // Advisory comparison: return 0 on success regardless of discrepancy findings.
+            // Exit code 2 is reserved for fatal comparison failures only (Q6, FR-026).
             return report.Summary.IsClean ? 0 : 1;
         }
         finally
@@ -812,7 +833,9 @@ public static class ValidateCommand
         }
     }
 
-    private static async Task<int> CompareAgainstBenchmarkAsync(ParsedArguments parsed, DetailedValidationReport report)
+    // Runs comparison against a stored benchmark and returns the ComparisonReport.
+    // Returns null on fatal error (after printing the error to stderr).
+    private static async Task<ComparisonReport?> RunComparisonAsync(ParsedArguments parsed, DetailedValidationReport report)
     {
         try
         {
@@ -832,7 +855,7 @@ public static class ValidateCommand
                 Console.Error.WriteLine(
                     $"Benchmark '{parsed.CompareBenchmark}' not found in {benchmarkDir}. " +
                     $"Establish it first with '--benchmark {parsed.CompareBenchmark}'.");
-                return 2;
+                return null;
             }
 
             var benchmark = await store.LoadAsync(parsed.CompareBenchmark!).ConfigureAwait(false);
@@ -863,40 +886,12 @@ public static class ValidateCommand
 
             // Run comparison
             var useCase = new CompareDatasetsUseCase();
-            var comparisonReport = useCase.Compare(
+            return useCase.Compare(
                 benchmark,
                 benchmarkCandles,
                 candidateCandles,
                 candidateIdentity,
                 toleranceOverrides);
-
-            // Render and output the comparison report
-            string comparisonText;
-            if (parsed.Format == ReportFormat.Json)
-            {
-                comparisonText = new ComparisonJsonReportWriter().Write(comparisonReport);
-            }
-            else
-            {
-                comparisonText = new ComparisonTextReportWriter().Write(comparisonReport);
-            }
-
-            if (parsed.OutputPath is not null)
-            {
-                // Write comparison report to a sibling file
-                var comparisonOutputPath = Path.ChangeExtension(parsed.OutputPath, ".comparison" + Path.GetExtension(parsed.OutputPath));
-                WriteAtomically(comparisonOutputPath, comparisonText);
-                Console.Out.WriteLine(
-                    $"Comparison complete: {comparisonReport.MaterialDiscrepancies.Count} material discrepancies; " +
-                    $"agreement={comparisonReport.AgreementScore.Score?.Format() ?? "UNAVAILABLE"}; " +
-                    $"report={comparisonOutputPath}");
-            }
-            else
-            {
-                Console.Out.WriteLine(comparisonText);
-            }
-
-            return comparisonReport.MaterialDiscrepancies.Count == 0 ? 0 : 1;
         }
         catch (Exception exception) when (exception is
             ArgumentException or
@@ -907,7 +902,7 @@ public static class ValidateCommand
             UnauthorizedAccessException)
         {
             Console.Error.WriteLine($"Comparison failed: {exception.Message}");
-            return 2;
+            return null;
         }
     }
 

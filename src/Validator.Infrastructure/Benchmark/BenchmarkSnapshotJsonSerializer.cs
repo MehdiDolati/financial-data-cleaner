@@ -13,6 +13,8 @@ namespace Validator.Infrastructure.Benchmark
     /// </summary>
     public static class BenchmarkSnapshotJsonSerializer
     {
+        private const int SupportedContractVersion = 1;
+
         private static readonly JsonSerializerOptions Options = new()
         {
             WriteIndented = true,
@@ -22,6 +24,7 @@ namespace Validator.Infrastructure.Benchmark
 
         /// <summary>
         /// Serializes a BenchmarkSnapshot to a JSON string.
+        /// Always writes the contractVersion field.
         /// </summary>
         public static string Serialize(BenchmarkSnapshot snapshot)
         {
@@ -31,11 +34,25 @@ namespace Validator.Infrastructure.Benchmark
 
         /// <summary>
         /// Deserializes a BenchmarkSnapshot from a JSON string.
+        /// Validates the contractVersion is supported (FR-001).
         /// </summary>
         public static BenchmarkSnapshot Deserialize(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException("JSON must not be empty.", nameof(json));
+
+            // First peek at contractVersion before full deserialization
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("contractVersion", out var versionProp))
+            {
+                var version = versionProp.GetInt32();
+                if (version != SupportedContractVersion)
+                    throw new InvalidDataException(
+                        $"Incompatible benchmark contract version {version}. " +
+                        $"This application supports version {SupportedContractVersion}. " +
+                        $"Re-establish the benchmark with the current version.");
+            }
+            // Missing contractVersion is acceptable for backwards compatibility with v0 snapshots
 
             return JsonSerializer.Deserialize<BenchmarkSnapshot>(json, Options)
                 ?? throw new InvalidDataException("Failed to deserialize benchmark snapshot: result was null.");

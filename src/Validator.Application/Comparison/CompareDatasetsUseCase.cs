@@ -53,8 +53,8 @@ namespace Validator.Application.Comparison
             var contextWarnings = DetectContextDifferences(
                 benchmark.Context, candidateIdentity.Context, benchmark.Source);
 
-            // 3. Resolve tolerances before comparing (FR-019)
-            var configuration = ToleranceResolver.Resolve(userToleranceOverrides, benchmark.Name);
+            // 3. Resolve tolerances before comparing (FR-019) — infer fractional step from benchmark OHLC
+            var configuration = ToleranceResolver.Resolve(userToleranceOverrides, benchmark.Name, benchmarkCandles);
 
             // 4. Match timestamps
             var benchmarkTimestamps = benchmarkCandles.Select(c => c.Timestamp).ToList();

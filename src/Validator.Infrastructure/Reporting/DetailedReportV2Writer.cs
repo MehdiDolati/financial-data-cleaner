@@ -7,12 +7,15 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Validator.Application.Abstractions;
+using Validator.Application.Comparison;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
 using Validator.Application.Scoring;
 using Validator.Domain.Calendars;
 using Validator.Domain.Findings;
 using Validator.Domain.Findings.Evidence;
+using Validator.Domain.Scoring;
+using ComparisonReport = Validator.Application.Comparison.ComparisonReport;
 
 
 namespace Validator.Infrastructure.Reporting
@@ -30,6 +33,19 @@ namespace Validator.Infrastructure.Reporting
 
         public async Task WriteAsync(
             DetailedValidationReport report,
+            TextWriter destination,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteAsync(report, null, destination, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Writes the full v2 report, optionally including a benchmarkComparison section
+        /// when comparisonReport is provided (FR-029, FR-027).
+        /// </summary>
+        public async Task WriteAsync(
+            DetailedValidationReport report,
+            ComparisonReport? comparisonReport,
             TextWriter destination,
             CancellationToken cancellationToken = default)
         {
@@ -72,6 +88,15 @@ namespace Validator.Infrastructure.Reporting
             if (report.Score is not null)
             {
                 WriteScoring(json, report.Score);
+            }
+
+            // The benchmarkComparison section is present only when --compare was
+            // specified (FR-029). It is additive and does not affect the existing
+            // report structure.
+            if (comparisonReport is not null)
+            {
+                var comparisonWriter = new ComparisonJsonReportWriter();
+                comparisonWriter.WriteSection(json, comparisonReport);
             }
 
             json.WriteEndObject();

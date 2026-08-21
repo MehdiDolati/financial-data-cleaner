@@ -78,6 +78,16 @@ namespace Validator.Application.Reporting
             {
                 contractVersion = 1,
                 benchmark = report.Benchmark,
+                candidateIdentity = new
+                {
+                    source = new
+                    {
+                        fileName = report.Candidate.Source.FileName,
+                        byteSize = report.Candidate.Source.ByteSize,
+                        sha256 = report.Candidate.Source.Sha256
+                    },
+                    context = report.Candidate.Context
+                },
                 configuration = new
                 {
                     benchmarkName = report.Configuration.BenchmarkName,
@@ -146,7 +156,7 @@ namespace Validator.Application.Reporting
             foreach (var d in discrepancies)
             {
                 writer.WriteStartObject();
-                writer.WriteString("timestampUtc", d.TimestampUtc);
+                writer.WriteString("timestampUtc", ToUtcZ(d.TimestampUtc));
                 writer.WriteString("field", d.Field.ToString());
                 writer.WriteString("benchmarkValue", d.BenchmarkValue.ToString(CultureInfo.InvariantCulture));
                 writer.WriteString("candidateValue", d.CandidateValue.ToString(CultureInfo.InvariantCulture));
@@ -155,6 +165,8 @@ namespace Validator.Application.Reporting
                 writer.WriteString("resolvedAbsoluteTolerance", d.ResolvedAbsoluteTolerance.ToString(CultureInfo.InvariantCulture));
                 writer.WriteString("resolvedRelativeTolerance", d.ResolvedRelativeTolerance.ToString(CultureInfo.InvariantCulture));
                 writer.WriteString("toleranceDecision", d.ToleranceDecision.GetType().Name);
+                if (d.CandidateSourceLine.HasValue)
+                    writer.WriteNumber("candidateSourceLine", d.CandidateSourceLine.Value);
                 writer.WriteEndObject();
             }
 
@@ -205,5 +217,12 @@ namespace Validator.Application.Reporting
 
             writer.WriteEndObject();
         }
+
+        /// <summary>
+        /// Formats a DateTimeOffset as deterministic UTC Z-suffix text (FR-031, FR-032).
+        /// Ensures byte-identical output for the same input value.
+        /// </summary>
+        private static string ToUtcZ(DateTimeOffset value) =>
+            value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
     }
 }

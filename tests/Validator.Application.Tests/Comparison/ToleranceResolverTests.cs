@@ -1,4 +1,5 @@
 using Validator.Application.Comparison;
+using Validator.Domain.Candles;
 using Validator.Domain.Comparison;
 using Xunit;
 
@@ -233,5 +234,156 @@ namespace Validator.Application.Tests.Comparison
             var overrides = ToleranceResolver.ParseOverrides(json);
             Assert.Equal(3, overrides.Count);
         }
+
+        // --- T060: Inferred fractional-step tests ---
+
+        [Fact]
+        public void Resolve_WithBenchmarkCandles_InfersFractionalStep()
+        {
+            // 5-digit forex prices (e.g. 0.63421) → fractional step = 0.00001
+            var candles = CreateForexCandles(50); // enough for inference (> 10)
+            var config = ToleranceResolver.Resolve(null, "test", candles);
+
+            var open = config.Fields.First(f => f.Field == OhlcvField.Open);
+            Assert.Equal(0.00001m, open.ResolvedAbsolute);
+        }
+
+        [Fact]
+        public void Resolve_WithFewCandles_UsesDefault()
+        {
+            // Fewer than 10 candles → cannot infer, falls back to default
+            var candles = CreateForexCandles(5);
+            var config = ToleranceResolver.Resolve(null, "test", candles);
+
+            var open = config.Fields.First(f => f.Field == OhlcvField.Open);
+            Assert.Equal(0.0001m, open.ResolvedAbsolute); // default
+        }
+
+        [Fact]
+        public void Resolve_NullCandles_UsesDefault()
+        {
+            var config = ToleranceResolver.Resolve(null, "test", null);
+
+            var open = config.Fields.First(f => f.Field == OhlcvField.Open);
+            Assert.Equal(0.0001m, open.ResolvedAbsolute); // default
+        }
+
+        [Fact]
+        public void Resolve_UserOverrideOverridesInferred()
+        {
+            // Even with inference, explicit user override takes precedence
+            var candles = CreateForexCandles(50);
+            var overrides = new[] { new ComparedField(OhlcvField.Open, true, 0.00050m, null, 0, 0) };
+            var config = ToleranceResolver.Resolve(overrides, "test", candles);
+
+            var open = config.Fields.First(f => f.Field == OhlcvField.Open);
+            Assert.Equal(0.00050m, open.ResolvedAbsolute); // user override wins
+        }
+
+        [Fact]
+        public void InferFractionalStep_FiveDigitForex()
+        {
+            var candles = CreateForexCandles(20);
+            var step = ToleranceResolver.InferFractionalStep(candles);
+            Assert.Equal(0.00001m, step); // 5-digit → 10^(-5)
+        }
+
+        [Fact]
+        public void InferFractionalStep_TwoDigitCrypto()
+        {
+            // Prices like 65000.50 → 2 decimal places → fractional step = 0.01
+            var candles = CreateCryptoCandles(20);
+            var step = ToleranceResolver.InferFractionalStep(candles);
+            Assert.Equal(0.01m, step);
+        }
+
+        // --- T061: Field disabling and incomplete override tests ---
+
+        [Fact]
+        public void ParseOverrides_DisabledField_Parsed()
+        {
+            var json = """{"Open": {"enabled": false}}""";
+            var overrides = ToleranceResolver.ParseOverrides(json);
+
+            Assert.Single(overrides);
+            Assert.False(overrides[0].Enabled);
+            Assert.Equal(OhlcvField.Open, overrides[0].Field);
+        }
+
+        [Fact]
+        public void ParseOverrides_DisabledWithTolerance_Parsed()
+        {
+            var json = """{"Volume": {"enabled": false, "relative": 0.10}}""";
+            var overrides = ToleranceResolver.ParseOverrides(json);
+
+            Assert.Single(overrides);
+            Assert.False(overrides[0].Enabled);
+            Assert.Equal(0.10m, overrides[0].RelativeTolerance);
+        }
+
+        [Fact]
+        public void ParseOverrides_EmptyObject_Throws()
+        {
+            // An entry with no tolerance values or enabled flag is ambiguous
+            var json = """{"Open": {}}""";
+            Assert.Throws<ArgumentException>(() => ToleranceResolver.ParseOverrides(json));
+        }
+
+        [Fact]
+        public void ParseOverrides_OnlyAbsoluteEnabled_Parsed()
+        {
+            // Entry with just absolute + enabled is valid
+            var json = """{"Open": {"absolute": 0.001, "enabled": true}}""";
+            var overrides = ToleranceResolver.ParseOverrides(json);
+            Assert.Single(overrides);
+            Assert.True(overrides[0].Enabled);
+            Assert.Equal(0.001m, overrides[0].AbsoluteTolerance);
+        }
+
+        [Fact]
+        public void ResolveField_DisabledField_SkippedInComparison()
+        {
+            var overrideField = new ComparedField(OhlcvField.Open, false, null, null, 0, 0);
+            var result = ToleranceResolver.ResolveField(OhlcvField.Open, overrideField);
+            Assert.False(result.Enabled);
+        }
+
+        #region Test Helpers
+
+        private static List<PriceCandle> CreateForexCandles(int count)
+        {
+            var candles = new List<PriceCandle>();
+            var baseDate = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
+            for (int i = 0; i < count; i++)
+            {
+                candles.Add(new PriceCandle(
+                    baseDate.AddDays(i),
+                    0.63421m + i * 0.00010m,
+                    0.63580m + i * 0.00010m,
+                    0.63310m + i * 0.00010m,
+                    0.63502m + i * 0.00010m,
+                    125000m + i * 100));
+            }
+            return candles;
+        }
+
+        private static List<PriceCandle> CreateCryptoCandles(int count)
+        {
+            var candles = new List<PriceCandle>();
+            var baseDate = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
+            for (int i = 0; i < count; i++)
+            {
+                candles.Add(new PriceCandle(
+                    baseDate.AddDays(i),
+                    65000.50m + i * 0.50m,
+                    65100.75m + i * 0.50m,
+                    64900.25m + i * 0.50m,
+                    65050.60m + i * 0.50m,
+                    1000m + i * 10));
+            }
+            return candles;
+        }
+
+        #endregion
     }
 }

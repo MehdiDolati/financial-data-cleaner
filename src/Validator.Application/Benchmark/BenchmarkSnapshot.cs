@@ -13,6 +13,9 @@ namespace Validator.Application.Benchmark
     /// </summary>
     public sealed record BenchmarkSnapshot
     {
+        /// <summary>Contract version for the benchmark snapshot JSON schema (FR-001).</summary>
+        public int ContractVersion { get; init; } = 1;
+
         public string Name { get; init; }
         public DateTimeOffset EstablishedAtUtc { get; init; }
         public SourceIdentity Source { get; init; }

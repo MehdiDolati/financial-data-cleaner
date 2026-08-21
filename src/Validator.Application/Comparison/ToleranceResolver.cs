@@ -21,23 +21,33 @@ namespace Validator.Application.Comparison
         private const decimal DefaultVolumeAbsoluteTolerance = 0m;
         private const decimal DefaultVolumeRelativeTolerance = 0.05m;   // 5%
 
+        // Minimum number of candles needed for reliable precision inference
+        private const int MinCandlesForInference = 10;
+
         /// <summary>
         /// Resolves tolerances for all OHLCV fields, applying user overrides where provided
-        /// and defaults otherwise.
+        /// and defaults otherwise. When benchmarkCandles are provided, infers the fractional-step
+        /// tolerance from the observed OHLC precision (FR-015, Q5).
         /// </summary>
         /// <param name="userOverrides">User-supplied field overrides (may be null or empty for defaults).</param>
         /// <param name="benchmarkName">Name of the benchmark being compared against.</param>
+        /// <param name="benchmarkCandles">Optional benchmark candles for precision inference.</param>
         /// <returns>A ComparisonConfiguration with fully resolved tolerances.</returns>
         public static ComparisonConfiguration Resolve(
             IReadOnlyList<ComparedField>? userOverrides,
-            string benchmarkName)
+            string benchmarkName,
+            IReadOnlyList<Validator.Domain.Candles.PriceCandle>? benchmarkCandles = null)
         {
+            var inferredFractionalStep = benchmarkCandles is not null && benchmarkCandles.Count >= MinCandlesForInference
+                ? InferFractionalStep(benchmarkCandles)
+                : DefaultPriceAbsoluteTolerance;
+
             var fields = new List<ComparedField>();
 
             foreach (OhlcvField field in Enum.GetValues<OhlcvField>())
             {
                 var userField = userOverrides?.FirstOrDefault(f => f.Field == field);
-                fields.Add(ResolveField(field, userField));
+                fields.Add(ResolveField(field, userField, inferredFractionalStep));
             }
 
             return new ComparisonConfiguration(
@@ -47,9 +57,56 @@ namespace Validator.Application.Comparison
         }
 
         /// <summary>
+        /// Infers the fractional-step (minimum price increment) from benchmark OHLC observations.
+        /// Examines the number of decimal places across all OHLC values and returns 10^(-N)
+        /// where N is the maximum observed precision.
+        /// </summary>
+        /// <param name="candles">The benchmark candles to analyze.</param>
+        /// <returns>The inferred fractional step (e.g. 0.00001 for 5-digit precision).</returns>
+        public static decimal InferFractionalStep(IReadOnlyList<Validator.Domain.Candles.PriceCandle> candles)
+        {
+            var maxPrecision = 0;
+
+            foreach (var candle in candles)
+            {
+                maxPrecision = Math.Max(maxPrecision, GetDecimalPlaces(candle.Open));
+                maxPrecision = Math.Max(maxPrecision, GetDecimalPlaces(candle.High));
+                maxPrecision = Math.Max(maxPrecision, GetDecimalPlaces(candle.Low));
+                maxPrecision = Math.Max(maxPrecision, GetDecimalPlaces(candle.Close));
+            }
+
+            // Cap at 8 decimal places to avoid extreme values
+            maxPrecision = Math.Min(maxPrecision, 8);
+
+            // If no meaningful precision detected, use default
+            if (maxPrecision <= 0)
+                return DefaultPriceAbsoluteTolerance;
+
+            return 1m / (decimal)Math.Pow(10, maxPrecision);
+        }
+
+        private static int GetDecimalPlaces(decimal value)
+        {
+            // Count decimal places by scaling up and checking for non-zero digits
+            var scaled = Math.Abs(value) * 1_000_000_000m;
+            var scaledStr = ((long)scaled).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // Count trailing zeros after the decimal point in the original
+            var str = value.ToString("G", System.Globalization.CultureInfo.InvariantCulture);
+            var decimalIndex = str.IndexOf('.');
+            if (decimalIndex < 0)
+                return 0;
+
+            var decimalPart = str[(decimalIndex + 1)..];
+            // Remove trailing zeros for count
+            var trimmed = decimalPart.TrimEnd('0');
+            return trimmed.Length;
+        }
+
+        /// <summary>
         /// Resolves tolerances for a specific field using user overrides and defaults.
         /// </summary>
-        public static ComparedField ResolveField(OhlcvField field, ComparedField? userOverride)
+        public static ComparedField ResolveField(OhlcvField field, ComparedField? userOverride, decimal? inferredFractionalStep = null)
         {
             if (userOverride is not null && userOverride.Field != field)
                 throw new ArgumentException($"User override field mismatch: expected {field}, got {userOverride.Field}.");
@@ -69,7 +126,10 @@ namespace Validator.Application.Comparison
             }
             else
             {
-                resolvedAbsolute = isPrice ? DefaultPriceAbsoluteTolerance : DefaultVolumeAbsoluteTolerance;
+                // For price fields, use the inferred fractional step if available,
+                // falling back to the constant default (FR-015, Q5)
+                var defaultPriceAbsolute = inferredFractionalStep ?? DefaultPriceAbsoluteTolerance;
+                resolvedAbsolute = isPrice ? defaultPriceAbsolute : DefaultVolumeAbsoluteTolerance;
             }
 
             // Resolve relative tolerance
@@ -94,7 +154,8 @@ namespace Validator.Application.Comparison
 
         /// <summary>
         /// Parses a JSON-like tolerance override string into ComparedField instances.
-        /// Expected format: {"Open": {"absolute": 0.00005}, "Volume": {"relative": 0.02}}
+        /// Expected format: {"Open": {"absolute": 0.00005}, "Volume": {"relative": 0.02, "enabled": false}}
+        /// An entry with no tolerance values is rejected (FR-019). Unknown fields are rejected.
         /// </summary>
         /// <param name="jsonOverrides">JSON string with per-field tolerance overrides.</param>
         /// <returns>List of ComparedField instances from the overrides.</returns>
@@ -111,14 +172,28 @@ namespace Validator.Application.Comparison
                 var fieldName = property.Name;
                 var field = ParseOhlcvField(fieldName);
 
+                // Validate: each entry must have at least one tolerance or an enabled flag
+                var hasAbsolute = property.Value.TryGetProperty("absolute", out var absElement);
+                var hasRelative = property.Value.TryGetProperty("relative", out var relElement);
+                var hasEnabled = property.Value.TryGetProperty("enabled", out var enabledElement);
+
+                if (!hasAbsolute && !hasRelative && !hasEnabled)
+                    throw new ArgumentException(
+                        $"Field '{fieldName}' override must specify at least one of 'absolute', 'relative', or 'enabled'. " +
+                        $"An override with no values is ambiguous (FR-019).", nameof(jsonOverrides));
+
                 decimal? absolute = null;
                 decimal? relative = null;
+                var enabled = true;
 
-                if (property.Value.TryGetProperty("absolute", out var absElement))
+                if (hasAbsolute)
                     absolute = absElement.GetDecimal();
 
-                if (property.Value.TryGetProperty("relative", out var relElement))
+                if (hasRelative)
                     relative = relElement.GetDecimal();
+
+                if (hasEnabled)
+                    enabled = enabledElement.GetBoolean();
 
                 // Validate non-negative tolerances (FR-019)
                 if (absolute is < 0)
@@ -128,7 +203,7 @@ namespace Validator.Application.Comparison
 
                 result.Add(new ComparedField(
                     field: field,
-                    enabled: true,
+                    enabled: enabled,
                     absoluteTolerance: absolute,
                     relativeTolerance: relative,
                     resolvedAbsolute: 0, // Will be resolved by ResolveField
