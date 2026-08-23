@@ -26,7 +26,20 @@ measured and enforced and how contributors decide what to do when they encounter
 a defensive branch. It does **not** change any product behavior, output,
 contract, or exit code.
 
+## Clarifications
+
+### Session 2026-08-23
+
+- Q: Which entry points count as a "legal call" that makes a defensive branch reachable (and therefore must-test rather than excludable)? → A: The public API, any test-visible internal entry point, **and** supplying an out-of-range value such as an undeclared enum cast all count as reachable and MUST be tested; only code no test can execute by any means (e.g. compiler-generated async/iterator plumbing, or an arm a prior guard always preempts) is unreachable and excludable.
+- Q: How is the "every exclusion carries a justification" rule enforced so an unjustified exclusion is rejected? → A: An automated, build-failing check (a test scanning the Domain and Application assemblies) fails the build if any exclusion has a blank or missing justification, and the same check enumerates the full exclusion set for review.
+- Q: Is the SC-005 "removing coverage from a reachable line fails the gate" check a permanent artifact or a one-time demonstration? → A: A one-time demonstration performed during implementation and recorded in the quickstart/review; no permanent self-referential artifact is added, because the true-100% gate itself is the standing guard against regressions.
+- Q: What version bump should the constitution receive for clarifying Principle II to "100% over reachable code with documented, justified exclusions"? → A: PATCH (1.1.0 → 1.1.1) — a non-semantic clarification that leaves Principle II's intent unchanged; recorded with a rationale in the Sync Impact Report.
+
+
+
+
 ## User Scenarios & Testing *(mandatory)*
+
 
 ### User Story 1 - An honest, enforceable 100% gate (Priority: P1)
 
@@ -163,7 +176,9 @@ what the enforced target is.
 - **FR-003**: Any code excluded from coverage MUST be provably unreachable
   through any legal call.
 - **FR-004**: Every exclusion MUST carry a human-readable justification that
-  states why the code is unreachable.
+  states why the code is unreachable. An automated, build-failing check MUST
+  reject any exclusion whose justification is blank or missing.
+
 - **FR-005**: Exclusions MUST be applied at the smallest scope that isolates only
   the unreachable code; a unit that also contains reachable logic MUST NOT be
   excluded as a whole.
@@ -193,7 +208,10 @@ what the enforced target is.
 ### Key Concepts
 
 - **Reachable code**: Code that some legal call can execute — through the public
-  API, or through an internal entry point that tests are permitted to use.
+  API, through an internal entry point that tests are permitted to use, or by
+  supplying an out-of-range value such as an undeclared enum cast. Such code MUST
+  be tested, not excluded.
+
 - **Unreachable defensive branch**: A guard or error path that protects an
   invariant which no legal call can violate, so it cannot be executed from
   outside; kept as a second line of defense.
