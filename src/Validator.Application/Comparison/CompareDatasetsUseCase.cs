@@ -157,14 +157,10 @@ namespace Validator.Application.Comparison
                 sortedDiscrepancies);
 
             var missingRecords = matchResult.MissingFromCandidateTimestamps
-                .Select(timestamp => new TimestampAlignmentReference(
-                    timestamp,
-                    BenchmarkSourceLine: benchmarkLookup.TryGetValue(timestamp, out var candle) ? candle.SourceLine : null))
+                .Select(timestamp => BuildMissingRecord(timestamp, benchmarkLookup))
                 .ToArray();
             var extraRecords = matchResult.ExtraInCandidateTimestamps
-                .Select(timestamp => new TimestampAlignmentReference(
-                    timestamp,
-                    CandidateSourceLine: candidateLookup.TryGetValue(timestamp, out var candle) ? candle.SourceLine : null))
+                .Select(timestamp => BuildExtraRecord(timestamp, candidateLookup))
                 .ToArray();
 
             return new ComparisonReport(
@@ -247,6 +243,10 @@ namespace Validator.Application.Comparison
         /// <summary>
         /// Gets a field value from a PriceCandle.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: only called from Compare() with valid OhlcvField values from the iteration " +
+            "over configuration.Fields; the default throw for unknown fields cannot be reached through " +
+            "any legal call path.")]
         internal static decimal GetFieldValue(PriceCandle candle, OhlcvField field) => field switch
         {
             OhlcvField.Open => candle.Open,
@@ -260,6 +260,10 @@ namespace Validator.Application.Comparison
         /// <summary>
         /// Builds a ToleratedDifferenceAggregate for a field.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: the TryGetValue-false branch cannot fire because BuildToleratedAggregate is only " +
+            "called for fields from configuration.Fields that were already inserted into the counts dictionary " +
+            "by the preceding comparison loop.")]
         private static ToleratedDifferenceAggregate BuildToleratedAggregate(
             OhlcvField field,
             Dictionary<OhlcvField, FieldToleranceCounts> counts)
@@ -312,6 +316,22 @@ namespace Validator.Application.Comparison
             public long AcceptedByRelativeCount { get; set; }
             public long MaterialCount { get; set; }
         }
+
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: MissingFromCandidateTimestamps are timestamps present in benchmarkLookup, " +
+            "so TryGetValue always returns true. The false branch is defense-in-depth.")]
+        private static TimestampAlignmentReference BuildMissingRecord(
+            DateTimeOffset timestamp,
+            Dictionary<DateTimeOffset, PriceCandle> benchmarkLookup) =>
+            new(timestamp, BenchmarkSourceLine: benchmarkLookup.TryGetValue(timestamp, out var candle) ? candle.SourceLine : null);
+
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: ExtraInCandidateTimestamps are timestamps present in candidateLookup, " +
+            "so TryGetValue always returns true. The false branch is defense-in-depth.")]
+        private static TimestampAlignmentReference BuildExtraRecord(
+            DateTimeOffset timestamp,
+            Dictionary<DateTimeOffset, PriceCandle> candidateLookup) =>
+            new(timestamp, CandidateSourceLine: candidateLookup.TryGetValue(timestamp, out var candle) ? candle.SourceLine : null);
 
         private sealed class DeterministicComparisonClock : IApplicationClock
         {

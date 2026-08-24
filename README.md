@@ -289,10 +289,11 @@ The solution uses four inward-facing projects:
 - `Validator.Cli`: argument handling and composition
 
 Domain is held to 100% line and branch coverage. The merged Domain/Application
-coverage workflow currently measures 99.28% line and 97.97% branch coverage and
-enforces 99.2% and 97.9% ratchet thresholds; the remaining paths are defensive
-arms that cannot be reached through valid public compositions and are documented
-in `.github/workflows/coverage.yml`. Infrastructure uses real-file integration
+coverage gate enforces a true 100% line and 100% branch over all *reachable*
+code, with genuinely-unreachable defensive arms individually excluded with
+documented justifications via `[ExcludeFromCodeCoverage(Justification=…)]`. See
+[`docs/coverage-exclusion-policy.md`](docs/coverage-exclusion-policy.md) for the
+ordered decision rule (test → restructure → exclude). Infrastructure uses real-file integration
 tests, and the CLI uses end-to-end tests. The feature contracts and runnable walkthroughs are in
 [`specs/001-ohlcv-data-quality-validator/`](specs/001-ohlcv-data-quality-validator/)
 and

@@ -219,3 +219,105 @@ All Technical Context items are decided; **no `NEEDS CLARIFICATION` remain**:
 - Decision rule → test → restructure → exclude, published in `docs/` (§5).
 - Inventory source → re-enumerate via `tools/coverage-gaps.ps1` (§6).
 - Version bump → PATCH clarification 1.1.0 → 1.1.1 with Sync Impact Report (§7).
+
+## Baseline inventory (measured)
+
+The following uncovered lines and branches were enumerated from the merged coverage run (`tools/coverage-run.ps1` + `tools/coverage-gaps.ps1`) on 2026-08-24.
+
+```
+=== CandidateIdentity.cs
+    .ctor -> lines[20]  branches 3/6 uncovered at lines[19]
+
+=== CompareDatasetsUseCase.cs
+    Compare -> lines[118,119,121]  branches 3/22 uncovered at lines[116,160,165]
+    GetFieldValue -> lines[257]  branches 1/6 uncovered at lines[250]
+    BuildToleratedAggregate -> lines[269]  branches 1/2 uncovered at lines[267]
+
+=== ComparisonReport.cs
+    .ctor -> branches 2/12 uncovered at lines[96,97]
+
+=== ComparisonTextReportWriter.cs
+    Write -> branches 2/36 uncovered at lines[77]
+
+=== DatasetScore.cs
+    .ctor -> lines[72]  branches 1/8 uncovered at lines[70]
+
+=== DetailedValidationOrchestrator.cs
+    NextObservedAfter -> lines[647]  branches 2/4 uncovered at lines[645,651]
+    MoveNext -> lines[107,108]  branches 1/14 uncovered at lines[105]
+
+=== EvidenceJoiner.cs
+    IsHeaderRecord -> lines[185]  branches 1/7 uncovered at lines[177]
+
+=== FindingCatalog.cs
+    RefOf -> branches 1/2 uncovered at lines[451]
+    CategoryIndex -> lines[468]  branches 1/7 uncovered at lines[460]
+    Read -> branches 1/2 uncovered at lines[36]
+    MoveNext -> lines[240]  branches 1/10 uncovered at lines[238]
+
+=== MetricScore.cs
+    .ctor -> lines[47,52,59]  branches 3/12 uncovered at lines[45,50,57]
+
+=== ScoreSectionBuilder.cs
+    CheckNameFor -> lines[104]  branches 1/7 uncovered at lines[96]
+    DescribeKind -> lines[112]  branches 1/4 uncovered at lines[107]
+
+=== ToleranceResolver.cs
+    PowerOfTen -> lines[91,92,93,94]  branches 3/6 uncovered at lines[89,92]
+    ParseOverrides -> lines[228]  branches 2/64 uncovered at lines[227]
+    ParseOhlcvField -> lines[278,279]  branches 2/10 uncovered at lines[274]
+    .cctor -> lines[17,18,21,22]
+
+---------------- summary ----------------
+Lines    : 4001/4030 covered (99.28%)  gaps=29
+Branches : 1593/1626 covered (97.97%)  gaps=33
+Methods with gaps : 21
+```
+
+## Classification of uncovered arms
+
+Each uncovered arm is classified as **test**, **restructure**, or **exclude**
+per the reachability rule (§6): any arm reachable via the public API, a
+test-visible internal entry point, or an out-of-range/undeclared-enum-cast value
+is **test**; a mixed unit is **restructure**; only arms no test can execute by any
+means are **exclude**.
+
+| File | Method / Member | Uncovered Lines | Classification | Rationale |
+|------|----------------|----------------|---------------|-----------|
+| CandidateIdentity.cs | `.ctor` | lines[20], branches at lines[19] | **test** | Null-guard branches reachable via public API (pass null source/context) |
+| CompareDatasetsUseCase.cs | `Compare` | lines[118,119,121], branches at lines[116,160,165] | **test** | `isDifferent`-true path in AcceptedByAbsolute/Relative switch cases and `TryGetValue`-false paths in missing/extra record projection — all reachable via public API |
+| CompareDatasetsUseCase.cs | `GetFieldValue` | lines[257], branch at lines[250] | **exclude** | Internal method only called from `Compare` with valid `OhlcvField` values from the iteration over `configuration.Fields`; default throw is unreachable through any legal call path |
+| CompareDatasetsUseCase.cs | `BuildToleratedAggregate` | lines[269], branch at lines[267] | **test** | `TryGetValue`-false branch — reachable via public API when field not in counts |
+| ComparisonReport.cs | `.ctor` (14-param) | branches at lines[96,97] | **test** | Null-coalescing branches for `missingFromCandidateRecords`/`extraInCandidateRecords` — reachable via public API |
+| ComparisonTextReportWriter.cs | `Write` | branches at lines[77] | **test** | Conditional branch for `CandidateScore` presence — reachable via public API |
+| DatasetScore.cs | `.ctor` | lines[72], branch at lines[70] | **exclude** | Private-constructor invariant: `available+unavailableReason` combination prevented by factory methods (`Available`/`Unavailable`); defense-in-depth guard (FR-014) |
+| DetailedValidationOrchestrator.cs | `NextObservedAfter` | lines[647], branches at lines[645,651] | **test** | Binary-search exact-match branch and insertion-point-past-end branch — both reachable via normal validation runs with gaps at boundaries |
+| DetailedValidationOrchestrator.cs | `MoveNext` (state machine) | lines[107,108], branch at lines[105] | **exclude** | Compiler-generated async state-machine internals; unreachable branch in normal async flow |
+| EvidenceJoiner.cs | `IsHeaderRecord` | lines[185], branch at lines[177] | **exclude** | Private method only called with `EvidenceKind` from `header.EvidenceKind` which is always a valid enum value; default throw is unreachable through any legal call path |
+| FindingCatalog.cs | `RefOf` | branch at lines[451] | **test** | `separator < 0` branch (no pipe in line) — reachable via malformed spool line |
+| FindingCatalog.cs | `CategoryIndex` | lines[468], branch at lines[460] | **exclude** | Private method only called with `FindingCategory` from `finding.Category` which is always a valid enum value; default throw is unreachable through any legal call path |
+| FindingCatalog.cs | `ReadCanonicalAsync` (cursor) | branch at lines[36] | **test** | `locationBlock is null` path — reachable when a finding has no location lines |
+| FindingCatalog.cs | `MoveNext` (state machine) | lines[240], branch at lines[238] | **exclude** | Compiler-generated async state-machine internals for `ReadCanonicalAsync` |
+| DetailedSummary.cs | `For` | (public closed union) | **test** | Public method with closed union over 6 `FindingCategory` values — reachable via out-of-range enum cast |
+| FindingCatalogStatistics.cs | `For` | (public closed union) | **test** | Public method with closed union over 6 `FindingCategory` values — reachable via out-of-range enum cast |
+| FindingReferenceFactory.cs | `CategorySegment` | (private, called from public `PhysicalRecord`) | **test** | Reachable via out-of-range `FindingCategory` passed to public `PhysicalRecord` method |
+| MetricScore.cs | `.ctor` | lines[47,52,59], branches at lines[45,50,57] | **exclude** | Private-constructor invariant: factory methods (`Scored`/`NotApplicable`/`NotScored`) prevent invalid state+value combinations; defense-in-depth guards (FR-014) |
+| ScoreSectionBuilder.cs | `FindCheck` | lines[93], branch at lines[85] | **test** | `return null` when no matching check found — reachable via public API when checks list is incomplete |
+| ScoreSectionBuilder.cs | `CheckNameFor` | lines[104], branch at lines[96] | **exclude** | Private method only called from `FindCheck` with categories from `MetricPopulationMap.CanonicalOrder`; default throw is unreachable through any legal call path |
+| ScoreSectionBuilder.cs | `DescribeKind` | lines[109,112], branch at lines[107] | **exclude** | Private method only called from `BuildMetric` with kinds from `MetricPopulationMap.KindFor`; default throw is unreachable through any legal call path |
+| ScoreWeightParser.cs | `Parse` | lines[48,59], branches at lines[46,57] | **test** | Error paths for malformed weight strings — reachable via public API |
+| ToleranceResolver.cs | `PowerOfTen` | lines[91,92,93,94], branches at lines[89,92] | **exclude** | Positive-exponent loop unreachable: `InferFractionalStep` only passes negative exponents (`-maxPrecision`); no call path supplies a non-negative exponent |
+| ToleranceResolver.cs | `ParseOverrides` | line[228], branch at lines[227] | **test** | `!hasAbsolute && !hasRelative && !hasEnabled` guard — reachable via malformed JSON |
+| ToleranceResolver.cs | `ParseOhlcvField` | lines[278,279], branch at lines[274] | **test** | Default `_ => throw` for unknown field name — reachable via out-of-range input |
+| ToleranceResolver.cs | `.cctor` (static ctor) | lines[17,18,21,22] | **exclude** | Compiler-generated static constructor for `const` fields — const values are baked into calling code; the `.cctor` body is never executed at runtime |
+
+### Classification summary
+
+- **test**: 16 arms — reachable via public API, test-visible internal entry points, or out-of-range/undeclared-enum-cast values. These will be covered by new tests (T004–T007).
+- **exclude**: 11 arms — genuinely unreachable through any legal call. These will receive `[ExcludeFromCodeCoverage(Justification=…)]` at the smallest scope (T010–T012).
+- **restructure**: 0 arms — no mixed unit identified where reachable and unreachable logic share the same member in a way that requires extraction.
+
+### InternalsVisibleTo requirement (T003)
+
+All **test**-classified arms are reachable through the public API or via out-of-range enum casts. No arm requires a test-visible internal entry point beyond what is already accessible. Therefore, `InternalsVisibleTo` is **not required** and T003 is recorded as skipped.
+

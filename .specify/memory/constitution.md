@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 1.1.0
-- Modified principles: None
-- Added principles: VIII. Documentation Ships with the Feature
+- Version change: 1.1.0 -> 1.1.1
+- Modified principles: II. Business Logic Is Framework-Agnostic and Fully Covered
+  (clarified: 100% is measured over reachable code with documented, justified exclusions)
+- Added principles: None
 - Added sections: None
 - Removed sections: None
-- Expanded guidance: Development Workflow and Governance now require README
-  impact assessment, same-change documentation updates, and compliance review.
-- Removed guidance: Obsolete instruction to replace the already-resolved project name.
+- Expanded guidance: None
+- Removed guidance: None
 - Follow-up TODOs: None
 -->
 # Financial Data Cleaner Constitution
@@ -31,7 +31,11 @@ not just the first feature.
 ### II. Business Logic Is Framework-Agnostic and Fully Covered
 Domain and Application-layer code — the actual business rules — carries zero
 dependency on any UI, transport, or infrastructure framework, and is held to
-100% line and branch coverage, enforced in CI. Composition roots and thin
+100% line and branch coverage over *reachable* code, enforced in CI.
+Genuinely-unreachable defensive arms (private-constructor invariants,
+compiler-generated async state-machine helpers, and other provably unreachable
+branches) are individually excluded with documented justifications via
+`[ExcludeFromCodeCoverage(Justification=…)]`. Composition roots and thin
 adapter/wiring code are exempt from the coverage gate but MUST be covered by
 integration or end-to-end tests instead. This is what lets any module be
 driven by a CLI today and a web UI, API, or scheduler tomorrow without
@@ -135,4 +139,4 @@ rationale. Constitution versions follow semantic versioning: MAJOR for
 incompatible governance changes, MINOR for new or materially expanded rules,
 and PATCH for non-semantic clarification.
 
-**Version**: 1.1.0 | **Ratified**: 2026-08-05 | **Last Amended**: 2026-08-18
+**Version**: 1.1.1 | **Ratified**: 2026-08-05 | **Last Amended**: 2026-08-24

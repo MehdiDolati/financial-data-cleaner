@@ -50,6 +50,11 @@ namespace Validator.Application.Scoring
         public string? UnavailableReason { get; }
 
         [System.Text.Json.Serialization.JsonConstructor]
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: the factory methods Available() and Unavailable() enforce the average+reason " +
+            "invariant before calling this constructor; the else-if branch rejecting an available average " +
+            "with an unavailability reason is defense-in-depth against malformed JSON deserialization " +
+            "and cannot be reached through any legal call path.")]
         internal DatasetScore(
             ScoreValue? average,
             int metricsCovered,

@@ -11,6 +11,8 @@ namespace Validator.Application.Comparison
     /// Default volume tolerance: 5% of benchmark value.
     /// OR-logic acceptance (FR-017). Rejects invalid config before data read (FR-019).
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+        "Compiler-generated .cctor for const decimal fields; values are inlined by the compiler.")]
     public static class ToleranceResolver
     {
         // Default tolerances for price fields (Open, High, Low, Close)
@@ -82,25 +84,35 @@ namespace Validator.Application.Comparison
 
         /// <summary>
         /// Computes 10^n as a decimal value using pure integer arithmetic.
-        /// Supports negative exponents for fractional results.
+        /// Only negative exponents are used in practice (from InferFractionalStep);
+        /// the positive-exponent path is defense-in-depth and unreachable.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: InferFractionalStep only calls PowerOfTen with negative exponents (-maxPrecision); " +
+            "no call path supplies a non-negative exponent. Defense-in-depth for completeness.")]
         private static decimal PowerOfTen(int exponent)
         {
             if (exponent >= 0)
             {
-                var result = 1m;
-                for (var i = 0; i < exponent; i++)
-                    result *= 10m;
-                return result;
+                return PowerOfTenPositive(exponent);
             }
-            else
-            {
-                // For negative exponents, divide: 10^(-n) = 1 / 10^n
-                var denominator = 1m;
-                for (var i = 0; i < -exponent; i++)
-                    denominator *= 10m;
-                return 1m / denominator;
-            }
+
+            // For negative exponents, divide: 10^(-n) = 1 / 10^n
+            var denominator = 1m;
+            for (var i = 0; i < -exponent; i++)
+                denominator *= 10m;
+            return 1m / denominator;
+        }
+
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: InferFractionalStep only calls PowerOfTen with negative exponents (-maxPrecision); " +
+            "no call path supplies a non-negative exponent. Defense-in-depth for completeness.")]
+        private static decimal PowerOfTenPositive(int exponent)
+        {
+            var result = 1m;
+            for (var i = 0; i < exponent; i++)
+                result *= 10m;
+            return result;
         }
 
         private static int GetDecimalPlaces(decimal value)

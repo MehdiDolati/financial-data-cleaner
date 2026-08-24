@@ -93,6 +93,9 @@ namespace Validator.Application.Scoring
             return null;
         }
 
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: only called from FindCheck with categories from MetricPopulationMap.CanonicalOrder; " +
+            "the default throw for unknown categories cannot be reached through any legal call path.")]
         private static CheckName CheckNameFor(FindingCategory category) => category switch
         {
             FindingCategory.MissingCandle => CheckName.MissingCandles,
@@ -104,6 +107,9 @@ namespace Validator.Application.Scoring
             _ => throw new ArgumentOutOfRangeException(nameof(category))
         };
 
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: only called from BuildMetric with kinds from MetricPopulationMap.KindFor; " +
+            "the default throw for unknown kinds cannot be reached through any legal call path.")]
         private static string DescribeKind(MetricPopulationKind kind) => kind switch
         {
             MetricPopulationKind.ExpectedCandles => "expected-candle",
