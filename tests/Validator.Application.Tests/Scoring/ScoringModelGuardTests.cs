@@ -78,6 +78,136 @@ namespace Validator.Application.Tests.Scoring
             Assert.Equal(MetricScoreState.NotScored, metric.State);
         }
 
+        // --- MetricScore internal constructor guard arms (T038) ---
+
+        [Fact]
+        public void MetricScore_InternalCtor_NegativeCount_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new MetricScore(
+                    FindingCategory.MissingCandle,
+                    MetricScoreState.Scored,
+                    count: -1,
+                    population: 10,
+                    MetricPopulationKind.AcceptedRows,
+                    Score(1, 1),
+                    reason: null));
+        }
+
+        [Fact]
+        public void MetricScore_InternalCtor_ScoredWithNullScore_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new MetricScore(
+                    FindingCategory.MissingCandle,
+                    MetricScoreState.Scored,
+                    count: 1,
+                    population: 10,
+                    MetricPopulationKind.AcceptedRows,
+                    score: null,
+                    reason: null));
+        }
+
+        [Fact]
+        public void MetricScore_InternalCtor_ScoredWithReason_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new MetricScore(
+                    FindingCategory.MissingCandle,
+                    MetricScoreState.Scored,
+                    count: 1,
+                    population: 10,
+                    MetricPopulationKind.AcceptedRows,
+                    Score(1, 1),
+                    reason: "should not have a reason"));
+        }
+
+        [Fact]
+        public void MetricScore_InternalCtor_UnscoredWithScore_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new MetricScore(
+                    FindingCategory.MissingCandle,
+                    MetricScoreState.NotApplicable,
+                    count: 0,
+                    population: null,
+                    MetricPopulationKind.AcceptedRows,
+                    Score(1, 1),
+                    reason: null));
+        }
+
+        [Fact]
+        public void MetricScore_InternalCtor_UnscoredWithBlankReason_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new MetricScore(
+                    FindingCategory.MissingCandle,
+                    MetricScoreState.NotScored,
+                    count: 0,
+                    population: 0,
+                    MetricPopulationKind.ExaminedRows,
+                    score: null,
+                    reason: "   "));
+        }
+
+        [Fact]
+        public void MetricScore_InternalCtor_UnscoredWithNullReason_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new MetricScore(
+                    FindingCategory.MissingCandle,
+                    MetricScoreState.NotScored,
+                    count: 0,
+                    population: 0,
+                    MetricPopulationKind.ExaminedRows,
+                    score: null,
+                    reason: null));
+        }
+
+        // --- DatasetScore internal constructor guard arms (T039) ---
+
+        [Fact]
+        public void DatasetScore_InternalCtor_UnavailableWithBlankReason_Throws()
+        {
+            var allExcluded = MetricPopulationMap.CanonicalOrder
+                .Select(c => new ExcludedMetric(c, MetricScoreState.NotScored, "zero")).ToList();
+
+            Assert.Throws<ArgumentException>(() =>
+                new DatasetScore(
+                    average: null,
+                    metricsCovered: 0,
+                    coveredCategories: [],
+                    excludedCategories: allExcluded,
+                    unavailableReason: "   "));
+        }
+
+        [Fact]
+        public void DatasetScore_InternalCtor_AvailableWithReason_Throws()
+        {
+            var allExcluded = MetricPopulationMap.CanonicalOrder
+                .Select(c => new ExcludedMetric(c, MetricScoreState.NotScored, "zero")).ToList();
+
+            Assert.Throws<ArgumentException>(() =>
+                new DatasetScore(
+                    average: Score(100, 1),
+                    metricsCovered: 6,
+                    coveredCategories: MetricPopulationMap.CanonicalOrder.ToList(),
+                    excludedCategories: allExcluded,
+                    unavailableReason: "should not have a reason"));
+        }
+
+        [Fact]
+        public void DatasetScore_InternalCtor_CoveredPlusExcludedNotSix_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new DatasetScore(
+                    average: Score(100, 1),
+                    metricsCovered: 1,
+                    coveredCategories: [FindingCategory.DuplicateRecord],
+                    excludedCategories: [],
+                    unavailableReason: null));
+        }
+
         // --- ScoreWeighting ---
 
         [Fact]

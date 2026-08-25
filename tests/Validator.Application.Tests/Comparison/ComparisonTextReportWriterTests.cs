@@ -399,6 +399,50 @@ namespace Validator.Application.Tests.Comparison
 
         private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";
 
+        [Fact]
+        public void Write_ExtraRecords_NullCandidateSourceLine_ShowsUnavailable()
+        {
+            var report = CreateReportWithExtraRecords(candidateSourceLine: null);
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("unavailable", text);
+        }
+
+        [Fact]
+        public void Write_ExtraRecords_NonNullCandidateSourceLine_ShowsLineNumber()
+        {
+            var report = CreateReportWithExtraRecords(candidateSourceLine: 42);
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("42", text);
+        }
+
+        private static ComparisonReport CreateReportWithExtraRecords(long? candidateSourceLine)
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+            var extraRecords = new List<TimestampAlignmentReference>
+            {
+                new TimestampAlignmentReference(
+                    new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                    CandidateSourceLine: candidateSourceLine)
+            };
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList();
+            var agreementScore = BenchmarkAgreementScore.Available(5, 0);
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                missingFromCandidateTimestamps: [],
+                extraInCandidateTimestamps: [],
+                candidateScore: null, agreementScore: agreementScore,
+                resolutionTimestamp: DateTimeOffset.UtcNow,
+                missingFromCandidateRecords: [],
+                extraInCandidateRecords: extraRecords);
+        }
+
         #endregion
     }
 }

@@ -245,6 +245,36 @@ namespace Validator.Application.Tests.Scoring
             Assert.Equal(MetricScoreState.NotScored, malformed.State);
             Assert.Contains("examined-row", malformed.Reason!, System.StringComparison.Ordinal);
         }
+
+        // --- Missing check exercises the FindCheck null-return path (T004) ---
+
+        [Fact]
+        public void MissingCheck_StillScoresTheMetricUsingPopulationAndCount()
+        {
+            // When the checks list does not include a check for a given category,
+            // FindCheck returns null and the metric is scored using population and
+            // count directly, rather than being marked NotApplicable.
+            var populations = MetricPopulations.FromScanCoverage(new ScanCoverage(50, 50, 0), expectedCandles: 84);
+
+            // Provide only 5 checks — MissingCandles is absent.
+            var incompleteChecks = new List<CheckExecution>
+            {
+                new(CheckName.DuplicateRecords, CheckStatus.Completed),
+                new(CheckName.InvalidOhlc, CheckStatus.Completed),
+                new(CheckName.ClosedMarketRecords, CheckStatus.Completed),
+                new(CheckName.TimeGaps, CheckStatus.Completed),
+                new(CheckName.MalformedRows, CheckStatus.Completed)
+            };
+
+            var report = ScoreSectionBuilder.Build(
+                Summary(), populations, incompleteChecks, ScoreWeightResolver.Default());
+
+            // MissingCandle should still be scored (not NotApplicable) because
+            // FindCheck returned null and the population is available.
+            var missing = MetricFor(report, FindingCategory.MissingCandle);
+            Assert.Equal(MetricScoreState.Scored, missing.State);
+            Assert.NotNull(missing.Score);
+        }
     }
 }
 

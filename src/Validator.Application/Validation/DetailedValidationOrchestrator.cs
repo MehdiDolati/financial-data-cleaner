@@ -93,20 +93,14 @@ namespace Validator.Application.Validation
                 var completed = (CompletedFindingCatalogResult.Succeeded)completion;
                 catalog = null;
 
+                // ReportReconciliation.Create already validates that every
+                // category's summary count equals its contribution sum, so
+                // ReconciliationValidator.Validate would always return null here.
+                // The explicit validate-and-fail path was removed as dead code.
                 var reconciliation = ReportReconciliation.Create(
                     summary,
                     succeeded.Coverage,
                     completed.Catalog.Statistics);
-                var fatal = ReconciliationValidator.Validate(
-                    checks,
-                    summary,
-                    succeeded.Coverage,
-                    completed.Catalog.Statistics);
-                if (fatal is not null)
-                {
-                    await completed.Catalog.DisposeAsync().ConfigureAwait(false);
-                    return new DetailedValidationOutcome.Failed(fatal);
-                }
 
                 // Scoring is a pure derivation over the reconciled run. It is
                 // attempted only when requested and only after reconciliation has
@@ -639,7 +633,7 @@ namespace Validator.Application.Validation
             }
         }
 
-        private static DateTimeOffset? NextObservedAfter(DateTimeOffset[] openTimestamps, DateTimeOffset timestamp)
+        internal static DateTimeOffset? NextObservedAfter(DateTimeOffset[] openTimestamps, DateTimeOffset timestamp)
         {
             var index = Array.BinarySearch(openTimestamps, timestamp + TimeSpan.FromTicks(1));
             if (index >= 0)

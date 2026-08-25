@@ -432,6 +432,45 @@ public sealed class DetailedValidationOrchestratorTests
     }
 
     [Fact]
+    public void NextObservedAfter_ExactMatch_ReturnsMatchedTimestamp()
+    {
+        // Construct timestamps 1 tick apart so BinarySearch finds an exact match
+        var t1 = new DateTimeOffset(2024, 8, 1, 10, 0, 0, TimeSpan.Zero);
+        var t2 = t1 + TimeSpan.FromTicks(1);
+        var timestamps = new[] { t1, t2 };
+
+        // NextObservedAfter searches for timestamp+1tick; when t1+1tick == t2, it's an exact match
+        var result = DetailedValidationOrchestrator.NextObservedAfter(timestamps, t1);
+
+        Assert.Equal(t2, result);
+    }
+
+    [Fact]
+    public void NextObservedAfter_GapAtEnd_ReturnsNull()
+    {
+        var t1 = new DateTimeOffset(2024, 8, 1, 10, 0, 0, TimeSpan.Zero);
+        var timestamps = new[] { t1 };
+
+        // Search for t1+1tick which is past the last element; insertionPoint == Length → null
+        var result = DetailedValidationOrchestrator.NextObservedAfter(timestamps, t1);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void NextObservedAfter_NormalCase_ReturnsNextTimestamp()
+    {
+        var t1 = new DateTimeOffset(2024, 8, 1, 10, 0, 0, TimeSpan.Zero);
+        var t2 = new DateTimeOffset(2024, 8, 1, 12, 0, 0, TimeSpan.Zero);
+        var timestamps = new[] { t1, t2 };
+
+        // Search for t1+1tick which falls between t1 and t2 → insertionPoint points to t2
+        var result = DetailedValidationOrchestrator.NextObservedAfter(timestamps, t1);
+
+        Assert.Equal(t2, result);
+    }
+
+    [Fact]
     public async Task Execute_EmptyDataset_ReturnsAmbiguousTimeframeFatal()
     {
         var source = new FakePreparedSource([], [], SucceededResult([], [], Coverage(0, 0)));
@@ -467,6 +506,8 @@ public sealed class DetailedValidationOrchestratorTests
         Assert.Equal("INVALID_ARGUMENT", failed.Diagnostic.Code);
         Assert.Equal(FailureStage.ArgumentValidation, failed.Diagnostic.Stage);
     }
+
+
 
     private static async Task<List<IDetailedFindingCursor>> ReadAllCursorsAsync(ICompletedFindingCatalog catalog)
     {
@@ -586,4 +627,5 @@ public sealed class DetailedValidationOrchestratorTests
 
         public bool IsOpen(DateTimeOffset timestamp) => timestamp.Hour != _closedHour;
     }
+
 }

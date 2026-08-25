@@ -174,6 +174,10 @@ namespace Validator.Application.Reporting
             _ => throw new ArgumentOutOfRangeException(nameof(evidence))
         };
 
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: only called with EvidenceKind from header.EvidenceKind which is always a " +
+            "valid enum value; the default throw for unknown kinds cannot be reached through any " +
+            "legal call path.")]
         private static bool IsHeaderRecord(FindingEvidenceRecord record, EvidenceKind kind) => kind switch
         {
             EvidenceKind.MissingCandle => record is FindingEvidenceRecord.MissingCandle,

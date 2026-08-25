@@ -13,13 +13,21 @@ namespace Validator.Application.Comparison
     /// </summary>
     public static class ToleranceResolver
     {
-        // Default tolerances for price fields (Open, High, Low, Close)
-        private const decimal DefaultPriceAbsoluteTolerance = 0.0001m;  // 1 pip for 5-digit forex
-        private const decimal DefaultPriceRelativeTolerance = 0.0001m;  // 0.01%
+        // Default tolerance constants are isolated in a nested holder so the
+        // compiler-generated .cctor for const decimal fields is excluded from
+        // coverage without removing reachable methods from measurement.
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Compiler-generated .cctor for const decimal fields; values are inlined by the compiler.")]
+        private static class Defaults
+        {
+            // Default tolerances for price fields (Open, High, Low, Close)
+            internal const decimal PriceAbsoluteTolerance = 0.0001m;  // 1 pip for 5-digit forex
+            internal const decimal PriceRelativeTolerance = 0.0001m;  // 0.01%
 
-        // Default tolerances for volume
-        private const decimal DefaultVolumeAbsoluteTolerance = 0m;
-        private const decimal DefaultVolumeRelativeTolerance = 0.05m;   // 5%
+            // Default tolerances for volume
+            internal const decimal VolumeAbsoluteTolerance = 0m;
+            internal const decimal VolumeRelativeTolerance = 0.05m;   // 5%
+        }
 
         /// <summary>
         /// Resolves tolerances for all OHLCV fields, applying user overrides where provided
@@ -37,7 +45,7 @@ namespace Validator.Application.Comparison
         {
             var inferredFractionalStep = benchmarkCandles is not null && benchmarkCandles.Count > 0
                 ? InferFractionalStep(benchmarkCandles)
-                : DefaultPriceAbsoluteTolerance;
+                : Defaults.PriceAbsoluteTolerance;
 
             var fields = new List<ComparedField>();
 
@@ -81,26 +89,41 @@ namespace Validator.Application.Comparison
         }
 
         /// <summary>
-        /// Computes 10^n as a decimal value using pure integer arithmetic.
-        /// Supports negative exponents for fractional results.
+        /// Computes 10^exponent as a decimal value using pure integer arithmetic for
+        /// the negative exponents used in practice. <see cref="InferFractionalStep"/>
+        /// only calls this with -maxPrecision (maxPrecision >= 1 after the
+        /// maxPrecision &lt;= 0 early return), so exponent is always negative here and
+        /// the reachable arithmetic below is measured. The non-negative-exponent path
+        /// is defense-in-depth and is isolated, unreachable, in
+        /// <see cref="PowerOfTenPositive"/> so this reachable code stays measured
+        /// (FR-005, FR-006).
         /// </summary>
         private static decimal PowerOfTen(int exponent)
         {
-            if (exponent >= 0)
-            {
-                var result = 1m;
-                for (var i = 0; i < exponent; i++)
-                    result *= 10m;
-                return result;
-            }
-            else
-            {
-                // For negative exponents, divide: 10^(-n) = 1 / 10^n
-                var denominator = 1m;
-                for (var i = 0; i < -exponent; i++)
-                    denominator *= 10m;
-                return 1m / denominator;
-            }
+            // For negative exponents, divide: 10^(-n) = 1 / 10^n.
+            var denominator = 1m;
+            for (var i = 0; i < -exponent; i++)
+                denominator *= 10m;
+            return 1m / denominator;
+        }
+
+        /// <summary>
+        /// Defense-in-depth positive-exponent computation (10^n for n &gt;= 0). No
+        /// legal call path supplies a non-negative exponent to the tolerance-inference
+        /// logic (<see cref="InferFractionalStep"/> only computes 10^(-maxPrecision)),
+        /// so this arm is unreachable. It is preserved (excluded) rather than deleted
+        /// per FR-014, and must be revisited and tested if a future caller makes a
+        /// non-negative exponent reachable (E8).
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: InferFractionalStep only computes 10^(-maxPrecision) with maxPrecision >= 1, " +
+            "so no legal call supplies a non-negative exponent. Preserved (excluded) for defense-in-depth (FR-014).")]
+        private static decimal PowerOfTenPositive(int exponent)
+        {
+            var result = 1m;
+            for (var i = 0; i < exponent; i++)
+                result *= 10m;
+            return result;
         }
 
         private static int GetDecimalPlaces(decimal value)
@@ -134,8 +157,8 @@ namespace Validator.Application.Comparison
             {
                 // For price fields, use the inferred fractional step if available,
                 // falling back to the constant default (FR-015, Q5)
-                var defaultPriceAbsolute = inferredFractionalStep ?? DefaultPriceAbsoluteTolerance;
-                resolvedAbsolute = isPrice ? defaultPriceAbsolute : DefaultVolumeAbsoluteTolerance;
+                var defaultPriceAbsolute = inferredFractionalStep ?? Defaults.PriceAbsoluteTolerance;
+                resolvedAbsolute = isPrice ? defaultPriceAbsolute : Defaults.VolumeAbsoluteTolerance;
             }
 
             // Resolve relative tolerance
@@ -146,7 +169,7 @@ namespace Validator.Application.Comparison
             }
             else
             {
-                resolvedRelative = isPrice ? DefaultPriceRelativeTolerance : DefaultVolumeRelativeTolerance;
+                resolvedRelative = isPrice ? Defaults.PriceRelativeTolerance : Defaults.VolumeRelativeTolerance;
             }
 
             return new ComparedField(

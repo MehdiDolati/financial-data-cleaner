@@ -6,38 +6,12 @@ name: Coverage
 # directly while the Infrastructure and CLI suites exercise them through the real
 # pipeline; gating a single suite would understate what is actually covered.
 #
-# The target for both projects is 100% line and branch. Domain is there today.
-# Application stands at 99.08% line / 97.46% branch, for a merged total of
-# 99.28% / 97.97%. The remaining uncovered lines are defensive arms that
-# no composition can reach, and they fall into groups:
-#
-#   * Private-constructor invariants. MetricScore and DatasetScore are only
-#     reachable through factories that already pass a valid combination, so the
-#     arms rejecting "scored but no value" or "available but carrying an
-#     unavailability reason" cannot be provoked from outside.
-#   * Closed-union default arms. CheckNameFor, DescribeKind, CategoryIndex and
-#     IsHeaderRecord switch over fixed sets and throw on anything else.
-#   * Guards a real run reaches only in the wrong order. The orchestrator's
-#     reconciliation gate is unreachable because ReportReconciliation.Create
-#     refuses a disagreeing catalog before the gate is consulted.
-#   * Async state-machine internals in DetailedValidationOrchestrator.MoveNext
-#     and NextObservedAfter that are reached only through specific pipeline
-#     compositions not present in the test suites.
-#   * ToleranceResolver's static constructor, PowerOfTen positive-exponent
-#     loop, and ParseOhlcvField default throw arm.
-#
-# Deleting them to reach a round number would remove the second line of defence,
-# so they are kept and the gate is set just below the measured figure as a
-# ratchet against regression. Run tools/coverage-gaps.ps1 to enumerate them.
-#
-# The gate sits roughly two tenths under the measured figure. That is deliberate:
-# close enough that losing a covered path trips it, but not so close that the
-# build depends on the last decimal place of a percentage.
-#
-# When this figure moves, re-measure with tools/coverage-run.ps1 and move the
-# gate with it rather than leaving a threshold no run can satisfy: a gate above
-# the achievable number fails every build without identifying a real defect.
-
+# The gate enforces a true 100% line and 100% branch over all *reachable*
+# Domain+Application code. Genuinely-unreachable defensive arms (private-constructor
+# invariants, compiler-generated async state-machine helpers, and other provably
+# unreachable branches) are individually excluded with documented justifications
+# via [ExcludeFromCodeCoverage(Justification=…)]. See docs/coverage-exclusion-policy.md
+# for the ordered decision rule (test → restructure → exclude).
 
 
 on:
@@ -60,7 +34,7 @@ jobs:
         run: dotnet restore FinancialDataCleaner.slnx
       - name: Run tests with merged coverage and enforce the gate
         shell: pwsh
-        run: ./tools/coverage-run.ps1 -LineThreshold 99.2 -BranchThreshold 97.9
+        run: ./tools/coverage-run.ps1 -LineThreshold 100 -BranchThreshold 100
 
       - name: Publish coverage report
         if: always()
