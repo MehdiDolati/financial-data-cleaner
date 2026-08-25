@@ -46,6 +46,17 @@ namespace Validator.Application.Tests.Comparison
                 new CandidateIdentity(new SourceIdentity("test.csv", 1, Sha256), CreateContext(), "AUD/USD"));
         }
 
+        // --- GetFieldValue out-of-range OhlcvField default arm ---
+
+        [Fact]
+        public void GetFieldValue_OutOfRangeOhlcvField_Throws()
+        {
+            var candle = new PriceCandle(
+                DateTimeOffset.UtcNow, 1.0m, 1.1m, 0.9m, 1.05m, 1000, 1);
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                CompareDatasetsUseCase.GetFieldValue(candle, (OhlcvField)99));
+        }
+
         // --- ToleranceResolver.ParseOverrides (exercises ParseOhlcvField internally) ---
 
         [Fact]

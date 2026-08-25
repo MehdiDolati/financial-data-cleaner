@@ -243,10 +243,6 @@ namespace Validator.Application.Comparison
         /// <summary>
         /// Gets a field value from a PriceCandle.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
-            "Unreachable: only called from Compare() with valid OhlcvField values from the iteration " +
-            "over configuration.Fields; the default throw for unknown fields cannot be reached through " +
-            "any legal call path.")]
         internal static decimal GetFieldValue(PriceCandle candle, OhlcvField field) => field switch
         {
             OhlcvField.Open => candle.Open,

@@ -63,6 +63,12 @@ Demonstrate the gate has teeth:
    now-uncovered line.
 3. Restore the test; re-run → back to exit `0`.
 
+**Recorded outcome (2026-08-25)**: Skipped `MetricPopulations_ForAnUnknownKind_Throws`
+(exercises `(MetricPopulationKind)99` out-of-range enum cast on the `MetricPopulations.For`
+closed-union default arm). Result: exit code 1; merged coverage dropped to **99.97% line /
+99.93% branch**, below the 100/100 threshold. After restoring the test, exit code 0 and
+100%/100% restored. The gate correctly detects a reachable-line regression.
+
 ## Scenario 4 — Every exclusion is justified and enumerable (US3, SC-002, FR-004/008)
 
 ```powershell
@@ -112,10 +118,10 @@ behavior — only tests, exclusion annotations, a raised gate, and documentation
 
 ## Success checklist
 
-- [ ] Merged gate passes at `-LineThreshold 100 -BranchThreshold 100` (Scenario 1)
-- [ ] No sub-100% threshold or "ratchet" wording remains (Scenario 2)
-- [ ] Removing coverage from a reachable line fails the gate (Scenario 3)
-- [ ] Justification reflection test passes and enumerates all exclusions (Scenario 4)
-- [ ] Decision-rule doc yields the correct disposition for all three cases (Scenario 5)
-- [ ] README, coverage.yml, and constitution agree (Scenario 6)
-- [ ] Full solution test run is green; no product behavior changed (Scenario 7)
+- [x] Merged gate passes at `-LineThreshold 100 -BranchThreshold 100` (Scenario 1)
+- [x] No sub-100% threshold or "ratchet" wording remains (Scenario 2)
+- [x] Removing coverage from a reachable line fails the gate (Scenario 3)
+- [x] Justification reflection test passes and enumerates all exclusions (Scenario 4)
+- [x] Decision-rule doc yields the correct disposition for all three cases (Scenario 5)
+- [x] README, coverage.yml, and constitution agree (Scenario 6)
+- [x] Full solution test run is green; no product behavior changed (Scenario 7)

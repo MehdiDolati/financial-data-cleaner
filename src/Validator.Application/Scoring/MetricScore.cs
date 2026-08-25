@@ -26,11 +26,6 @@ namespace Validator.Application.Scoring
         public string? Reason { get; }
 
         [System.Text.Json.Serialization.JsonConstructor]
-        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
-            "Unreachable: the factory methods Scored(), NotApplicable(), and NotScored() enforce the " +
-            "state+value invariant before calling this constructor; the score/reason guard arms are " +
-            "defense-in-depth against malformed JSON deserialization and cannot be reached through any " +
-            "legal call path.")]
         internal MetricScore(
             FindingCategory category,
             MetricScoreState state,
