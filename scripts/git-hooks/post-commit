@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# post-commit hook — remind to push before switching machines
+#
+# Shows a subtle reminder after each commit that the user should push
+# before switching to another machine. Especially useful when switching
+# between PC and laptop.
+# ---------------------------------------------------------------------------
+
+REMOTE="$(git remote 2>/dev/null)"
+[ -z "$REMOTE" ] && exit 0
+
+BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null)"
+[ -z "$BRANCH" ] && exit 0
+
+# Don't remind on detached HEAD or if there's nothing to push
+AHEAD="$(git rev-list --count ${REMOTE}/${BRANCH}..HEAD 2>/dev/null)"
+if [ "$AHEAD" -gt 0 ]; then
+    printf "\n\033[2m💡 Tip: \033[33m%s unpushed commit(s)\033[0m \033[2mon '%s'. Push before switching machines.\033[0m\n\n" "$AHEAD" "$BRANCH"
+fi
+
+exit 0
