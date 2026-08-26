@@ -406,7 +406,9 @@
         "expectedTimeframe": { "$ref": "#/$defs/timeframeCode" },
         "timeGapReference": { "$ref": "#/$defs/nonEmptyString" },
         "previousObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
-        "nextObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" }
+        "nextObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "previousObservedSourceLine": { "$ref": "#/$defs/positiveInteger" },
+        "nextObservedSourceLine": { "$ref": "#/$defs/positiveInteger" }
       }
     },
     "timeGapEvidence": {
@@ -430,6 +432,8 @@
         "elapsedSeconds": { "$ref": "#/$defs/positiveInteger" },
         "previousObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
         "nextObservedTimestampUtc": { "$ref": "#/$defs/utcTimestamp" },
+        "previousObservedSourceLine": { "$ref": "#/$defs/positiveInteger" },
+        "nextObservedSourceLine": { "$ref": "#/$defs/positiveInteger" },
         "missingCandleReferences": {
           "type": "array",
           "minItems": 1,
