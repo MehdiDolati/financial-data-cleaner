@@ -179,7 +179,11 @@ derived from canonical source order. Public references never use random values.
 | `OriginalTimestampText` | string? | Present only when recovered from a source row. |
 
 No line number is invented for an expected-but-absent candle. Source lines may
-exceed 32-bit range.
+exceed 32-bit range. An absence is instead located through the bracketing
+observed source lines carried in `MissingCandleEvidence` and `TimeGapEvidence`
+(FR-039); those lines belong to real neighbouring rows and never enter this
+`SourceLines` sequence, which continues to describe only the finding's own
+physical rows.
 
 ### `FindingRelationship`
 
@@ -219,6 +223,13 @@ one duplicate group or gap from creating an unbounded object in memory.
 | `TimeGapReference` | `FindingReference` |
 | `PreviousObservedTimestampUtc` | UTC instant? |
 | `NextObservedTimestampUtc` | UTC instant? |
+| `PreviousObservedSourceLine` | positive `long`? |
+| `NextObservedSourceLine` | positive `long`? |
+
+Each bracketing source line is present exactly when its paired observed
+timestamp is present, and is the physical line of that observed record. Every
+missing candle in one gap carries the same pair as its owning gap. A boundary gap
+leaves the unavailable side absent rather than zero or negative (FR-040).
 
 ### `TimeGapEvidence`
 
@@ -231,11 +242,19 @@ one duplicate group or gap from creating an unbounded object in memory.
 | `ElapsedSeconds` | positive `long` |
 | `PreviousObservedTimestampUtc` | UTC instant? |
 | `NextObservedTimestampUtc` | UTC instant? |
+| `PreviousObservedSourceLine` | positive `long`? |
+| `NextObservedSourceLine` | positive `long`? |
 | `MissingCandleReferences` | replayable ordered sequence |
 
 `MissingCandleCount` equals the number of child references and the number of
 related `MissingCandle` entries, without changing the gap's own contribution of
 one.
+
+When a bracketing timestamp occurs on several physical rows, the line resolves to
+the tightest bracket: the highest line sharing the preceding timestamp and the
+lowest line sharing the following timestamp. Because unsorted input is accepted,
+the two lines are not required to be consecutive or ascending — they identify the
+temporal neighbours, not the physically adjacent rows.
 
 ### `DuplicateRecordEvidence`
 

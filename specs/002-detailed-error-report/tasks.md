@@ -77,6 +77,32 @@ Independent test criteria: Re-running the same input/config produces byte-identi
 - [X] T027 Implement stable FindingReference generation and deterministic tie-breaker ordering to satisfy T026 in src/Validator.Application/Reporting/FindingReferenceFactory.cs
 - [X] T028 [US4] Add an automated repeatability test that hashes two separate runs' v2 outputs and asserts identical hashes in tests/Validator.Cli.Tests/RepeatabilityTests.cs
 
+Phase 6a - User Story 5 (P3) - Jump Straight to Where an Absent Record Belongs
+
+Goal: Let a user locate an expected-but-absent record by reporting the physical source lines of the two nearest observed records bracketing the absence, without inventing a line for the absent record (FR-039, FR-040, SC-009).
+
+Origin: bug triage `.specify/bugs/missing-candle-null-line/assessment.md` (verdict: not a bug; the underlying need became this story).
+
+Independent test criteria: For a fixture with a known interior gap, every missing-candle and time-gap finding reports bracketing source lines that exist in the source file and bracket the expected timestamp; a boundary gap reports the unavailable side as absent; JSON v1 output stays byte-identical.
+
+- [X] T050 [P] [US5] Write failing unit tests for `MissingCandleEvidence` and `TimeGapEvidence` bracketing source lines — a line is present exactly when its paired observed timestamp is present, absent at a boundary, and rejected when zero or negative — in tests/Validator.Domain.Tests/Findings/Evidence/AbsenceAnchorEvidenceTests.cs
+- [X] T051 [US5] Add optional positive `PreviousObservedSourceLine`/`NextObservedSourceLine` to src/Validator.Domain/Findings/Evidence/MissingCandleEvidence.cs and src/Validator.Domain/Findings/Evidence/TimeGapEvidence.cs to satisfy T050, keeping `FindingLocation.SourceLines` empty for absent records per FR-016
+  - The paired-presence and positivity rule is enforced once in a shared `AbsenceAnchor` guard rather than restated in both records, so the two evidence types cannot drift apart on the same invariant.
+- [X] T052 [P] [US5] Write a failing unit test asserting the tightest-bracket rule resolves a duplicated bracketing timestamp to the highest preceding line and the lowest following line, and that an unsorted source still yields the temporal neighbours' lines (which may be non-consecutive or descending), in tests/Validator.Application.Tests/Validation/AbsenceAnchorResolutionTests.cs
+- [X] T053 [US5] Propagate the bracketing observed lines through src/Validator.Application/Validation/MissingCandleProcessor.cs and src/Validator.Application/Validation/TimeGapProcessor.cs, and resolve them from the observed records in src/Validator.Application/Validation/DetailedValidationOrchestrator.cs, to satisfy T052 — every missing candle in a gap receives the same pair as its owning gap
+  - Resolution is a new `AbsenceAnchorResolver` built from the observed rows, so a reported line always belongs to a row that exists in the file. Malformed rows that parsed a timestamp are anchored too: they occupy the expected slot that ends a gap, so omitting them would have reported a line inconsistent with the gap boundary.
+- [X] T054 [P] [US5] Write a failing contract test asserting v2 JSON emits `previousObservedSourceLine`/`nextObservedSourceLine` on missing-candle and time-gap evidence, omits either at a dataset boundary, preserves values above `Int32.MaxValue` as JSON integers, and still validates against contracts/detailed-report-v2.schema.json, in tests/Validator.Infrastructure.Tests/Reporting/DetailedReportV2WriterTests.cs
+- [X] T055 [US5] Emit the bracketing lines from src/Validator.Infrastructure/Reporting/DetailedReportV2Writer.cs to satisfy T054
+  - The schema already declared both fields as `positiveInteger`, so no contract amendment was required.
+- [X] T056 [P] [US5] Write a failing test asserting verbose text labels both bracketing lines for a missing candle and a gap, labels the unavailable side `not applicable`, and still states that no physical source line exists for the absent record, in tests/Validator.Infrastructure.Tests/Reporting/VerboseReportWriterTests.cs
+- [X] T057 [US5] Render the labelled bracketing lines in src/Validator.Infrastructure/Reporting/VerboseReportWriter.cs to satisfy T056, per contracts/cli.md
+- [X] T058 [P] [US5] Write a failing end-to-end test over an interior-gap fixture asserting both reported lines exist in the source file and bracket the expected timestamp, a boundary-gap fixture omits the unavailable side, and JSON v1 output plus all six summary counts, finding order, and exit codes are byte-identical to a pre-change run (FR-035, FR-037, SC-009), in tests/Validator.Cli.Tests/AbsenceAnchorE2ETests.cs
+  - The end-to-end assertions resolve each reported line back to a real row in the fixture and check that the row's own timestamp falls on the correct side of the absence, so a line that merely exists but does not bracket the gap still fails.
+- [X] T059 [US5] Close any Domain/Application coverage gap opened by T051–T053 so `tools/coverage-run.ps1 -LineThreshold 100 -BranchThreshold 100` still exits 0, adding tests first and using `[ExcludeFromCodeCoverage(Justification=…)]` only for provably unreachable arms per docs/coverage-exclusion-policy.md
+  - **Complete with no new exclusions.** Merged coverage reports Validator.Domain and Validator.Application at 100% line and 100% branch, and `tools/coverage-gaps.ps1` reports zero gaps. Every new arm — including each rejection path of the shared guard and every no-line branch of the resolver — is closed by a test rather than suppressed.
+
+Checkpoint: An absence can be located from the report alone in both v2 JSON and verbose text; v1 remains untouched. **Reached.** Full suite: 1,237 tests passing (Domain 258, Application 743, Infrastructure 103, CLI 133); `dotnet build` clean with zero warnings.
+
 Phase 7 - Compatibility, Scale, and Polish
 
 - [X] T047 [P] Create failing compatibility tests for concise text preservation, `--verbose` detailed text, unversioned JSON v1, explicit JSON v2 opt-in, and substantive verbose/v2 parity in tests/Validator.Cli.Tests/ReportCompatibilityTests.cs
@@ -101,10 +127,11 @@ Dependencies
 - T011, T012, T014, T015, and T016 must complete before T017 and T049.
 - T012 and T014-T016 must complete before US2 and US3 integration paths.
 - US1 T011-T018 is the MVP path and should be prioritized; US2 and US3 extend the same catalog, spool, reconciliation, and report-outcome pipeline.
+- US5 (T050-T059) depends on US2's completed missing-candle/time-gap evidence path (T022, T043) and is otherwise independent of US1/US3/US4. Its test-first pairs are T050->T051, T052->T053, T054->T055, and T056->T057; T051 and T053 must both complete before T054-T057; T058 and T059 run last and gate the story.
 
 Parallel opportunities
 
-- Tasks marked [P] can be worked in parallel when their listed dependencies are satisfied: independent model/evidence tests, source/spool integration tests, catalog tests, external-spool tests, evidence tests, compatibility tests, and documentation.
+- Tasks marked [P] can be worked in parallel when their listed dependencies are satisfied: independent model/evidence tests, source/spool integration tests, catalog tests, external-spool tests, evidence tests, compatibility tests, and documentation. Within US5, the failing tests T050, T052, T054, T056, and T058 can be written in parallel; their paired implementations are sequential.
 
 MVP suggestion
 
@@ -115,7 +142,7 @@ Format validation
 - All tasks follow the required checklist format with Task IDs, story labels for user-story phases, test-first implementation ordering, and explicit file paths.
 
 Generated file: D:\financial-data-cleaner\specs\002-detailed-error-report\tasks.md
-Total tasks: 49
+Total tasks: 59
 Tasks per story/phase:
 - Setup: 2
 - Foundational: 13
@@ -123,8 +150,11 @@ Tasks per story/phase:
 - US2: 7
 - US3: 6
 - US4: 3
+- US5: 10
 - Compatibility/Scale/Polish: 8
-Parallel opportunities identified: 11 tasks marked [P]
+Parallel opportunities identified: 16 tasks marked [P]
 Suggested MVP scope: Foundational tasks plus User Story 1 (T011-T018)
 
 Next steps: begin with the failing foundational tests, then implement their paired models and adapters. Run T011 before the US1 report pipeline is considered complete.
+
+US5 was added on 2026-08-26 from bug triage `.specify/bugs/missing-candle-null-line/assessment.md`. The reported symptom (`line: null` on every finding) was confirmed to be specified behavior, not a defect; the remaining gap — locating an absent record in the source file — became this story. Start at T050.

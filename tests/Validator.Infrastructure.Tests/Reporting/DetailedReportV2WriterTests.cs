@@ -380,4 +380,128 @@ public sealed class DetailedReportV2WriterTests
 
         Assert.Equal(first, destination.ToString());
     }
+
+    // US5 (T054): an absence is located through the bracketing observed source
+    // lines, which are emitted on both missing-candle and time-gap evidence,
+    // omitted at a dataset boundary, and preserved beyond the 32-bit range.
+    private static async Task<string> RenderAbsenceAsync(
+        long? previousLine,
+        long? nextLine,
+        DateTimeOffset? previousObserved,
+        DateTimeOffset? nextObserved)
+    {
+        await using var owner = CreateCatalog();
+
+        await owner.AppendFindingAsync(new DetailedFindingHeader(
+            CandleRef,
+            FindingCategory.MissingCandle,
+            "Missing candle",
+            "An expected candle is absent from the source.",
+            1,
+            new FindingLocation(null, Utc(11)),
+            EvidenceKind.MissingCandle,
+            "Backfill the expected candle from the upstream feed."));
+        await owner.AppendEvidenceAsync(new FindingEvidenceRecord.MissingCandle(
+            CandleRef,
+            new MissingCandleEvidence(
+                Utc(11), H1, GapRef, previousObserved, nextObserved, previousLine, nextLine)));
+
+        await owner.AppendFindingAsync(new DetailedFindingHeader(
+            GapRef,
+            FindingCategory.TimeGap,
+            "Time gap",
+            "A contiguous run of expected candles is absent.",
+            1,
+            new FindingLocation(null, Utc(11)),
+            EvidenceKind.TimeGap,
+            "Investigate data discontinuities around the gap."));
+        await owner.AppendEvidenceAsync(new FindingEvidenceRecord.TimeGapHeader(
+            GapRef,
+            new TimeGapEvidence(
+                Utc(11), Utc(11), H1, 1, 3600, previousObserved, nextObserved, previousLine, nextLine)));
+        await owner.AppendEvidenceAsync(new FindingEvidenceRecord.TimeGapMissingReference(GapRef, CandleRef, 0));
+
+        var completion = await owner.CompleteAsync();
+        var catalog = Assert.IsType<CompletedFindingCatalogResult.Succeeded>(completion).Catalog;
+
+        var summary = new DetailedSummary(1, 0, 0, 0, 1, 0);
+        var coverage = new ScanCoverage(3, 3, 0);
+        var report = new DetailedValidationReport(
+            new SourceIdentity("prices.csv", 4096, Sha256),
+            Context(),
+            coverage,
+            AllCompleted(),
+            summary,
+            ReportReconciliation.Create(summary, coverage, catalog.Statistics),
+            catalog);
+
+        using var destination = new StringWriter();
+        await new DetailedReportV2Writer().WriteAsync(report, destination);
+        return destination.ToString();
+    }
+
+    [Fact]
+    public async Task WriteAsync_EmitsBracketingSourceLinesOnAbsenceEvidence()
+    {
+        var json = await RenderAbsenceAsync(7, 9, Utc(10), Utc(12));
+
+        using var document = JsonDocument.Parse(json);
+
+        var candle = FindingByReference(document, CandleRef).GetProperty("evidence");
+        Assert.Equal(7, candle.GetProperty("previousObservedSourceLine").GetInt64());
+        Assert.Equal(9, candle.GetProperty("nextObservedSourceLine").GetInt64());
+
+        var gap = FindingByReference(document, GapRef).GetProperty("evidence");
+        Assert.Equal(7, gap.GetProperty("previousObservedSourceLine").GetInt64());
+        Assert.Equal(9, gap.GetProperty("nextObservedSourceLine").GetInt64());
+
+        // The absent record still cites no physical line of its own (FR-016).
+        Assert.Empty(FindingByReference(document, CandleRef)
+            .GetProperty("location")
+            .GetProperty("sourceLines")
+            .EnumerateArray());
+    }
+
+    [Fact]
+    public async Task WriteAsync_OmitsTheUnavailableSideAtADatasetBoundary()
+    {
+        var startBoundary = await RenderAbsenceAsync(null, 9, null, Utc(12));
+        using (var document = JsonDocument.Parse(startBoundary))
+        {
+            foreach (var reference in new[] { CandleRef, GapRef })
+            {
+                var evidence = FindingByReference(document, reference).GetProperty("evidence");
+                Assert.False(evidence.TryGetProperty("previousObservedSourceLine", out _));
+                Assert.Equal(9, evidence.GetProperty("nextObservedSourceLine").GetInt64());
+            }
+        }
+
+        var endBoundary = await RenderAbsenceAsync(7, null, Utc(10), null);
+        using (var document = JsonDocument.Parse(endBoundary))
+        {
+            foreach (var reference in new[] { CandleRef, GapRef })
+            {
+                var evidence = FindingByReference(document, reference).GetProperty("evidence");
+                Assert.Equal(7, evidence.GetProperty("previousObservedSourceLine").GetInt64());
+                Assert.False(evidence.TryGetProperty("nextObservedSourceLine", out _));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task WriteAsync_PreservesBracketingLinesAboveInt32MaxValueAsJsonIntegers()
+    {
+        const long huge = (long)int.MaxValue + 42;
+        var json = await RenderAbsenceAsync(huge, huge + 1, Utc(10), Utc(12));
+
+        using var document = JsonDocument.Parse(json);
+        var gap = FindingByReference(document, GapRef).GetProperty("evidence");
+
+        Assert.Equal(JsonValueKind.Number, gap.GetProperty("previousObservedSourceLine").ValueKind);
+        Assert.Equal(huge, gap.GetProperty("previousObservedSourceLine").GetInt64());
+        Assert.Equal(huge + 1, gap.GetProperty("nextObservedSourceLine").GetInt64());
+
+        // The raw text carries the full value, so no 32-bit truncation occurred.
+        Assert.Contains(huge.ToString(System.Globalization.CultureInfo.InvariantCulture), json);
+    }
 }

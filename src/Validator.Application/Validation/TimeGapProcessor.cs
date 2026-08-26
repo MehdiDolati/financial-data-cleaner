@@ -29,7 +29,9 @@ namespace Validator.Application.Validation
             DateTimeOffset previousObservedUtc,
             DateTimeOffset nextObservedUtc,
             Timeframe timeframe,
-            out TimeGapEvidenceSet? gap)
+            out TimeGapEvidenceSet? gap,
+            long? previousObservedSourceLine = null,
+            long? nextObservedSourceLine = null)
         {
             if (timeframe is null)
             {
@@ -66,7 +68,9 @@ namespace Validator.Application.Validation
                 missingCount,
                 (long)elapsed.TotalSeconds,
                 previousObservedUtc,
-                nextObservedUtc);
+                nextObservedUtc,
+                previousObservedSourceLine,
+                nextObservedSourceLine);
 
             var records = new List<FindingEvidenceRecord>
             {
@@ -79,7 +83,9 @@ namespace Validator.Application.Validation
                 previousObservedUtc,
                 nextObservedUtc,
                 timeframe,
-                reference))
+                reference,
+                previousObservedSourceLine,
+                nextObservedSourceLine))
             {
                 records.Add(new FindingEvidenceRecord.TimeGapMissingReference(
                     reference,
@@ -112,7 +118,15 @@ namespace Validator.Application.Validation
             DateTimeOffset previousObservedUtc,
             DateTimeOffset nextObservedUtc,
             Timeframe timeframe,
-            FindingReference gapReference) =>
-            MissingCandleProcessor.Generate(previousObservedUtc, nextObservedUtc, timeframe, gapReference);
+            FindingReference gapReference,
+            long? previousObservedSourceLine = null,
+            long? nextObservedSourceLine = null) =>
+            MissingCandleProcessor.Generate(
+                previousObservedUtc,
+                nextObservedUtc,
+                timeframe,
+                gapReference,
+                previousObservedSourceLine,
+                nextObservedSourceLine);
     }
 }

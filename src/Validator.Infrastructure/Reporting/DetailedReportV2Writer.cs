@@ -372,6 +372,8 @@ namespace Validator.Infrastructure.Reporting
             json.WriteString("timeGapReference", evidence.TimeGapReference.Value);
             WriteOptionalTimestamp(json, "previousObservedTimestampUtc", evidence.PreviousObservedTimestampUtc);
             WriteOptionalTimestamp(json, "nextObservedTimestampUtc", evidence.NextObservedTimestampUtc);
+            WriteOptionalSourceLine(json, "previousObservedSourceLine", evidence.PreviousObservedSourceLine);
+            WriteOptionalSourceLine(json, "nextObservedSourceLine", evidence.NextObservedSourceLine);
         }
 
         private static void WriteTimeGapEvidence(Utf8JsonWriter json, List<FindingEvidenceRecord> records)
@@ -384,6 +386,8 @@ namespace Validator.Infrastructure.Reporting
             json.WriteNumber("elapsedSeconds", evidence.ElapsedSeconds);
             WriteOptionalTimestamp(json, "previousObservedTimestampUtc", evidence.PreviousObservedTimestampUtc);
             WriteOptionalTimestamp(json, "nextObservedTimestampUtc", evidence.NextObservedTimestampUtc);
+            WriteOptionalSourceLine(json, "previousObservedSourceLine", evidence.PreviousObservedSourceLine);
+            WriteOptionalSourceLine(json, "nextObservedSourceLine", evidence.NextObservedSourceLine);
 
             json.WriteStartArray("missingCandleReferences");
             foreach (var record in Children<FindingEvidenceRecord.TimeGapMissingReference>(records))
@@ -508,6 +512,17 @@ namespace Validator.Infrastructure.Reporting
             if (value.HasValue)
             {
                 json.WriteString(name, ToUtcText(value.Value));
+            }
+        }
+
+        // A bracketing observed line is emitted as a 64-bit JSON integer, so a
+        // line beyond the 32-bit range survives intact, and is omitted entirely
+        // at a dataset boundary rather than written as null or zero (FR-040).
+        private static void WriteOptionalSourceLine(Utf8JsonWriter json, string name, long? value)
+        {
+            if (value.HasValue)
+            {
+                json.WriteNumber(name, value.Value);
             }
         }
 

@@ -303,7 +303,9 @@ namespace Validator.Infrastructure.Reporting
                 $"; expectedTimeframe={missing.Evidence.ExpectedTimeframe}" +
                 $"; timeGapReference={missing.Evidence.TimeGapReference.Value}" +
                 $"; previousObservedTimestampUtc={Optional(missing.Evidence.PreviousObservedTimestampUtc)}" +
-                $"; nextObservedTimestampUtc={Optional(missing.Evidence.NextObservedTimestampUtc)}",
+                $"; nextObservedTimestampUtc={Optional(missing.Evidence.NextObservedTimestampUtc)}" +
+                $"; previousObservedSourceLine={Optional(missing.Evidence.PreviousObservedSourceLine)}" +
+                $"; nextObservedSourceLine={Optional(missing.Evidence.NextObservedSourceLine)}",
             FindingEvidenceRecord.TimeGapHeader gap =>
                 $"firstMissingTimestampUtc={Utc(gap.Evidence.FirstMissingTimestampUtc)}" +
                 $"; lastMissingTimestampUtc={Utc(gap.Evidence.LastMissingTimestampUtc)}" +
@@ -311,7 +313,9 @@ namespace Validator.Infrastructure.Reporting
                 $"; missingCandleCount={Number(gap.Evidence.MissingCandleCount)}" +
                 $"; elapsedSeconds={Number(gap.Evidence.ElapsedSeconds)}" +
                 $"; previousObservedTimestampUtc={Optional(gap.Evidence.PreviousObservedTimestampUtc)}" +
-                $"; nextObservedTimestampUtc={Optional(gap.Evidence.NextObservedTimestampUtc)}",
+                $"; nextObservedTimestampUtc={Optional(gap.Evidence.NextObservedTimestampUtc)}" +
+                $"; previousObservedSourceLine={Optional(gap.Evidence.PreviousObservedSourceLine)}" +
+                $"; nextObservedSourceLine={Optional(gap.Evidence.NextObservedSourceLine)}",
             FindingEvidenceRecord.TimeGapMissingReference missing =>
                 $"missingCandleReference={missing.TargetReference.Value}",
             FindingEvidenceRecord.DuplicateHeader duplicate =>
@@ -398,6 +402,12 @@ namespace Validator.Infrastructure.Reporting
 
         private static string Optional(DateTimeOffset? value) =>
             value.HasValue ? Utc(value.Value) : NotApplicable;
+
+        // A bracketing observed line locates an absence in the file. An
+        // unavailable side at a dataset boundary is labeled rather than shown as
+        // a number, so it cannot be misread as line zero (FR-040).
+        private static string Optional(long? value) =>
+            value.HasValue ? Number(value.Value) : NotApplicable;
 
         private static string Optional(string? value) =>
             value is null ? NotApplicable : Quote(value);
