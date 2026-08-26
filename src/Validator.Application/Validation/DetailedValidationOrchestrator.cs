@@ -229,13 +229,27 @@ namespace Validator.Application.Validation
                 .ToArray();
 
             var occupied = new HashSet<DateTimeOffset>(ordered.Select(candle => candle.Timestamp));
+            var anchors = new List<ObservedRowAnchor>(ordered.Length);
+            foreach (var candle in ordered)
+            {
+                anchors.Add(new ObservedRowAnchor(candle.Timestamp, candle.SourceLine));
+            }
+
             foreach (var row in malformedRows)
             {
                 if (row.ParsedTimestampUtc.HasValue)
                 {
                     occupied.Add(row.ParsedTimestampUtc.Value);
+                    // A malformed row still occupies its expected slot, so it can
+                    // bracket an absence. Anchoring it keeps the reported line
+                    // consistent with the slot that ended the gap.
+                    anchors.Add(new ObservedRowAnchor(row.ParsedTimestampUtc.Value, row.LineNumber));
                 }
             }
+
+            // Resolving lines from the observed records means a reported line
+            // always belongs to a row that exists in the source file.
+            var absenceAnchors = AbsenceAnchorResolver.Build(anchors);
 
             var counters = new long[6];
             var allocator = new ReferenceAllocator();
@@ -264,6 +278,7 @@ namespace Validator.Application.Validation
                     counters,
                     allocator,
                     sink,
+                    absenceAnchors,
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -307,6 +322,7 @@ namespace Validator.Application.Validation
             long[] counters,
             ReferenceAllocator allocator,
             IDetailedFindingSink sink,
+            AbsenceAnchorResolver absenceAnchors,
             CancellationToken cancellationToken)
         {
             var first = openTimestamps[0];
@@ -329,6 +345,12 @@ namespace Validator.Application.Validation
                 var gapReference = allocator.Allocate(FindingReferenceFactory.TimeGap(gapStart.Value, lastMissing));
                 var nextObserved = NextObservedAfter(openTimestamps, lastMissing);
 
+                // The tightest bracket around this absence. Every missing candle
+                // in the gap reports the same pair as the gap itself, and a
+                // boundary gap leaves the unavailable side absent (FR-040).
+                var previousObservedLine = absenceAnchors.PrecedingLine(gapPreviousObserved);
+                var nextObservedLine = absenceAnchors.FollowingLine(nextObserved);
+
                 for (var index = 0; index < gapCandles.Count; index++)
                 {
                     var timestamp = gapStart.Value + index * timeframe.Duration;
@@ -345,7 +367,14 @@ namespace Validator.Application.Validation
                         "Verify the source feed for the expected timestamp."), cancellationToken).ConfigureAwait(false);
                     await sink.AppendEvidenceAsync(new FindingEvidenceRecord.MissingCandle(
                         candleReference,
-                        new MissingCandleEvidence(timestamp, timeframe, gapReference, gapPreviousObserved, nextObserved)), cancellationToken).ConfigureAwait(false);
+                        new MissingCandleEvidence(
+                            timestamp,
+                            timeframe,
+                            gapReference,
+                            gapPreviousObserved,
+                            nextObserved,
+                            previousObservedLine,
+                            nextObservedLine)), cancellationToken).ConfigureAwait(false);
                     await sink.AppendRelationshipPairAsync(
                         new FindingRelationship(RelationshipKind.PartOfGap, gapReference),
                         new FindingRelationship(RelationshipKind.ContainsMissingCandle, candleReference),
@@ -372,7 +401,9 @@ namespace Validator.Application.Validation
                         gapCandles.Count,
                         elapsedSeconds,
                         gapPreviousObserved,
-                        nextObserved)), cancellationToken).ConfigureAwait(false);
+                        nextObserved,
+                        previousObservedLine,
+                        nextObservedLine)), cancellationToken).ConfigureAwait(false);
 
                 for (var index = 0; index < gapCandles.Count; index++)
                 {

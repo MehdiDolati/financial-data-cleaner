@@ -149,7 +149,12 @@ Unversioned JSON and `--report-version 1` conform to the compatible v1 contract:
 [`validation-report.schema.json`](specs/001-ohlcv-data-quality-validator/contracts/validation-report.schema.json).
 `--format json --report-version 2` produces a complete detailed report with
 source identity, resolved validation context, scan coverage, check status,
-reconciled category counts, and typed evidence for every finding. Its contract
+reconciled category counts, and typed evidence for every finding. A missing
+candle or time gap additionally reports `previousObservedSourceLine` and
+`nextObservedSourceLine` — the physical lines of the two observed records that
+bracket the absence — so an absent record can be located in the source file
+without a line ever being invented for it. Either side is omitted at a dataset
+boundary, and `--verbose` text labels an unavailable side `not applicable`. Its contract
 is documented in
 [`detailed-report-v2.schema.json`](specs/002-detailed-error-report/contracts/detailed-report-v2.schema.json).
 

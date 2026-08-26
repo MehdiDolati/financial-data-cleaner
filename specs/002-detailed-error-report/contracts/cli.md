@@ -60,7 +60,8 @@ Each finding displays its stable reference, category, title, count contribution,
 location, explanation, category-specific named evidence, relationships, and
 suggested action. Missing values are labeled `not applicable`; no physical line
 is invented for a missing candle. A missing-candle or time-gap entry additionally
-labels the source lines of the nearest preceding and following observed records,
+labels the source lines of the nearest preceding and following observed records
+as `previousObservedSourceLine` and `nextObservedSourceLine`,
 so an absence can be located in the file without inventing its line; a boundary
 gap labels the unavailable side `not applicable`.
 
