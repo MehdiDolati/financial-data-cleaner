@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Validator.Application\Validator.Application.csproj" />
+    <ProjectReference Include="..\..\src\Validator.Domain\Validator.Domain.csproj" />
   </ItemGroup>
 
 </Project>

@@ -16,6 +16,17 @@ namespace Validator.Domain.Findings.Evidence
         public DateTimeOffset? PreviousObservedTimestampUtc { get; }
         public DateTimeOffset? NextObservedTimestampUtc { get; }
 
+        // Physical source lines of the observed records bracketing the gap, so
+        // the absence can be located in the file without inventing a line for it
+        // (FR-039). When a bracketing timestamp occurs on several rows these
+        // resolve to the tightest bracket: the highest line sharing the preceding
+        // timestamp and the lowest line sharing the following one. Because
+        // unsorted input is accepted, the two need not be consecutive or
+        // ascending — they identify the temporal neighbours, not physically
+        // adjacent rows. A boundary gap leaves the unavailable side absent.
+        public long? PreviousObservedSourceLine { get; }
+        public long? NextObservedSourceLine { get; }
+
         public TimeGapEvidence(
             DateTimeOffset firstMissingTimestampUtc,
             DateTimeOffset lastMissingTimestampUtc,
@@ -23,7 +34,9 @@ namespace Validator.Domain.Findings.Evidence
             long missingCandleCount,
             long elapsedSeconds,
             DateTimeOffset? previousObservedTimestampUtc = null,
-            DateTimeOffset? nextObservedTimestampUtc = null)
+            DateTimeOffset? nextObservedTimestampUtc = null,
+            long? previousObservedSourceLine = null,
+            long? nextObservedSourceLine = null)
         {
             if (firstMissingTimestampUtc.Offset != TimeSpan.Zero)
             {
@@ -57,6 +70,16 @@ namespace Validator.Domain.Findings.Evidence
 
             RequireUtc(previousObservedTimestampUtc, nameof(previousObservedTimestampUtc));
             RequireUtc(nextObservedTimestampUtc, nameof(nextObservedTimestampUtc));
+            AbsenceAnchor.RequirePairedLine(
+                previousObservedSourceLine,
+                previousObservedTimestampUtc,
+                nameof(previousObservedSourceLine),
+                nameof(previousObservedTimestampUtc));
+            AbsenceAnchor.RequirePairedLine(
+                nextObservedSourceLine,
+                nextObservedTimestampUtc,
+                nameof(nextObservedSourceLine),
+                nameof(nextObservedTimestampUtc));
 
             FirstMissingTimestampUtc = firstMissingTimestampUtc;
             LastMissingTimestampUtc = lastMissingTimestampUtc;
@@ -65,6 +88,8 @@ namespace Validator.Domain.Findings.Evidence
             ElapsedSeconds = elapsedSeconds;
             PreviousObservedTimestampUtc = previousObservedTimestampUtc;
             NextObservedTimestampUtc = nextObservedTimestampUtc;
+            PreviousObservedSourceLine = previousObservedSourceLine;
+            NextObservedSourceLine = nextObservedSourceLine;
         }
 
         private static void RequireUtc(DateTimeOffset? value, string parameterName)

@@ -12,6 +12,6 @@ namespace Validator.Application.Abstractions
 
     public sealed record FatalValidationError(FatalErrorKind Kind, string Message)
     {
-        public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UnixEpoch;
     }
 }

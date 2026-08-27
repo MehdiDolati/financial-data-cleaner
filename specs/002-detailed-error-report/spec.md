@@ -16,6 +16,20 @@
 - Q: When v2 JSON is selected and validation ends fatally before a successful report exists, where and in what form should the diagnostic be emitted? → A: Emit structured v2 fatal JSON on stderr; leave stdout and the report destination empty.
 - Q: What memory guarantee should detailed reporting provide as the number of findings grows? → A: Keep memory bounded independently of total input-row and finding counts.
 
+### Session 2026-08-26
+
+Origin: bug triage `.specify/bugs/missing-candle-null-line/assessment.md`, which
+found `line: null` on every finding of an `AUDCAD5.csv` run to be specified
+behavior (FR-016, FR-022) rather than a defect, while confirming the underlying
+need — quickly locating where an absent record belongs — is only partially served.
+Resolved into User Story 5.
+
+- Q: How should a user locate an expected-but-absent record in the source file, given that FR-016 forbids inventing a physical line number for it? → A: Report the physical source lines of the two nearest observed records that bracket the absence, alongside the bracketing timestamps that are already exposed. Both lines are real rows, so nothing is invented.
+- Q: Should the bracketing lines appear on time gaps only, or on every missing candle as well? → A: Both. A gap gives one anchor per contiguous run for manual inspection; each missing candle carries the same anchor so per-candle programmatic backfill needs no second lookup.
+- Q: When a bracketing timestamp appears on more than one physical row (a duplicate group), which line is authoritative? → A: The tightest bracket — the highest line of the preceding timestamp and the lowest line of the following timestamp.
+- Q: Should the existing v1 `line` field ever carry this value? → A: No. v1 stays byte-identical; the anchor is exposed only in the v2 contract and verbose text.
+
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Review Every Detected Problem (Priority: P1)
@@ -111,6 +125,35 @@ details.
 2. **Given** machine-readable output, **When** a consumer reads a finding, **Then** category, location, evidence, rule violations, relationships, and suggested action are available as distinct data rather than only inside a message.
 3. **Given** a detailed report written to a destination, **When** report production cannot complete, **Then** no partial artifact is presented as a complete report.
 
+---
+
+### User Story 5 - Jump Straight to Where an Absent Record Belongs (Priority: P3)
+
+As a person correcting a dataset, I want each missing-candle and time-gap finding
+to name the physical source lines of the two nearest real records that bracket the
+absence so that I can open the file at that position — or insert the backfilled
+rows programmatically — without scanning for the timestamp myself.
+
+**Why this priority**: Findings for absent records are already complete and
+correctly refuse to invent a line number (FR-016, FR-022). This story removes the
+remaining manual step of translating an expected timestamp into a file position.
+It is additive traceability on top of an already-working report, so it ranks below
+completeness, per-finding evidence, and fatal diagnostics.
+
+**Independent Test**: Validate a fixture with a known interior gap and confirm each
+missing-candle and time-gap finding reports the source lines of the observed rows
+immediately before and after the absence, that both cited lines exist in the source
+file and bracket the expected timestamp, and that no line number is claimed for the
+absent record itself.
+
+**Acceptance Scenarios**:
+
+1. **Given** a gap between two observed records, **When** the time-gap finding is reported, **Then** it includes the physical source line of the nearest preceding observed record and of the nearest following observed record, alongside the observed timestamps it already reports.
+2. **Given** a gap containing several missing candles, **When** each missing-candle finding is reported, **Then** every one carries the same bracketing source lines as its owning gap, so a consumer needs no second lookup to place any individual candle.
+3. **Given** a gap at the very beginning or very end of the dataset, **When** the finding is reported, **Then** the unavailable side is explicitly absent rather than reported as zero, a negative number, or an invented line.
+4. **Given** a bracketing timestamp that appears on more than one physical row, **When** the anchor is reported, **Then** it deterministically cites the tightest bracket: the highest line of the preceding timestamp and the lowest line of the following timestamp.
+5. **Given** a missing-candle or time-gap finding, **When** it is reported, **Then** it still states that no physical source line exists for the absent record, and the bracketing lines are presented as neighbouring context rather than as the location of the defect.
+
 ### Edge Cases
 
 - A clean or empty/header-only dataset processed with a valid timeframe override has no findings; the detailed report still records check completion and an unambiguous clean result.
@@ -123,6 +166,9 @@ details.
 - Source values may contain control characters, delimiters, quotes, or very long text; they must remain attributable without being able to corrupt report structure or masquerade as report content.
 - A dataset may contain more findings than fit comfortably on screen; detailed output remains complete and is not silently truncated, sampled, or replaced by only the first N findings.
 - A source line number may exceed common 32-bit limits; report traceability must preserve the full positive physical line number.
+- A gap may sit at the very first or very last observed record, so one bracketing neighbour does not exist; the missing side is explicitly absent rather than reported as zero or invented.
+- A bracketing neighbour's timestamp may appear on several physical rows (a duplicate group), so the anchor must resolve deterministically to the tightest bracket rather than an arbitrary member row.
+- The source file may be ordered by something other than time, so the row physically adjacent to a gap is not necessarily the temporally adjacent record; bracketing lines identify the temporal neighbours and therefore need not be numerically consecutive or even ascending.
 - A report destination may be the same path as the input dataset; the operation must be rejected before any source data can be overwritten.
 - If processing loses the ability to trust the dataset structure, the validator stops safely; the fatal diagnostic must state that additional defects may exist and were not evaluated.
 
@@ -169,6 +215,8 @@ details.
 - **FR-026**: A closed-market-record detail MUST include the physical source line, timestamp, selected market calendar/profile, and the applicable closed-session boundary or rule that caused the timestamp to be classified as closed.
 - **FR-027**: A malformed-row detail MUST include the physical source line, parseable timestamp when available, each independently detectable field-level parsing error, the original offending value, a specific reason, whether the expected candle slot was reserved, and the checks that could not be applied to the row.
 - **FR-028**: Detecting one malformed field MUST NOT prevent the report from recording other independently detectable malformed fields in the same structurally readable row. The row MUST still contribute exactly one to the malformed-row summary count.
+- **FR-039**: A missing-candle and a time-gap detail MUST each include the physical source line of the nearest preceding observed record and of the nearest following observed record, reported alongside the corresponding observed timestamps required by FR-022 and FR-023. These lines locate the absence between two real records; they MUST NOT be presented as the location of the absent record itself, and FR-022's statement that an absent record has no physical source line MUST remain in force. Every missing-candle detail within one gap MUST report the same pair as its owning gap.
+- **FR-040**: A bracketing source line MUST be explicitly absent when the corresponding neighbour does not exist, such as a gap at the first or last observed record, and MUST NOT be substituted with zero, a negative value, or an invented line. When a bracketing timestamp occurs on multiple physical rows, the reported line MUST be resolved deterministically to the tightest bracket: the highest line among rows sharing the preceding timestamp and the lowest line among rows sharing the following timestamp.
 
 #### Fatal Diagnostics and Representations
 
@@ -193,6 +241,7 @@ details.
 - **Finding Evidence**: Category-specific observed and expected values used to explain a finding without requiring consumers to parse prose.
 - **Finding Relationship**: A deterministic link between related findings, particularly a time gap and its constituent missing candles.
 - **Fatal Diagnostic**: A non-success outcome that identifies why a trustworthy full validation could not be completed and which checks remain unevaluated.
+- **Absence Anchor**: The pair of nearest observed records bracketing an expected-but-absent record, each identified by its normalized UTC timestamp and its physical source line, allowing an absence to be located in the source file without attributing a line number to the absent record. Either side may be absent at a dataset boundary.
 
 ## Success Criteria *(mandatory)*
 
@@ -206,6 +255,7 @@ details.
 - **SC-006**: A successful validation producing at least 100,000 detailed findings reports all of them without silent truncation while process memory remains bounded independently of total input-row and finding counts; an interrupted report write leaves no artifact identified as complete.
 - **SC-007**: Machine-readable consumers can obtain every required location, rule, evidence, relationship, and count-contribution value from documented fields in 100% of contract tests without parsing human-readable messages.
 - **SC-008**: In all source-protection tests, including a report destination that aliases the input file, the source dataset remains byte-for-byte unchanged.
+- **SC-009**: For 100% of missing-candle and time-gap findings in an interior-gap acceptance fixture, both reported bracketing source lines identify records that exist in the source file and whose timestamps bracket the expected timestamp; boundary gaps report the unavailable side as explicitly absent in 100% of cases; and locating an absent record requires no manual search of the source file beyond opening the reported lines.
 
 ## Assumptions
 
@@ -213,7 +263,7 @@ details.
 - "Errors" means the six established data-quality finding categories plus fatal conditions that prevent a full dataset scan. It does not imply a new severity score or new statistical validation rules.
 - The existing concise text summary remains the default. Detailed text is explicitly requested through the validator's established verbose reporting option. Existing JSON v1 remains the default for an unversioned JSON request, while detailed machine-readable output requires explicit selection of the v2 contract.
 - Reports are in English for this feature, consistent with the existing validator scope.
-- Source timestamps and physical line numbers can be reported only when they were recoverable; expected-but-absent records have timestamps but no source lines.
+- Source timestamps and physical line numbers can be reported only when they were recoverable; expected-but-absent records have timestamps but no source lines. Such a record can still be located through the physical lines of the observed records bracketing it, which are real rows.
 - Completeness applies to all findings discoverable during a structurally successful scan. Once safe parsing is no longer possible, fail-safe behavior takes precedence over continuing to search for additional defects.
 - Suggested actions are advisory investigation steps. The validator remains detection-only and never repairs the dataset.
 - The detailed report depends on the existing category definitions, market-calendar behavior, timeframe resolution, normalized UTC timestamps, and clean/findings/fatal process outcomes remaining available from the validator.

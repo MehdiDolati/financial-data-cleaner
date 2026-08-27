@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 using Validator.Application.Abstractions;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
+using Validator.Application.Scoring;
 using Validator.Domain.Candles;
 using Validator.Domain.Findings;
 using Validator.Domain.Findings.Evidence;
 using Validator.Domain.Timeframes;
+
 
 namespace Validator.Application.Validation
 {
@@ -73,13 +75,14 @@ namespace Validator.Application.Validation
             {
                 catalog = _catalogFactory();
 
-                var (checks, summary) = await RunChecksAsync(
+                var (checks, summary, expectedCandles) = await RunChecksAsync(
                     candles,
                     malformedRows,
                     timeframe,
                     request.MarketCalendar,
                     catalog,
                     cancellationToken).ConfigureAwait(false);
+
 
                 var completion = await catalog.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 if (completion is CompletedFindingCatalogResult.Failed completionFailed)
@@ -90,19 +93,37 @@ namespace Validator.Application.Validation
                 var completed = (CompletedFindingCatalogResult.Succeeded)completion;
                 catalog = null;
 
+                // ReportReconciliation.Create already validates that every
+                // category's summary count equals its contribution sum, so
+                // ReconciliationValidator.Validate would always return null here.
+                // The explicit validate-and-fail path was removed as dead code.
                 var reconciliation = ReportReconciliation.Create(
                     summary,
                     succeeded.Coverage,
                     completed.Catalog.Statistics);
-                var fatal = ReconciliationValidator.Validate(
-                    checks,
-                    summary,
-                    succeeded.Coverage,
-                    completed.Catalog.Statistics);
-                if (fatal is not null)
+
+                // Scoring is a pure derivation over the reconciled run. It is
+                // attempted only when requested and only after reconciliation has
+                // passed, so a fatal run never carries a score. An impossible
+                // defect rate is an internal inconsistency and fails the run as a
+                // reconciliation failure rather than being clamped.
+                DatasetScoreReport? score = null;
+                if (request.Options.Score is { } scoreRequest)
                 {
-                    await completed.Catalog.DisposeAsync().ConfigureAwait(false);
-                    return new DetailedValidationOutcome.Failed(fatal);
+                    try
+                    {
+                        var populations = MetricPopulations.FromScanCoverage(succeeded.Coverage, expectedCandles);
+                        score = ScoreSectionBuilder.Build(summary, populations, checks, scoreRequest.Weighting);
+                    }
+                    catch (ImpossibleDefectRateException exception)
+                    {
+                        await completed.Catalog.DisposeAsync().ConfigureAwait(false);
+                        return new DetailedValidationOutcome.Failed(new FatalDiagnostic(
+                            "REPORT_RECONCILIATION_FAILED",
+                            "A metric's defect count exceeds its population, implying an impossible rate.",
+                            exception.Message,
+                            checks: checks));
+                    }
                 }
 
                 var context = CreateContext(request, timeframe, succeeded);
@@ -113,8 +134,12 @@ namespace Validator.Application.Validation
                     checks,
                     summary,
                     reconciliation,
-                    completed.Catalog);
+                    completed.Catalog)
+                {
+                    Score = score
+                };
                 return new DetailedValidationOutcome.Succeeded(report);
+
             }
             finally
             {
@@ -182,7 +207,7 @@ namespace Validator.Application.Validation
                 succeeded.Csv.DateRange);
         }
 
-        private static async ValueTask<(CheckExecution[] Checks, DetailedSummary Summary)> RunChecksAsync(
+        private static async ValueTask<(CheckExecution[] Checks, DetailedSummary Summary, long? ExpectedCandles)> RunChecksAsync(
             IReadOnlyList<PriceCandle> candles,
             IReadOnlyList<MalformedRow> malformedRows,
             Timeframe timeframe,
@@ -190,6 +215,7 @@ namespace Validator.Application.Validation
             IDetailedFindingSink sink,
             CancellationToken cancellationToken)
         {
+
             var ordered = candles
                 .OrderBy(candle => candle.Timestamp)
                 .ThenBy(candle => candle.SourceLine)
@@ -203,13 +229,27 @@ namespace Validator.Application.Validation
                 .ToArray();
 
             var occupied = new HashSet<DateTimeOffset>(ordered.Select(candle => candle.Timestamp));
+            var anchors = new List<ObservedRowAnchor>(ordered.Length);
+            foreach (var candle in ordered)
+            {
+                anchors.Add(new ObservedRowAnchor(candle.Timestamp, candle.SourceLine));
+            }
+
             foreach (var row in malformedRows)
             {
                 if (row.ParsedTimestampUtc.HasValue)
                 {
                     occupied.Add(row.ParsedTimestampUtc.Value);
+                    // A malformed row still occupies its expected slot, so it can
+                    // bracket an absence. Anchoring it keeps the reported line
+                    // consistent with the slot that ended the gap.
+                    anchors.Add(new ObservedRowAnchor(row.ParsedTimestampUtc.Value, row.LineNumber));
                 }
             }
+
+            // Resolving lines from the observed records means a reported line
+            // always belongs to a row that exists in the source file.
+            var absenceAnchors = AbsenceAnchorResolver.Build(anchors);
 
             var counters = new long[6];
             var allocator = new ReferenceAllocator();
@@ -217,6 +257,10 @@ namespace Validator.Application.Validation
             var sequenceReason = "Fewer than two open-market timestamps bound an expected sequence.";
             CheckExecution missingExecution;
             CheckExecution gapsExecution;
+            // Expected open-market candles are counted only when the sequence
+            // checks actually run; otherwise the population is unknown and must
+            // stay null so the time-based metrics can report NotApplicable.
+            long? expectedCandles = null;
             if (openTimestamps.Length < 2)
             {
                 missingExecution = new CheckExecution(CheckName.MissingCandles, CheckStatus.NotApplicable, sequenceReason);
@@ -226,7 +270,7 @@ namespace Validator.Application.Validation
             {
                 missingExecution = new CheckExecution(CheckName.MissingCandles, CheckStatus.Completed);
                 gapsExecution = new CheckExecution(CheckName.TimeGaps, CheckStatus.Completed);
-                await RunSequenceChecksAsync(
+                expectedCandles = await RunSequenceChecksAsync(
                     openTimestamps,
                     occupied,
                     timeframe,
@@ -234,8 +278,10 @@ namespace Validator.Application.Validation
                     counters,
                     allocator,
                     sink,
+                    absenceAnchors,
                     cancellationToken).ConfigureAwait(false);
             }
+
 
             await RunDuplicateCheckAsync(ordered, counters, allocator, sink, cancellationToken).ConfigureAwait(false);
             await RunInvalidOhlcCheckAsync(ordered, counters, allocator, sink, cancellationToken).ConfigureAwait(false);
@@ -260,10 +306,15 @@ namespace Validator.Application.Validation
                 counters[(int)FindingCategory.TimeGap],
                 counters[(int)FindingCategory.MalformedRow]);
 
-            return (checks, summary);
+            return (checks, summary, expectedCandles);
         }
 
-        private static async ValueTask RunSequenceChecksAsync(
+        // Runs the missing-candle and time-gap checks over one expected sequence
+        // and returns the number of expected open-market slots it visited. That
+        // count is the shared population for both time-based metrics and, being
+        // produced by the same walk that reported the missing candles, cannot
+        // disagree with them.
+        private static async ValueTask<long> RunSequenceChecksAsync(
             DateTimeOffset[] openTimestamps,
             HashSet<DateTimeOffset> occupied,
             Timeframe timeframe,
@@ -271,6 +322,7 @@ namespace Validator.Application.Validation
             long[] counters,
             ReferenceAllocator allocator,
             IDetailedFindingSink sink,
+            AbsenceAnchorResolver absenceAnchors,
             CancellationToken cancellationToken)
         {
             var first = openTimestamps[0];
@@ -279,6 +331,8 @@ namespace Validator.Application.Validation
             var gapStart = (DateTimeOffset?)null;
             var gapPreviousObserved = (DateTimeOffset?)null;
             var gapCandles = new List<FindingReference>();
+            var expectedOpenCandles = 0L;
+
 
             async ValueTask CloseGapAsync()
             {
@@ -290,6 +344,12 @@ namespace Validator.Application.Validation
                 var lastMissing = gapStart.Value + (gapCandles.Count - 1) * timeframe.Duration;
                 var gapReference = allocator.Allocate(FindingReferenceFactory.TimeGap(gapStart.Value, lastMissing));
                 var nextObserved = NextObservedAfter(openTimestamps, lastMissing);
+
+                // The tightest bracket around this absence. Every missing candle
+                // in the gap reports the same pair as the gap itself, and a
+                // boundary gap leaves the unavailable side absent (FR-040).
+                var previousObservedLine = absenceAnchors.PrecedingLine(gapPreviousObserved);
+                var nextObservedLine = absenceAnchors.FollowingLine(nextObserved);
 
                 for (var index = 0; index < gapCandles.Count; index++)
                 {
@@ -307,7 +367,14 @@ namespace Validator.Application.Validation
                         "Verify the source feed for the expected timestamp."), cancellationToken).ConfigureAwait(false);
                     await sink.AppendEvidenceAsync(new FindingEvidenceRecord.MissingCandle(
                         candleReference,
-                        new MissingCandleEvidence(timestamp, timeframe, gapReference, gapPreviousObserved, nextObserved)), cancellationToken).ConfigureAwait(false);
+                        new MissingCandleEvidence(
+                            timestamp,
+                            timeframe,
+                            gapReference,
+                            gapPreviousObserved,
+                            nextObserved,
+                            previousObservedLine,
+                            nextObservedLine)), cancellationToken).ConfigureAwait(false);
                     await sink.AppendRelationshipPairAsync(
                         new FindingRelationship(RelationshipKind.PartOfGap, gapReference),
                         new FindingRelationship(RelationshipKind.ContainsMissingCandle, candleReference),
@@ -334,7 +401,9 @@ namespace Validator.Application.Validation
                         gapCandles.Count,
                         elapsedSeconds,
                         gapPreviousObserved,
-                        nextObserved)), cancellationToken).ConfigureAwait(false);
+                        nextObserved,
+                        previousObservedLine,
+                        nextObservedLine)), cancellationToken).ConfigureAwait(false);
 
                 for (var index = 0; index < gapCandles.Count; index++)
                 {
@@ -357,6 +426,11 @@ namespace Validator.Application.Validation
                     continue;
                 }
 
+                // Every open-market slot in the evaluated range is one expected
+                // candle, whether or not the source actually contains it. This is
+                // the denominator both time-based metrics are scored against.
+                expectedOpenCandles++;
+
                 if (occupied.Contains(expected))
                 {
                     await CloseGapAsync().ConfigureAwait(false);
@@ -374,7 +448,9 @@ namespace Validator.Application.Validation
             }
 
             await CloseGapAsync().ConfigureAwait(false);
+            return expectedOpenCandles;
         }
+
 
         private static async ValueTask RunDuplicateCheckAsync(
             PriceCandle[] ordered,
@@ -588,7 +664,7 @@ namespace Validator.Application.Validation
             }
         }
 
-        private static DateTimeOffset? NextObservedAfter(DateTimeOffset[] openTimestamps, DateTimeOffset timestamp)
+        internal static DateTimeOffset? NextObservedAfter(DateTimeOffset[] openTimestamps, DateTimeOffset timestamp)
         {
             var index = Array.BinarySearch(openTimestamps, timestamp + TimeSpan.FromTicks(1));
             if (index >= 0)

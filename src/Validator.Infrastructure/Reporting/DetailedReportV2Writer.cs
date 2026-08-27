@@ -7,11 +7,16 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Validator.Application.Abstractions;
+using Validator.Application.Comparison;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
+using Validator.Application.Scoring;
 using Validator.Domain.Calendars;
 using Validator.Domain.Findings;
 using Validator.Domain.Findings.Evidence;
+using Validator.Domain.Scoring;
+using ComparisonReport = Validator.Application.Comparison.ComparisonReport;
+
 
 namespace Validator.Infrastructure.Reporting
 {
@@ -28,6 +33,19 @@ namespace Validator.Infrastructure.Reporting
 
         public async Task WriteAsync(
             DetailedValidationReport report,
+            TextWriter destination,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteAsync(report, null, destination, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Writes the full v2 report, optionally including a benchmarkComparison section
+        /// when comparisonReport is provided (FR-029, FR-027).
+        /// </summary>
+        public async Task WriteAsync(
+            DetailedValidationReport report,
+            ComparisonReport? comparisonReport,
             TextWriter destination,
             CancellationToken cancellationToken = default)
         {
@@ -63,10 +81,29 @@ namespace Validator.Infrastructure.Reporting
             }
 
             json.WriteEndArray();
+
+            // The optional scoring object is additive and omitted entirely when
+            // scoring was not requested, so every existing v2 consumer and golden
+            // document is unaffected.
+            if (report.Score is not null)
+            {
+                WriteScoring(json, report.Score);
+            }
+
+            // The benchmarkComparison section is present only when --compare was
+            // specified (FR-029). It is additive and does not affect the existing
+            // report structure.
+            if (comparisonReport is not null)
+            {
+                var comparisonWriter = new ComparisonJsonReportWriter();
+                comparisonWriter.WriteSection(json, comparisonReport);
+            }
+
             json.WriteEndObject();
             await FlushAsync(json, buffer, destination, 0, cancellationToken).ConfigureAwait(false);
             await destination.FlushAsync().ConfigureAwait(false);
         }
+
 
         private static async Task FlushAsync(
             Utf8JsonWriter json,
@@ -335,6 +372,8 @@ namespace Validator.Infrastructure.Reporting
             json.WriteString("timeGapReference", evidence.TimeGapReference.Value);
             WriteOptionalTimestamp(json, "previousObservedTimestampUtc", evidence.PreviousObservedTimestampUtc);
             WriteOptionalTimestamp(json, "nextObservedTimestampUtc", evidence.NextObservedTimestampUtc);
+            WriteOptionalSourceLine(json, "previousObservedSourceLine", evidence.PreviousObservedSourceLine);
+            WriteOptionalSourceLine(json, "nextObservedSourceLine", evidence.NextObservedSourceLine);
         }
 
         private static void WriteTimeGapEvidence(Utf8JsonWriter json, List<FindingEvidenceRecord> records)
@@ -347,6 +386,8 @@ namespace Validator.Infrastructure.Reporting
             json.WriteNumber("elapsedSeconds", evidence.ElapsedSeconds);
             WriteOptionalTimestamp(json, "previousObservedTimestampUtc", evidence.PreviousObservedTimestampUtc);
             WriteOptionalTimestamp(json, "nextObservedTimestampUtc", evidence.NextObservedTimestampUtc);
+            WriteOptionalSourceLine(json, "previousObservedSourceLine", evidence.PreviousObservedSourceLine);
+            WriteOptionalSourceLine(json, "nextObservedSourceLine", evidence.NextObservedSourceLine);
 
             json.WriteStartArray("missingCandleReferences");
             foreach (var record in Children<FindingEvidenceRecord.TimeGapMissingReference>(records))
@@ -474,6 +515,17 @@ namespace Validator.Infrastructure.Reporting
             }
         }
 
+        // A bracketing observed line is emitted as a 64-bit JSON integer, so a
+        // line beyond the 32-bit range survives intact, and is omitted entirely
+        // at a dataset boundary rather than written as null or zero (FR-040).
+        private static void WriteOptionalSourceLine(Utf8JsonWriter json, string name, long? value)
+        {
+            if (value.HasValue)
+            {
+                json.WriteNumber(name, value.Value);
+            }
+        }
+
         private static TRecord Require<TRecord>(List<FindingEvidenceRecord> records)
             where TRecord : FindingEvidenceRecord
         {
@@ -501,8 +553,136 @@ namespace Validator.Infrastructure.Reporting
             }
         }
 
+        private static void WriteScoring(Utf8JsonWriter json, DatasetScoreReport score)
+        {
+            json.WriteStartObject("scoring");
+
+            json.WriteStartObject("scale");
+            json.WriteNumber("minimum", score.Scale.Minimum);
+            json.WriteNumber("maximum", score.Scale.Maximum);
+            json.WriteBoolean("higherIsBetter", score.Scale.HigherIsBetter);
+            json.WriteNumber("decimalPlaces", score.Scale.DecimalPlaces);
+            json.WriteEndObject();
+
+            json.WriteStartArray("metrics");
+            foreach (var metric in score.Metrics)
+            {
+                WriteMetricScore(json, metric, score.Weighting.For(metric.Category));
+            }
+
+            json.WriteEndArray();
+
+            WriteScoreWeighting(json, score.Weighting);
+            WriteDatasetScore(json, score.Dataset);
+
+            json.WriteEndObject();
+        }
+
+        private static void WriteMetricScore(Utf8JsonWriter json, MetricScore metric, MetricWeight weight)
+        {
+            json.WriteStartObject();
+            json.WriteString("category", metric.Category.ToString());
+            json.WriteString("state", metric.State.ToString());
+            json.WriteNumber("count", metric.Count);
+            json.WriteString("populationKind", metric.PopulationKind.ToString());
+
+            if (metric.State == MetricScoreState.Scored)
+            {
+                json.WriteNumber("population", metric.Population!.Value);
+                WriteTwoDecimalNumber(json, "score", metric.Score!.Value.Rounded);
+                json.WriteNumber("weight", weight.Weight);
+                if (weight.NormalisedShare is { } share)
+                {
+                    WriteTwoDecimalNumber(json, "normalisedShare", share);
+                }
+            }
+            else
+            {
+                if (metric.Population.HasValue)
+                {
+                    json.WriteNumber("population", metric.Population.Value);
+                }
+
+                json.WriteString("reason", metric.Reason);
+                json.WriteNumber("weight", weight.Weight);
+            }
+
+            json.WriteEndObject();
+        }
+
+        private static void WriteScoreWeighting(Utf8JsonWriter json, ScoreWeighting weighting)
+        {
+            json.WriteStartObject("weighting");
+            json.WriteString("source", weighting.Source.ToString());
+            json.WriteStartArray("weights");
+            foreach (var weight in weighting.Weights)
+            {
+                json.WriteStartObject();
+                json.WriteString("category", weight.Category.ToString());
+                json.WriteNumber("weight", weight.Weight);
+                if (weight.NormalisedShare is { } share)
+                {
+                    WriteTwoDecimalNumber(json, "normalisedShare", share);
+                }
+
+                json.WriteEndObject();
+            }
+
+            json.WriteEndArray();
+            json.WriteEndObject();
+        }
+
+        private static void WriteDatasetScore(Utf8JsonWriter json, DatasetScore dataset)
+        {
+            json.WriteStartObject("dataset");
+            json.WriteBoolean("available", dataset.Average is not null);
+            if (dataset.Average is not null)
+            {
+                WriteTwoDecimalNumber(json, "average", dataset.Average.Value.Rounded);
+            }
+
+            json.WriteNumber("metricsCovered", dataset.MetricsCovered);
+
+            json.WriteStartArray("coveredCategories");
+            foreach (var category in dataset.CoveredCategories)
+            {
+                json.WriteStringValue(category.ToString());
+            }
+
+            json.WriteEndArray();
+
+            json.WriteStartArray("excludedMetrics");
+            foreach (var excluded in dataset.ExcludedCategories)
+            {
+                json.WriteStartObject();
+                json.WriteString("category", excluded.Category.ToString());
+                json.WriteString("state", excluded.State.ToString());
+                json.WriteString("reason", excluded.Reason);
+                json.WriteEndObject();
+            }
+
+            json.WriteEndArray();
+
+            if (dataset.Average is null)
+            {
+                json.WriteString("unavailableReason", dataset.UnavailableReason);
+            }
+
+            json.WriteEndObject();
+        }
+
+        // Scores and shares are emitted as JSON numbers at exactly two decimal
+        // places, matching their human-readable rendering, so both surfaces show
+        // the same rounded value.
+        private static void WriteTwoDecimalNumber(Utf8JsonWriter json, string name, decimal value)
+        {
+            json.WritePropertyName(name);
+            json.WriteRawValue(value.ToString("0.00", CultureInfo.InvariantCulture), skipInputValidation: true);
+        }
+
         internal static string ToUtcText(DateTimeOffset value) =>
             value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+
 
         internal static string ToLocalTimeText(TimeSpan value) =>
             value.Seconds == 0

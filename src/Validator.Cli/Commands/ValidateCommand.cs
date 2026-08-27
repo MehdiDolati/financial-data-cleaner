@@ -1,11 +1,18 @@
 using System.Globalization;
 using System.Text;
 using Validator.Application.Abstractions;
+using Validator.Application.Benchmark;
+using Validator.Application.Comparison;
 using Validator.Application.Ingestion;
 using Validator.Application.Reporting;
+using Validator.Application.Scoring;
 using Validator.Application.Validation;
+
 using Validator.Domain.Calendars;
 using Validator.Domain.Timeframes;
+using Validator.Domain.Candles;
+using Validator.Domain.Comparison;
+using Validator.Infrastructure.Benchmark;
 using Validator.Infrastructure.Calendars;
 using Validator.Infrastructure.Csv;
 using Validator.Infrastructure.Findings;
@@ -36,16 +43,34 @@ public static class ValidateCommand
           --report-version <1|2>              JSON contract version (default: 1)
           --output <path>                     Write report atomically to a file
           --verbose                           Append finding details in text mode
+          --score                             Report per-metric quality scores and one dataset average
+          --score-weights <list>              Override the average's weighting (requires --score)
+          --instrument <identity>             Explicit instrument identity for benchmark operations
+          --benchmark <name>                  Establish a named benchmark from the validated dataset
+          --benchmark-dir <path>              Benchmark storage directory (default: ./benchmarks/)
+          --benchmark-delete <name>           Delete a stored benchmark
+          --yes                               Skip confirmation prompt for benchmark deletion
+          --compare <benchmark-name>           Compare candidate against a stored benchmark
+          --tolerances <json>                  Custom per-field tolerance overrides (JSON)
           --help                              Show this help
+
+        JSON scoring requires '--report-version 2'; '--score' with the version 1 JSON contract is rejected.
+        '--benchmark' requires '--score' and '--report-version 2'.
+        '--compare' requires '--score' and '--report-version 2'.
+        '--benchmark-delete' does not require an input file.
 
         Examples:
           validator EURUSD_H1.csv
           validator EURUSD_M15.csv --header --format json
           validator EURUSD_H1.csv --format json --report-version 2
+          validator EURUSD_H1.csv --timeframe H1 --score
           validator prices.csv --timestamp-format "yyyy-MM-dd HH:mm:ss" --timestamp-column 1 --tz-offset +00:00
           validator equities.csv --market equities --timeframe M30 --verbose
           validator custom.csv --market custom --calendar market-hours.json --output report.json --format json
+          validator EURUSD_H1.csv --benchmark audusd-d1 --score --report-version 2 --format json
+          validator --benchmark-delete audusd-d1 --yes
         """;
+
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -60,6 +85,10 @@ public static class ValidateCommand
             Console.Out.WriteLine(HelpText);
             return 0;
         }
+
+        // --benchmark-delete doesn't need an input file, but ParseArguments
+        // requires one. Detect it early so we can handle it specially.
+        var hasBenchmarkDelete = args.Any(a => a == "--benchmark-delete");
 
         ParsedArguments parsed;
         try
@@ -79,15 +108,45 @@ public static class ValidateCommand
                 : WriteText(exception.Message);
         }
 
+        // --benchmark-delete is a standalone action that doesn't need an input file
+        if (parsed.BenchmarkDelete is not null)
+        {
+            return await RunBenchmarkDeleteAsync(parsed).ConfigureAwait(false);
+        }
+
+        // --benchmark requires --score with a v2 JSON report to establish a benchmark
+        if (parsed.BenchmarkName is not null && parsed.Score is null)
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "INVALID_ARGUMENT",
+                "Option '--benchmark' requires '--score'.",
+                "Add '--score --report-version 2 --format json' to enable benchmark establishment.",
+                null));
+        }
+
+        // --compare requires --score
+        if (parsed.CompareBenchmark is not null && parsed.Score is null)
+        {
+            return Fail(parsed, new FatalDiagnostic(
+                "INVALID_ARGUMENT",
+                "Option '--compare' requires '--score'.",
+                "Add '--score --report-version 2 --format json' to enable benchmark comparison.",
+                null));
+        }
+
         // Version selection is resolved before unrelated options, so any later
         // source or configuration failure can still be reported as one
         // structured v2 document. Verbose text is the same detailed report in a
         // human-readable shape, so it runs through the same pipeline and keeps
         // the existing actionable text diagnostic on a fatal outcome.
-        if (parsed.ReportVersion == 2 || (parsed.Verbose && parsed.Format == ReportFormat.Text))
+        if (parsed.ReportVersion == 2 ||
+            ((parsed.Verbose || parsed.Score is not null) && parsed.Format == ReportFormat.Text))
         {
+            // Scored text needs the detailed pipeline's populations and check
+            // statuses, so it routes through the same path as verbose text.
             return await RunDetailedAsync(parsed).ConfigureAwait(false);
         }
+
 
         try
         {
@@ -153,7 +212,7 @@ public static class ValidateCommand
 
     private static ParsedArguments ParseArguments(IReadOnlyList<string> args)
     {
-        var inputPath = args[0];
+        string? inputPath = args.Count > 0 && !args[0].StartsWith('-') ? args[0] : null;
         string? timeframe = null;
         var format = ReportFormat.Text;
         string? outputPath = null;
@@ -162,12 +221,34 @@ public static class ValidateCommand
         string? calendarPath = null;
         var csv = new CsvInputOptions();
         var reportVersion = 1;
+        var score = false;
+        string? scoreWeights = null;
+        string? instrument = null;
+        string? benchmarkName = null;
+        string? benchmarkDir = null;
+        string? benchmarkDelete = null;
+        var yes = false;
+        string? compareBenchmark = null;
+        string? tolerances = null;
 
-        for (var index = 1; index < args.Count; index++)
+        var startIndex = inputPath is not null ? 1 : 0;
+        for (var index = startIndex; index < args.Count; index++)
         {
             var option = args[index];
             switch (option)
             {
+                case "--score":
+                    score = true;
+                    break;
+                case "--score-weights":
+                    scoreWeights = RequireValue(args, ref index, option);
+                    break;
+                case "--instrument":
+                    instrument = RequireValue(args, ref index, option).Trim();
+                    if (string.IsNullOrWhiteSpace(instrument) || instrument.Contains('/') || instrument.Contains('\\'))
+                        throw new ArgumentException("Option '--instrument' requires a non-empty identity without path separators.");
+                    break;
+
                 case "--timeframe":
                     timeframe = RequireValue(args, ref index, option);
                     Timeframe.Parse(timeframe);
@@ -212,9 +293,53 @@ public static class ValidateCommand
                 case "-v":
                     verbose = true;
                     break;
+                case "--benchmark":
+                    benchmarkName = RequireValue(args, ref index, option);
+                    break;
+                case "--benchmark-dir":
+                    benchmarkDir = RequireValue(args, ref index, option);
+                    break;
+                case "--benchmark-delete":
+                    benchmarkDelete = RequireValue(args, ref index, option);
+                    break;
+                case "--compare":
+                    compareBenchmark = RequireValue(args, ref index, option);
+                    break;
+                case "--tolerances":
+                    tolerances = RequireValue(args, ref index, option);
+                    break;
+                case "--yes":
+                case "-y":
+                    yes = true;
+                    break;
+                case "--help":
+                case "-h":
+                    // Handled earlier in RunAsync
+                    break;
                 default:
                     throw new ArgumentException($"Unknown option '{option}'. Use --help for usage.");
             }
+        }
+
+        // --benchmark-delete is a standalone action — skip remaining validation
+        if (benchmarkDelete is not null)
+        {
+            return new ParsedArguments(
+                inputPath ?? string.Empty,
+                timeframe, format, outputPath, verbose, market, calendarPath,
+                csv, reportVersion, Score: null,
+                Instrument: null,
+                BenchmarkName: null,
+                BenchmarkDir: benchmarkDir ?? "./benchmarks/",
+                BenchmarkDelete: benchmarkDelete,
+                Yes: yes,
+                CompareBenchmark: null,
+                ToleranceOverrides: null);
+        }
+
+        if (inputPath is null)
+        {
+            throw new ArgumentException("Input file is required. Use --help for usage.");
         }
 
         // A contract version is only meaningful for JSON, so a text request that
@@ -223,6 +348,52 @@ public static class ValidateCommand
         {
             throw new ArgumentException(
                 "Option '--report-version 2' is valid only with '--format json'.");
+        }
+
+        // Weights are meaningless without opting into scoring, so supplying them
+        // alone is a configuration error rather than a silent no-op.
+        if (scoreWeights is not null && !score)
+        {
+            throw new ArgumentException(
+                "Option '--score-weights' requires '--score'.");
+        }
+
+        // Scores are only available under the v2 JSON contract, so requesting
+        // them with the frozen v1 contract fails fast and names the option
+        // combination needed to obtain scores. This is checked before the
+        // source is opened.
+        if (score && format == ReportFormat.Json && reportVersion != 2)
+        {
+            throw new ArgumentException(
+                "Option '--score' is not available with the version 1 JSON contract. Use '--format json --report-version 2' to obtain scores.");
+        }
+
+        if ((benchmarkName is not null || compareBenchmark is not null) && string.IsNullOrWhiteSpace(instrument))
+        {
+            throw new ArgumentException(
+                "Options '--benchmark' and '--compare' require '--instrument <identity>' so dataset identity is unambiguous.");
+        }
+
+        if (tolerances is not null && compareBenchmark is null)
+        {
+            throw new ArgumentException("Option '--tolerances' requires '--compare'.");
+        }
+
+        IReadOnlyList<ComparedField>? toleranceOverrides = null;
+        if (tolerances is not null)
+        {
+            toleranceOverrides = ToleranceResolver.ParseOverrides(tolerances);
+        }
+
+        // Weight parsing and full validation are a pure function of the request,
+        // so they run here, before any dataset content is read. A rejected
+        // weighting therefore produces no report.
+        ScoreRequest? scoreRequest = null;
+        if (score)
+        {
+            scoreRequest = scoreWeights is null
+                ? ScoreRequest.Default()
+                : new ScoreRequest(ScoreWeightParser.Parse(scoreWeights));
         }
 
         csv.Validate();
@@ -235,8 +406,17 @@ public static class ValidateCommand
             market,
             calendarPath,
             csv,
-            reportVersion);
+            reportVersion,
+            Score: scoreRequest,
+            Instrument: instrument,
+            BenchmarkName: benchmarkName,
+            BenchmarkDir: benchmarkDir ?? "./benchmarks/",
+            BenchmarkDelete: null,
+            Yes: yes,
+            CompareBenchmark: compareBenchmark,
+            ToleranceOverrides: toleranceOverrides);
     }
+
 
     // Runs one detailed validation. A successful report is staged and committed
     // to the destination (or stdout) as v2 JSON or as detailed text; a fatal
@@ -297,7 +477,8 @@ public static class ValidateCommand
             outcome = await useCase.ExecuteAsync(new DetailedValidationRequest(
                 Path.GetFileName(parsed.InputPath),
                 source,
-                new ValidationOptions { TimeframeOverride = parsed.Timeframe, Verbose = parsed.Verbose },
+                new ValidationOptions { TimeframeOverride = parsed.Timeframe, Verbose = parsed.Verbose, Score = parsed.Score },
+
                 calendar,
                 parsed.CsvOptions)).ConfigureAwait(false);
         }
@@ -320,21 +501,46 @@ public static class ValidateCommand
             return Fail(parsed, failed.Diagnostic);
         }
 
-        var report = ((DetailedValidationOutcome.Succeeded)outcome).Report;
+        var report = ((DetailedValidationOutcome.Succeeded)outcome).Report with
+        {
+            Instrument = parsed.Instrument ?? "UNKNOWN"
+        };
         try
         {
+            // Run comparison early if --compare is specified, so the result can be
+            // included in the staged v2 report (FR-029, T062).
+            ComparisonReport? comparisonReport = null;
+            if (parsed.CompareBenchmark is not null)
+            {
+                comparisonReport = await RunComparisonAsync(parsed, report).ConfigureAwait(false);
+                if (comparisonReport is null)
+                    return 2; // fatal comparison error
+            }
+
+            // Establishment must complete before the report is published. A name
+            // collision or persistence failure therefore leaves stdout and the
+            // destination untouched (FR-030). If publication subsequently fails,
+            // the newly created benchmark is rolled back below.
+            BenchmarkSnapshot? establishedBenchmark = null;
+            if (parsed.BenchmarkName is not null)
+            {
+                establishedBenchmark = await EstablishBenchmarkAsync(parsed, report).ConfigureAwait(false);
+                if (establishedBenchmark is null)
+                    return 2;
+            }
+
             // Both representations render the same completed catalog through the
             // same staged commit, so neither can publish a partial report.
             var commit = await new StageAndCommitWriter(parsed.OutputPath, parsed.InputPath)
                 .PublishAsync(
-                    (staged, token) => parsed.ReportVersion == 2
-                        ? new DetailedReportV2Writer().WriteAsync(report, staged, token)
-                        : new VerboseReportWriter().WriteAsync(report, staged, token),
+                    (staged, token) => RenderDetailedOutputAsync(parsed, report, comparisonReport, staged, token),
                     Console.Out)
                 .ConfigureAwait(false);
 
             if (commit is ReportCommitResult.Failed commitFailed)
             {
+                if (establishedBenchmark is not null)
+                    await RollBackBenchmarkAsync(parsed, establishedBenchmark.Name).ConfigureAwait(false);
                 return Fail(parsed, commitFailed.Diagnostic);
             }
 
@@ -344,12 +550,92 @@ public static class ValidateCommand
                     $"Validation complete: findings={report.Summary.TotalFindings}; clean={report.Summary.IsClean.ToString().ToLowerInvariant()}; report={parsed.OutputPath}");
             }
 
-            return report.Summary.IsClean ? 0 : 1;
+            // Advisory comparison: return 0 on success regardless of discrepancy findings.
+            // Exit code 2 is reserved for fatal comparison failures only (Q6, FR-026).
+            return comparisonReport is not null ? 0 : report.Summary.IsClean ? 0 : 1;
         }
         finally
         {
             await report.Findings.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    // Establishes a benchmark from the validated report.
+    private static async Task<BenchmarkSnapshot?> EstablishBenchmarkAsync(
+        ParsedArguments parsed,
+        DetailedValidationReport report)
+    {
+        try
+        {
+            var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
+            Directory.CreateDirectory(benchmarkDir);
+            var store = new FileBenchmarkStore(benchmarkDir);
+            var useCase = new EstablishBenchmarkUseCase(store);
+
+            return await useCase.ExecuteAsync(
+                report,
+                parsed.BenchmarkName!,
+                Path.GetFullPath(parsed.InputPath)).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is
+            InvalidOperationException or
+            FileNotFoundException or
+            IOException or
+            UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Failed to establish benchmark: {exception.Message}");
+            return null;
+        }
+    }
+
+    private static async Task RollBackBenchmarkAsync(ParsedArguments parsed, string benchmarkName)
+    {
+        try
+        {
+            var store = new FileBenchmarkStore(Path.GetFullPath(parsed.BenchmarkDir!));
+            await store.DeleteAsync(benchmarkName).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Console.Error.WriteLine($"Benchmark rollback failed: {exception.Message}");
+        }
+    }
+
+    // Deletes a stored benchmark by name.
+    private static async Task<int> RunBenchmarkDeleteAsync(ParsedArguments parsed)
+    {
+        var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
+        var name = new BenchmarkName(parsed.BenchmarkDelete!);
+        var store = new FileBenchmarkStore(benchmarkDir);
+
+        // Check if the benchmark exists
+        if (!await store.ExistsAsync(parsed.BenchmarkDelete!).ConfigureAwait(false))
+        {
+            Console.Error.WriteLine($"Benchmark '{parsed.BenchmarkDelete}' not found in {benchmarkDir}.");
+            return 2;
+        }
+
+        // Prompt for confirmation unless --yes
+        if (!parsed.Yes)
+        {
+            Console.Out.Write($"Delete benchmark '{parsed.BenchmarkDelete}'? [y/N] ");
+            var input = Console.In.ReadLine()?.Trim().ToLowerInvariant();
+            if (input is not ("y" or "yes"))
+            {
+                Console.Out.WriteLine("Deletion cancelled.");
+                return 0;
+            }
+        }
+
+        var deleted = await store.DeleteAsync(parsed.BenchmarkDelete!).ConfigureAwait(false);
+        if (deleted)
+        {
+            Console.Out.WriteLine($"Benchmark '{parsed.BenchmarkDelete}' deleted.");
+            return 0;
+        }
+
+        Console.Error.WriteLine($"Benchmark '{parsed.BenchmarkDelete}' could not be deleted.");
+        return 2;
     }
 
     // Classifies an ingestion failure that stopped the run before any report
@@ -561,7 +847,7 @@ public static class ValidateCommand
         }
 
         Directory.CreateDirectory(directory);
-        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        var temporaryPath = Path.Combine($".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
         try
         {
             File.WriteAllText(temporaryPath, content, new System.Text.UTF8Encoding(false));
@@ -576,6 +862,128 @@ public static class ValidateCommand
         }
     }
 
+    // Runs comparison against a stored benchmark and returns the ComparisonReport.
+    // Returns null on fatal error (after printing the error to stderr).
+    private static async Task<ComparisonReport?> RunComparisonAsync(ParsedArguments parsed, DetailedValidationReport report)
+    {
+        try
+        {
+            var benchmarkDir = Path.GetFullPath(parsed.BenchmarkDir!);
+            var store = new FileBenchmarkStore(benchmarkDir);
+
+            // Load benchmark snapshot
+            if (!await store.ExistsAsync(parsed.CompareBenchmark!).ConfigureAwait(false))
+            {
+                Console.Error.WriteLine(
+                    $"Benchmark '{parsed.CompareBenchmark}' not found in {benchmarkDir}. " +
+                    $"Establish it first with '--benchmark {parsed.CompareBenchmark}'.");
+                return null;
+            }
+
+            var benchmark = await store.LoadAsync(parsed.CompareBenchmark!).ConfigureAwait(false);
+
+            // Load benchmark source candles with the benchmark's recorded ingestion context (T075)
+            var benchmarkSourcePath = Path.Combine(benchmarkDir, new BenchmarkName(parsed.CompareBenchmark!).Safe, "source.csv");
+            var benchmarkCsvOptions = BuildCsvOptionsFromContext(benchmark.Context);
+            var benchmarkSource = new CsvCandleSource(benchmarkSourcePath, benchmarkCsvOptions);
+            var benchmarkCandles = new List<PriceCandle>();
+            await foreach (var candle in benchmarkSource.ReadAllAsync().ConfigureAwait(false))
+            {
+                benchmarkCandles.Add(candle);
+            }
+            benchmarkCandles.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+
+            // Load candidate source candles
+            var candidateSource = new CsvCandleSource(parsed.InputPath, parsed.CsvOptions);
+            var candidateCandles = new List<PriceCandle>();
+            await foreach (var candle in candidateSource.ReadAllAsync().ConfigureAwait(false))
+            {
+                candidateCandles.Add(candle);
+            }
+            candidateCandles.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+
+            // Build candidate identity from the validation context
+            var candidateIdentity = new CandidateIdentity(
+                report.Source,
+                report.Context,
+                parsed.Instrument!);
+
+            // Run comparison
+            var useCase = new CompareDatasetsUseCase();
+            return useCase.Compare(
+                benchmark,
+                benchmarkCandles,
+                candidateCandles,
+                candidateIdentity,
+                parsed.ToleranceOverrides) with
+            {
+                CandidateScore = report.Score
+            };
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            InvalidOperationException or
+            FileNotFoundException or
+            FormatException or
+            IOException or
+            UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Comparison failed: {exception.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds CsvInputOptions from a ValidationContextSnapshot, preserving the delimiter,
+    /// header mode, timestamp interpretation, and source offset recorded at benchmark establishment.
+    /// </summary>
+    private static CsvInputOptions BuildCsvOptionsFromContext(ValidationContextSnapshot context)
+    {
+        var tzOffset = TimeSpan.TryParse(context.Timestamp.SourceOffset, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : TimeSpan.FromHours(2);
+
+        return new CsvInputOptions
+        {
+            HasHeader = context.HasHeader,
+            Delimiter = context.Delimiter,
+            DateFormat = context.Timestamp.Mode == Application.Ingestion.TimestampMode.SeparateDateTime
+                ? context.Timestamp.DateFormat : null,
+            TimeFormat = context.Timestamp.Mode == Application.Ingestion.TimestampMode.SeparateDateTime
+                ? context.Timestamp.TimeFormat : null,
+            TimestampFormat = context.Timestamp.Mode == Application.Ingestion.TimestampMode.CombinedTimestamp
+                ? context.Timestamp.TimestampFormat : null,
+            TimestampColumn = context.Timestamp.Mode == Application.Ingestion.TimestampMode.CombinedTimestamp
+                ? context.Timestamp.TimestampColumn : null,
+            TzOffset = tzOffset
+        };
+    }
+
+    private static async Task RenderDetailedOutputAsync(
+        ParsedArguments parsed,
+        DetailedValidationReport report,
+        ComparisonReport? comparisonReport,
+        TextWriter destination,
+        CancellationToken cancellationToken)
+    {
+        if (parsed.ReportVersion == 2)
+        {
+            await new DetailedReportV2Writer()
+                .WriteAsync(report, comparisonReport, destination, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await new VerboseReportWriter()
+            .WriteAsync(report, destination, cancellationToken)
+            .ConfigureAwait(false);
+        if (comparisonReport is not null)
+        {
+            await destination.WriteLineAsync().ConfigureAwait(false);
+            await destination.WriteAsync(new ComparisonTextReportWriter().Write(comparisonReport)).ConfigureAwait(false);
+        }
+    }
+
     private sealed record ParsedArguments(
         string InputPath,
         string? Timeframe,
@@ -585,5 +993,13 @@ public static class ValidateCommand
         MarketProfile Market,
         string? CalendarPath,
         CsvInputOptions CsvOptions,
-        int ReportVersion);
+        int ReportVersion,
+        ScoreRequest? Score,
+        string? Instrument = null,
+        string? BenchmarkName = null,
+        string? BenchmarkDir = "./benchmarks/",
+        string? BenchmarkDelete = null,
+        bool Yes = false,
+        string? CompareBenchmark = null,
+        IReadOnlyList<ComparedField>? ToleranceOverrides = null);
 }

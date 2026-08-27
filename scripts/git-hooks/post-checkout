@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# post-checkout hook — auto-fetch & staleness warning
+#
+# Fires after `git checkout` / `git switch`. Silently fetches from origin in
+# the background, then warns if the current branch is behind its remote.
+# Only runs on branch checkouts (not file checkouts).
+# ---------------------------------------------------------------------------
+
+# $3 = 1 means branch checkout, 0 means file checkout
+[ "$3" -eq 0 ] && exit 0
+
+# Don't run if there's no remote
+REMOTE="$(git remote 2>/dev/null)"
+[ -z "$REMOTE" ] && exit 0
+
+# Fetch in background so the checkout isn't slow
+git fetch "$REMOTE" --quiet &>/dev/null &
+FETCH_PID=$!
+
+# Give the fetch a moment (but don't block forever)
+sleep 1
+wait $FETCH_PID 2>/dev/null
+
+# Current branch info
+BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null)"
+[ -z "$BRANCH" ] && exit 0  # detached HEAD — nothing to compare
+
+# How many commits behind?
+BEHIND="$(git rev-list --count HEAD..${REMOTE}/${BRANCH} 2>/dev/null)"
+AHEAD="$(git rev-list --count ${REMOTE}/${BRANCH}..HEAD 2>/dev/null)"
+
+if [ "$BEHIND" -gt 0 ]; then
+    printf "\n\033[33m⚠  Branch '\033[1m%s\033[22m' is \033[1m%s commit(s) behind\033[22m ${REMOTE}/${BRANCH}.\033[0m\n" "$BRANCH" "$BEHIND"
+    printf "   Run: \033[36mgit pull --rebase\033[0m\n\n"
+fi
+
+if [ "$AHEAD" -gt 0 ]; then
+    printf "\n\033[34mℹ  Branch '\033[1m%s\033[22m' is \033[1m%s commit(s) ahead\033[22m of ${REMOTE}/${BRANCH}.\033[0m\n" "$BRANCH" "$AHEAD"
+    printf "   Run: \033[36mgit push\033[0m\n\n"
+fi
+
+exit 0

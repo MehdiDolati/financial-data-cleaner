@@ -13,12 +13,23 @@ namespace Validator.Domain.Findings.Evidence
         public DateTimeOffset? PreviousObservedTimestampUtc { get; }
         public DateTimeOffset? NextObservedTimestampUtc { get; }
 
+        // Physical source line of the observed record that immediately precedes
+        // the absence, and of the one that immediately follows it. These locate
+        // an absent record without inventing a line for it (FR-039): they belong
+        // to real neighbouring rows and never enter FindingLocation.SourceLines.
+        // Each is present exactly when its paired observed timestamp is present,
+        // so a boundary gap leaves the unavailable side absent (FR-040).
+        public long? PreviousObservedSourceLine { get; }
+        public long? NextObservedSourceLine { get; }
+
         public MissingCandleEvidence(
             DateTimeOffset expectedTimestampUtc,
             Timeframe expectedTimeframe,
             FindingReference timeGapReference,
             DateTimeOffset? previousObservedTimestampUtc = null,
-            DateTimeOffset? nextObservedTimestampUtc = null)
+            DateTimeOffset? nextObservedTimestampUtc = null,
+            long? previousObservedSourceLine = null,
+            long? nextObservedSourceLine = null)
         {
             if (expectedTimestampUtc.Offset != TimeSpan.Zero)
             {
@@ -37,12 +48,24 @@ namespace Validator.Domain.Findings.Evidence
 
             RequireUtc(previousObservedTimestampUtc, nameof(previousObservedTimestampUtc));
             RequireUtc(nextObservedTimestampUtc, nameof(nextObservedTimestampUtc));
+            AbsenceAnchor.RequirePairedLine(
+                previousObservedSourceLine,
+                previousObservedTimestampUtc,
+                nameof(previousObservedSourceLine),
+                nameof(previousObservedTimestampUtc));
+            AbsenceAnchor.RequirePairedLine(
+                nextObservedSourceLine,
+                nextObservedTimestampUtc,
+                nameof(nextObservedSourceLine),
+                nameof(nextObservedTimestampUtc));
 
             ExpectedTimestampUtc = expectedTimestampUtc;
             ExpectedTimeframe = expectedTimeframe;
             TimeGapReference = timeGapReference;
             PreviousObservedTimestampUtc = previousObservedTimestampUtc;
             NextObservedTimestampUtc = nextObservedTimestampUtc;
+            PreviousObservedSourceLine = previousObservedSourceLine;
+            NextObservedSourceLine = nextObservedSourceLine;
         }
 
         private static void RequireUtc(DateTimeOffset? value, string parameterName)

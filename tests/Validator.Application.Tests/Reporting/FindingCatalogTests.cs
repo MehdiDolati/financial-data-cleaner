@@ -359,4 +359,6 @@ public sealed class FindingCatalogTests
             + statistics.TimeGaps.ContributionSum
             + statistics.MalformedRows.ContributionSum);
     }
+
+
 }

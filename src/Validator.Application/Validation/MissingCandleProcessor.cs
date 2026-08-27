@@ -24,7 +24,9 @@ namespace Validator.Application.Validation
             DateTimeOffset previousObservedUtc,
             DateTimeOffset nextObservedUtc,
             Timeframe timeframe,
-            FindingReference gapReference)
+            FindingReference gapReference,
+            long? previousObservedSourceLine = null,
+            long? nextObservedSourceLine = null)
         {
             if (timeframe is null)
             {
@@ -46,20 +48,38 @@ namespace Validator.Application.Validation
                 throw new ArgumentException("The next observed timestamp must follow the previous one.", nameof(nextObservedUtc));
             }
 
-            return Enumerate(previousObservedUtc, nextObservedUtc, timeframe, gapReference);
+            return Enumerate(
+                previousObservedUtc,
+                nextObservedUtc,
+                timeframe,
+                gapReference,
+                previousObservedSourceLine,
+                nextObservedSourceLine);
         }
 
         private static IEnumerable<MissingCandleEvidenceSet> Enumerate(
             DateTimeOffset previousObservedUtc,
             DateTimeOffset nextObservedUtc,
             Timeframe timeframe,
-            FindingReference gapReference)
+            FindingReference gapReference,
+            long? previousObservedSourceLine,
+            long? nextObservedSourceLine)
         {
+            // Every candle in one gap carries the same bracketing pair as the gap
+            // itself, so each absence points at the same two real neighbouring
+            // rows rather than at a per-candle guess.
             for (var expected = previousObservedUtc + timeframe.Duration;
                  expected < nextObservedUtc;
                  expected += timeframe.Duration)
             {
-                yield return Build(expected, timeframe, gapReference, previousObservedUtc, nextObservedUtc);
+                yield return Build(
+                    expected,
+                    timeframe,
+                    gapReference,
+                    previousObservedUtc,
+                    nextObservedUtc,
+                    previousObservedSourceLine,
+                    nextObservedSourceLine);
             }
         }
 
@@ -68,7 +88,9 @@ namespace Validator.Application.Validation
             Timeframe timeframe,
             FindingReference gapReference,
             DateTimeOffset? previousObservedUtc = null,
-            DateTimeOffset? nextObservedUtc = null)
+            DateTimeOffset? nextObservedUtc = null,
+            long? previousObservedSourceLine = null,
+            long? nextObservedSourceLine = null)
         {
             var reference = FindingReferenceFactory.MissingCandle(expectedUtc);
             var evidence = new MissingCandleEvidence(
@@ -76,7 +98,9 @@ namespace Validator.Application.Validation
                 timeframe,
                 gapReference,
                 previousObservedUtc,
-                nextObservedUtc);
+                nextObservedUtc,
+                previousObservedSourceLine,
+                nextObservedSourceLine);
 
             var header = new DetailedFindingHeader(
                 reference,

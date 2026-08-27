@@ -36,7 +36,15 @@ namespace Validator.Infrastructure.Reporting
             var buffer = new StringBuilder();
 
             AppendSummaryLines(buffer, report.Summary);
+            if (report.Score is not null)
+            {
+                // Scoring is additive and sits immediately after the six summary
+                // lines; the rest of the detailed report is unchanged.
+                ScoringTextSectionWriter.Append(buffer, report.Score);
+            }
+
             AppendStatus(buffer, report);
+
             AppendSource(buffer, report.Source);
             AppendContext(buffer, report.Context);
             AppendCoverage(buffer, report.Coverage);
@@ -79,14 +87,16 @@ namespace Validator.Infrastructure.Reporting
 
         private static void AppendSummaryLines(StringBuilder buffer, DetailedSummary summary)
         {
-            buffer.Append("Missing candles: ").Append(Number(summary.MissingCandles)).Append('\n');
-            buffer.Append("Duplicate records: ").Append(Number(summary.DuplicateRecords)).Append('\n');
-            buffer.Append("Invalid OHLC: ").Append(Number(summary.InvalidOhlc)).Append('\n');
-            buffer.Append("Closed-market records: ").Append(Number(summary.ClosedMarketRecords)).Append('\n');
-            buffer.Append("Time gaps: ").Append(Number(summary.TimeGaps)).Append('\n');
-            buffer.Append("Malformed rows: ").Append(Number(summary.MalformedRows)).Append('\n');
+            // The six leading lines come from the one shared label source so the
+            // concise and verbose renderings cannot drift (SC-006).
+            foreach (var line in SummaryLabels.Lines(summary))
+            {
+                buffer.Append(line).Append('\n');
+            }
+
             buffer.Append('\n');
         }
+
 
         private static void AppendStatus(StringBuilder buffer, DetailedValidationReport report)
         {
@@ -293,7 +303,9 @@ namespace Validator.Infrastructure.Reporting
                 $"; expectedTimeframe={missing.Evidence.ExpectedTimeframe}" +
                 $"; timeGapReference={missing.Evidence.TimeGapReference.Value}" +
                 $"; previousObservedTimestampUtc={Optional(missing.Evidence.PreviousObservedTimestampUtc)}" +
-                $"; nextObservedTimestampUtc={Optional(missing.Evidence.NextObservedTimestampUtc)}",
+                $"; nextObservedTimestampUtc={Optional(missing.Evidence.NextObservedTimestampUtc)}" +
+                $"; previousObservedSourceLine={Optional(missing.Evidence.PreviousObservedSourceLine)}" +
+                $"; nextObservedSourceLine={Optional(missing.Evidence.NextObservedSourceLine)}",
             FindingEvidenceRecord.TimeGapHeader gap =>
                 $"firstMissingTimestampUtc={Utc(gap.Evidence.FirstMissingTimestampUtc)}" +
                 $"; lastMissingTimestampUtc={Utc(gap.Evidence.LastMissingTimestampUtc)}" +
@@ -301,7 +313,9 @@ namespace Validator.Infrastructure.Reporting
                 $"; missingCandleCount={Number(gap.Evidence.MissingCandleCount)}" +
                 $"; elapsedSeconds={Number(gap.Evidence.ElapsedSeconds)}" +
                 $"; previousObservedTimestampUtc={Optional(gap.Evidence.PreviousObservedTimestampUtc)}" +
-                $"; nextObservedTimestampUtc={Optional(gap.Evidence.NextObservedTimestampUtc)}",
+                $"; nextObservedTimestampUtc={Optional(gap.Evidence.NextObservedTimestampUtc)}" +
+                $"; previousObservedSourceLine={Optional(gap.Evidence.PreviousObservedSourceLine)}" +
+                $"; nextObservedSourceLine={Optional(gap.Evidence.NextObservedSourceLine)}",
             FindingEvidenceRecord.TimeGapMissingReference missing =>
                 $"missingCandleReference={missing.TargetReference.Value}",
             FindingEvidenceRecord.DuplicateHeader duplicate =>
@@ -388,6 +402,12 @@ namespace Validator.Infrastructure.Reporting
 
         private static string Optional(DateTimeOffset? value) =>
             value.HasValue ? Utc(value.Value) : NotApplicable;
+
+        // A bracketing observed line locates an absence in the file. An
+        // unavailable side at a dataset boundary is labeled rather than shown as
+        // a number, so it cannot be misread as line zero (FR-040).
+        private static string Optional(long? value) =>
+            value.HasValue ? Number(value.Value) : NotApplicable;
 
         private static string Optional(string? value) =>
             value is null ? NotApplicable : Quote(value);

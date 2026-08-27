@@ -109,7 +109,7 @@ and applicability value from documented machine-readable fields alone.
 1. **Given** identical input bytes and identical scoring configuration, **When** the dataset is scored repeatedly, **Then** every reported score is identical, including its formatting.
 2. **Given** machine-readable output, **When** a consumer reads the scoring data, **Then** each metric score, its count, population, applicability, resolved weight, normalised weight, and the average are separate documented fields.
 3. **Given** a scored run, **When** the exit behaviour is observed, **Then** the score never changes the exit code, the six summary counts, the findings, or the source dataset.
-4. **Given** a run that ends fatally, **When** scoring was requested, **Then** no scores are produced and the fatal diagnostic makes clear that scoring did not occur.
+4. **Given** a run that ends fatally, **When** scoring was requested, **Then** no scores are produced on any output stream, and when the fatal cause is itself a scoring problem the diagnostic names that cause.
 
 ### Edge Cases
 
@@ -136,7 +136,7 @@ and applicability value from documented machine-readable fields alone.
 - **FR-002**: Scoring MUST be opt-in. When it is not requested, all existing output, counts, findings, and exit behaviour MUST remain unchanged.
 - **FR-003**: Scoring MUST NOT change, repair, reorder, or overwrite any content in the source dataset, and MUST NOT alter the six summary counts, the findings, the finding order, or the process exit code.
 - **FR-004**: Scores MUST be derived only from the counts, populations, and check statuses already established by the existing validation run; scoring MUST NOT introduce a new data-quality check or re-scan the dataset.
-- **FR-005**: When a run ends fatally and no trustworthy complete report exists, the system MUST NOT produce any score, and the fatal diagnostic MUST make clear that scoring did not occur.
+- **FR-005**: When a run ends fatally, no successful report exists, so the system MUST NOT produce any score on any output stream even when scoring was requested. Where the fatal cause is itself a scoring configuration or scoring consistency problem, its diagnostic MUST name that cause.
 
 #### Per-Metric Score Calculation
 
@@ -208,7 +208,7 @@ and applicability value from documented machine-readable fields alone.
 - **SC-006**: In 100% of runs where scoring is not requested, output is byte-identical to the equivalent run before this feature existed, and in 100% of scored runs the six summary counts, findings, finding order, and exit code are unchanged from the equivalent unscored run.
 - **SC-007**: Machine-readable consumers obtain every score, count, population, state, reason, resolved weight, normalised weight, and the average from documented fields in 100% of contract tests without parsing human-readable text.
 - **SC-008**: In 100% of tests combining scoring with the v1 contract, the run fails with an actionable configuration-conflict message, and in 100% of v1 contract tests the v1 output remains unchanged.
-- **SC-009**: In 100% of fatal-run tests where scoring was requested, no score is emitted and the diagnostic states that scoring did not occur.
+- **SC-009**: In 100% of fatal-run tests where scoring was requested, no score is emitted on any stream; and in 100% of scoring-caused fatal tests, the diagnostic names the scoring problem.
 - **SC-010**: In all source-protection tests, the source dataset remains byte-for-byte unchanged when scoring is requested.
 - **SC-011**: A user reviewing a scored report can identify the weakest metric, state the count and population behind its score, and name the average's coverage within two minutes without consulting application source code, in at least 90% of task-based review attempts.
 

@@ -1,0 +1,448 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Validator.Application.Benchmark;
+using Validator.Application.Comparison;
+using Validator.Application.Ingestion;
+using Validator.Application.Reporting;
+using Validator.Application.Scoring;
+using Validator.Domain.Comparison;
+using Validator.Domain.Findings;
+using Validator.Domain.Scoring;
+using Xunit;
+
+namespace Validator.Application.Tests.Comparison
+{
+    public class ComparisonTextReportWriterTests
+    {
+        [Fact]
+        public void Write_ContainsBenchmarkSection()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("=== BENCHMARK COMPARISON ===", text);
+            Assert.Contains("Benchmark: test", text);
+        }
+
+        [Fact]
+        public void Write_ContainsCoverageSection()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Coverage:", text);
+            Assert.Contains("Benchmark records: 5", text);
+            Assert.Contains("Candidate records: 5", text);
+            Assert.Contains("Matched timestamps: 5", text);
+        }
+
+        [Fact]
+        public void Write_ContainsToleratedDifferencesSection()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Tolerated Differences:", text);
+            Assert.Contains("Open:", text);
+            Assert.Contains("Volume:", text);
+        }
+
+        [Fact]
+        public void Write_ContainsScoresSection()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Benchmark-Agreement Score:", text);
+            Assert.Contains("100.00", text);
+        }
+
+        [Fact]
+        public void Write_WithDiscrepancies_ShowsMaterialSection()
+        {
+            var report = CreateReportWithDiscrepancies();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Material Discrepancies (1 found):", text);
+            Assert.Contains("Open", text);
+            Assert.Contains("Material (exceeds both tolerances)", text);
+        }
+
+        [Fact]
+        public void Write_NoDiscrepancies_ShowsZeroFound()
+        {
+            var report = CreateReport();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Material Discrepancies (0 found):", text);
+        }
+
+        [Fact]
+        public void Write_NoOverlap_ShowsUnavailable()
+        {
+            var report = CreateReportNoOverlap();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+
+            Assert.Contains("Benchmark-Agreement Score: UNAVAILABLE", text);
+            Assert.Contains("No overlapping timestamps", text);
+        }
+
+        [Fact]
+        public void Write_NullReport_Throws()
+        {
+            var writer = new ComparisonTextReportWriter();
+            Assert.Throws<ArgumentNullException>(() => writer.Write(null!));
+        }
+
+        [Fact]
+        public void Write_NegativeDirectionalDifference_ShowsMinus()
+        {
+            var report = CreateReportWithNegativeDiscrepancy();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            // Negative directional difference should not have "+" prefix
+            Assert.Contains("Diff: -", text);
+        }
+
+        [Fact]
+        public void Write_ZeroBenchmarkValue_OmitsRelativePercent()
+        {
+            var report = CreateReportWithZeroBenchmarkDiscrepancy();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            // Zero benchmark value should not show percentage
+            var discrepancyLine = text.Split(Environment.NewLine)
+                .Single(line => line.Contains("Benchmark: 0  Candidate:", StringComparison.Ordinal));
+            Assert.DoesNotContain("%", discrepancyLine);
+        }
+
+        [Fact]
+        public void Write_WithCandidateScore_ShowsCandidateScore()
+        {
+            var report = CreateReportWithCandidateScore();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("Candidate Quality Score:", text);
+        }
+
+        [Fact]
+        public void Write_NoOverlap_NoOverlappingRangeShown()
+        {
+            var report = CreateReportNoOverlap();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.DoesNotContain("Overlapping range:", text);
+        }
+
+        [Fact]
+        public void Write_WithContextWarnings_ShowsWarningsSection()
+        {
+            var report = CreateReportWithContextWarnings();
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("Warnings:", text);
+            Assert.Contains("Calendar profile differs", text);
+        }
+
+        [Fact]
+        public void Write_UnavailableDatasetScore_ShowsNA()
+        {
+            // Create benchmark with unavailable dataset score to exercise FormatScore null path
+            var source = new SourceIdentity("test.csv", 100, Sha256());
+            var metrics = MetricPopulationMap.CanonicalOrder.Select(cat =>
+                MetricScoreCalculator.ScoreMetric(cat, 0, 100, MetricPopulationMap.KindFor(cat))
+            ).ToList();
+            var weighting = ScoreWeightResolver.Default();
+            var datasetScore = DatasetScore.Unavailable("No metrics scored",
+                MetricPopulationMap.CanonicalOrder.ToList(), new List<ExcludedMetric>());
+            var benchmark = new BenchmarkSnapshot(
+                name: "test", establishedAtUtc: DateTimeOffset.UtcNow, source: source,
+                context: CreateContext(), coverage: new ScanCoverage(5, 5, 0),
+                checks: CanonicalChecks(), metrics: metrics, dataset: datasetScore, weighting: weighting);
+            var report = new ComparisonReport(
+                benchmark, CreateCandidateIdentity(), ToleranceResolver.Resolve(null, "test"),
+                new ComparisonCoverage(5, 5, 5, 0, 0),
+                new List<FieldDiscrepancy>(),
+                ToleranceResolver.Resolve(null, "test").Fields.Select(f =>
+                    new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList(),
+                null, BenchmarkAgreementScore.Available(5, 0),
+                resolutionTimestamp: DateTimeOffset.UtcNow);
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("Dataset Average: N/A", text);
+        }
+
+        #region Test Helpers
+
+        private static ComparisonReport CreateReport()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0,
+                new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 8, 0, 0, 0, TimeSpan.Zero));
+
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList();
+
+            var agreementScore = BenchmarkAgreementScore.Available(5, 0);
+
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static ComparisonReport CreateReportWithDiscrepancies()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+
+            var discrepancies = new List<FieldDiscrepancy>
+            {
+                new FieldDiscrepancy(
+                    new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                    OhlcvField.Open, 0.63421m, 0.63471m, 0.00050m, 0.00050m,
+                    0.00010m, 0.0001m, new ToleranceDecision.MaterialDifference())
+            };
+
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 4, 4, 0, 1)).ToList();
+
+            var agreementScore = BenchmarkAgreementScore.Available(5, 1);
+
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                discrepancies, toleratedSummary,
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static ComparisonReport CreateReportNoOverlap()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 2, 0, 5, 2);
+
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 0, 0, 0, 0, 0)).ToList();
+
+            var agreementScore = BenchmarkAgreementScore.Unavailable(
+                "No overlapping timestamps between benchmark and candidate");
+
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static BenchmarkSnapshot CreateBenchmark(string name)
+        {
+            var source = new SourceIdentity("test.csv", 100, Sha256());
+            var metrics = MetricPopulationMap.CanonicalOrder.Select(cat =>
+                MetricScoreCalculator.ScoreMetric(cat, 0, 100, MetricPopulationMap.KindFor(cat))
+            ).ToList();
+            var weighting = ScoreWeightResolver.Default();
+            var datasetScore = DatasetScore.Available(
+                new ScoreValue(new ExactRatio(100, 1)),
+                MetricPopulationMap.CanonicalOrder.ToList(),
+                new List<ExcludedMetric>());
+
+            return new BenchmarkSnapshot(
+                name: name,
+                establishedAtUtc: DateTimeOffset.UtcNow,
+                source: source,
+                context: CreateContext(),
+                coverage: new ScanCoverage(5, 5, 0),
+                checks: CanonicalChecks(),
+                metrics: metrics,
+                dataset: datasetScore,
+                weighting: weighting);
+        }
+
+        private static CandidateIdentity CreateCandidateIdentity()
+        {
+            return new CandidateIdentity(
+                new SourceIdentity("candidate.csv", 100, Sha256()),
+                CreateContext());
+        }
+
+        private static ValidationContextSnapshot CreateContext()
+        {
+            return new ValidationContextSnapshot(
+                "D1",
+                new CalendarContext("forex", "Forex"),
+                TimestampInterpretation.CreateSeparate("yyyy.MM.dd", "HH:mm", "+02:00"),
+                "comma", false, null);
+        }
+
+        private static CheckExecution[] CanonicalChecks() => new[]
+        {
+            new CheckExecution(CheckName.MissingCandles, CheckStatus.Completed),
+            new CheckExecution(CheckName.DuplicateRecords, CheckStatus.Completed),
+            new CheckExecution(CheckName.InvalidOhlc, CheckStatus.Completed),
+            new CheckExecution(CheckName.ClosedMarketRecords, CheckStatus.Completed),
+            new CheckExecution(CheckName.TimeGaps, CheckStatus.Completed),
+            new CheckExecution(CheckName.MalformedRows, CheckStatus.Completed)
+        };
+
+        private static ComparisonReport CreateReportWithNegativeDiscrepancy()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+
+            var discrepancies = new List<FieldDiscrepancy>
+            {
+                new FieldDiscrepancy(
+                    new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                    OhlcvField.Open, 0.63421m, 0.63471m, 0.00050m, -0.00050m,
+                    0.00010m, 0.0001m, new ToleranceDecision.MaterialDifference())
+            };
+
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 4, 4, 0, 1)).ToList();
+
+            var agreementScore = BenchmarkAgreementScore.Available(5, 1);
+
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                discrepancies, toleratedSummary,
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static ComparisonReport CreateReportWithZeroBenchmarkDiscrepancy()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+
+            var discrepancies = new List<FieldDiscrepancy>
+            {
+                new FieldDiscrepancy(
+                    new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                    OhlcvField.Volume, 0m, 100m, 100m, 100m,
+                    0m, 0.05m, new ToleranceDecision.MaterialDifference())
+            };
+
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 4, 4, 0, 1)).ToList();
+
+            var agreementScore = BenchmarkAgreementScore.Available(5, 1);
+
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                discrepancies, toleratedSummary,
+                null, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static ComparisonReport CreateReportWithCandidateScore()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0,
+                new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 8, 0, 0, 0, TimeSpan.Zero));
+
+            var metrics = MetricPopulationMap.CanonicalOrder.Select(cat =>
+                MetricScoreCalculator.ScoreMetric(cat, 0, 100, MetricPopulationMap.KindFor(cat))
+            ).ToList();
+            var weighting = ScoreWeightResolver.Default();
+            var datasetScore = DatasetScore.Available(
+                new ScoreValue(new ExactRatio(100, 1)),
+                MetricPopulationMap.CanonicalOrder.ToList(),
+                new List<ExcludedMetric>());
+            var candidateScore = new DatasetScoreReport(metrics, weighting, datasetScore);
+
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList();
+
+            var agreementScore = BenchmarkAgreementScore.Available(5, 0);
+
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                candidateScore, agreementScore, resolutionTimestamp: DateTimeOffset.UtcNow);
+        }
+
+        private static ComparisonReport CreateReportWithContextWarnings()
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0,
+                new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 1, 8, 0, 0, 0, TimeSpan.Zero));
+            var warnings = new List<string> { "Calendar profile differs: benchmark uses 'forex' but candidate uses 'equities'." };
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList();
+            var agreementScore = BenchmarkAgreementScore.Available(5, 0);
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                null, agreementScore, warnings, DateTimeOffset.UtcNow);
+        }
+
+        private static string Sha256() => "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";
+
+        [Fact]
+        public void Write_ExtraRecords_NullCandidateSourceLine_ShowsUnavailable()
+        {
+            var report = CreateReportWithExtraRecords(candidateSourceLine: null);
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("unavailable", text);
+        }
+
+        [Fact]
+        public void Write_ExtraRecords_NonNullCandidateSourceLine_ShowsLineNumber()
+        {
+            var report = CreateReportWithExtraRecords(candidateSourceLine: 42);
+            var writer = new ComparisonTextReportWriter();
+            var text = writer.Write(report);
+            Assert.Contains("42", text);
+        }
+
+        private static ComparisonReport CreateReportWithExtraRecords(long? candidateSourceLine)
+        {
+            var benchmark = CreateBenchmark("test");
+            var candidateIdentity = CreateCandidateIdentity();
+            var config = ToleranceResolver.Resolve(null, "test");
+            var coverage = new ComparisonCoverage(5, 5, 5, 0, 0);
+            var extraRecords = new List<TimestampAlignmentReference>
+            {
+                new TimestampAlignmentReference(
+                    new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+                    CandidateSourceLine: candidateSourceLine)
+            };
+            var toleratedSummary = config.Fields.Select(f =>
+                new ToleratedDifferenceAggregate(f.Field, 5, 5, 5, 0, 0)).ToList();
+            var agreementScore = BenchmarkAgreementScore.Available(5, 0);
+            return new ComparisonReport(
+                benchmark, candidateIdentity, config, coverage,
+                new List<FieldDiscrepancy>(), toleratedSummary,
+                missingFromCandidateTimestamps: [],
+                extraInCandidateTimestamps: [],
+                candidateScore: null, agreementScore: agreementScore,
+                resolutionTimestamp: DateTimeOffset.UtcNow,
+                missingFromCandidateRecords: [],
+                extraInCandidateRecords: extraRecords);
+        }
+
+        #endregion
+    }
+}
