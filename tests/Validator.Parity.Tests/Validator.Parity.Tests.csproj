@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -21,14 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Validator.Application\Validator.Application.csproj" />
+    <ProjectReference Include="..\..\src\Validator.Domain\Validator.Domain.csproj" />
     <ProjectReference Include="..\..\src\Validator.Infrastructure\Validator.Infrastructure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="../Fixtures/calendars/custom-weekly-calendar.json">
-      <Link>Fixtures/custom-weekly-calendar.json</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <ProjectReference Include="..\..\src\Validator.Cli\Validator.Cli.csproj" />
   </ItemGroup>
 
 </Project>

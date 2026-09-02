@@ -1,0 +1,173 @@
+using System;
+using System.Collections.Generic;
+using Validator.Application.Abstractions;
+using Validator.Application.Benchmark;
+using Validator.Application.Comparison;
+using Validator.Application.Ingestion;
+using Validator.Application.Reporting;
+using Validator.Application.Scoring;
+
+namespace Validator.Application.Web
+{
+    /// <summary>
+    /// The established detailed-report fields carried by a terminal-success
+    /// view (FR-013). The six categories are exposed separately; findings
+    /// stream through the existing catalog cursor and are never
+    /// materialized (FR-019, spec edge case).
+    /// </summary>
+    public sealed record WebValidationSection(
+        ValidationContextSnapshot Context,
+        ScanCoverage Coverage,
+        IReadOnlyList<CheckExecution> Checks,
+        ReportReconciliation Reconciliation,
+        DetailedSummary Summary,
+        ICompletedFindingCatalog Findings,
+        string Instrument);
+
+    /// <summary>
+    /// Projects the six metric scores and the dataset average exactly as the
+    /// existing scoring pipeline computed them — nothing is recomputed
+    /// (FR-015, FR-018).
+    /// </summary>
+    public sealed record WebScoringSection(DatasetScoreReport Score);
+
+    /// <summary>
+    /// The immutable benchmark reference recorded at establishment: name,
+    /// source identity, recorded context, and the benchmark's own recorded
+    /// scores — kept separate from the candidate's scores (FR-016).
+    /// </summary>
+    public sealed record WebBenchmarkSection(
+        string Name,
+        SourceIdentity Source,
+        ValidationContextSnapshot Context,
+        IReadOnlyList<MetricScore> RecordedMetrics,
+        DatasetScore RecordedDatasetScore,
+        string Instrument);
+
+    /// <summary>
+    /// The comparison evidence: matched/missing/extra reported separately,
+    /// material discrepancies with resolved tolerances, tolerated aggregates
+    /// kept auditable, and the benchmark-agreement score as its own member —
+    /// never conflated with the candidate's quality score (FR-016, FR-017).
+    /// </summary>
+    public sealed record WebComparisonSection(ComparisonReport Comparison);
+
+    /// <summary>
+    /// The typed, presentation-free projection of a terminal run (FR-019,
+    /// SC-002). Every required field is reachable as data, never only as
+    /// prose; escaping happens in the host at render time (FR-030).
+    /// </summary>
+    public sealed record WebResultView
+    {
+        public WebRunId Id { get; }
+
+        public WebRunOperation Operation { get; }
+
+        public WebRunStatus Status { get; }
+
+        public SourceIdentity Source { get; }
+
+        /// <summary>Terminal success only; null otherwise.</summary>
+        public WebValidationSection? Validation { get; }
+
+        /// <summary>Present only when scoring was requested on a terminal success (FR-005).</summary>
+        public WebScoringSection? Scoring { get; }
+
+        /// <summary>Establish and compare operations only.</summary>
+        public WebBenchmarkSection? Benchmark { get; }
+
+        /// <summary>Compare operation only.</summary>
+        public WebComparisonSection? Comparison { get; }
+
+        /// <summary>Failed only; carries no counts, scores, or comparison evidence (FR-011).</summary>
+        public FatalDiagnostic? Diagnostic { get; }
+
+        /// <summary>Empty unless Status is a terminal success (FR-014).</summary>
+        public IReadOnlyList<ReportRepresentation> AvailableExports { get; }
+
+        private WebResultView(
+            WebRunId id,
+            WebRunOperation operation,
+            WebRunStatus status,
+            SourceIdentity source,
+            WebValidationSection? validation,
+            WebScoringSection? scoring,
+            WebBenchmarkSection? benchmark,
+            WebComparisonSection? comparison,
+            FatalDiagnostic? diagnostic,
+            IReadOnlyList<ReportRepresentation> availableExports)
+        {
+            Id = id;
+            Operation = operation;
+            Status = status;
+            Source = source;
+            Validation = validation;
+            Scoring = scoring;
+            Benchmark = benchmark;
+            Comparison = comparison;
+            Diagnostic = diagnostic;
+            AvailableExports = availableExports;
+        }
+
+        /// <summary>
+        /// The view of a terminal-success run: report-bearing, optionally
+        /// scored, with export availability.
+        /// </summary>
+        public static WebResultView Success(
+            WebRunRecord record,
+            WebValidationSection validation,
+            WebScoringSection? scoring,
+            WebBenchmarkSection? benchmark,
+            WebComparisonSection? comparison,
+            IReadOnlyList<ReportRepresentation> availableExports)
+        {
+            ArgumentNullException.ThrowIfNull(record);
+            ArgumentNullException.ThrowIfNull(validation);
+
+            if (record.Status is not (WebRunStatus.CompletedClean or WebRunStatus.CompletedWithFindings))
+            {
+                throw new ArgumentException(
+                    "A success view requires a terminal-success run.", nameof(record));
+            }
+
+            return new WebResultView(
+                record.Id,
+                record.Operation,
+                record.Status,
+                record.Source,
+                validation,
+                scoring,
+                benchmark,
+                comparison,
+                null,
+                availableExports);
+        }
+
+        /// <summary>
+        /// The view of a failed run: the diagnostic and nothing else — no
+        /// category counts, no scores, no comparison evidence, no exports
+        /// (FR-011, SC-003).
+        /// </summary>
+        public static WebResultView Failure(WebRunRecord record)
+        {
+            ArgumentNullException.ThrowIfNull(record);
+
+            if (record.Status != WebRunStatus.Failed || record.Diagnostic is null)
+            {
+                throw new ArgumentException("A failure view requires a failed run with a diagnostic.", nameof(record));
+            }
+
+            return new WebResultView(
+                record.Id,
+                record.Operation,
+                record.Status,
+                record.Source,
+                Validation: null,
+                Scoring: null,
+                Benchmark: null,
+                Comparison: null,
+                Diagnostic: record.Diagnostic,
+                AvailableExports: Array.Empty<ReportRepresentation>());
+        }
+    }
+}
