@@ -1,12 +1,22 @@
 # Feature Specification: Web Application Integration
 
-**Feature Branch**: `005-web-application-integration`
+**Feature Branch**: `007-web-application-integration`
 
 **Created**: 2026-08-18
 
 **Status**: Draft - Ready for Planning
 
 **Input**: User description: "in this feature we want to use the business logic in a web application instead of command line. What I expect is that the integration goes just fine and without any tweeks all the functionality migrate to a web site. Be mindful about code style and concention compatibility with the website's code (being provided later). you can change the source code of web site to comply with our constituion"
+
+## Clarifications
+
+### Session 2026-09-02
+
+- Q: Will the host website be a .NET application that references the validator's business-logic assemblies directly (in-process), or a different technology stack that consumes the validator through an HTTP/JSON API? → A: In-process .NET — the host website is the Certus web application (a Blazor Web App on .NET 10 using MudBlazor, source at `D:\Certus`), which references the validator's Application and Infrastructure assemblies directly; no HTTP/JSON boundary is introduced.
+- Q: How should the Certus website — which lives in a separate repository at `D:\Certus` — reference the validator's `Validator.Application` and `Validator.Infrastructure` assemblies? → A: Local/private NuGet package — the validator repository packages its Application and Infrastructure projects, and Certus consumes a versioned package.
+- Q: Where should the web runs, uploaded dataset bytes, and result artifacts be durably stored? → A: Validator-shipped content-addressed file stores under a configurable root, accessed only through the storage ports; the port abstraction is deliberately preserved because a future data/file management system is planned and must be able to substitute implementations without contract changes.
+- Q: Should this feature's implementation work span both repositories — the validator boundary/package here plus the Blazor presentation pages built inside the Certus repository — or does this feature deliver only the integration boundary and package? → A: Both repositories in this feature — the validator repository delivers the integration boundary, versioned package, and parity tests, and the Certus repository gains the Blazor presentation pages; one feature, one task list, with the website's source changed as needed to comply with the constitution.
+- Q: How long should completed web runs, uploaded dataset bytes, and exported results be retained after a run finishes? → A: Retain until explicitly deleted — no automatic expiry; the planned future data/file management system will own cleanup, and unavailable outcomes remain explicit per the established contract.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -368,7 +378,12 @@ host website's established loading, empty, error, and success patterns.
   options, and result reference.
 - **Uploaded Dataset**: User-provided OHLCV source content retained only under
   the host website's approved retention and access rules, with safe source
-  identity and content fingerprint.
+  identity and content fingerprint. Run records, uploaded bytes, and result
+  artifacts are durably stored by validator-shipped, content-addressed file
+  stores under a configurable storage root, reached only through the storage
+  ports (`IWebRunStore`, `IUploadedDatasetStore`); a future data/file
+  management system may substitute implementations behind those ports without
+  changing any contract.
 - **Web Result View**: The user-facing representation of a completed or failed
   run, including summaries, detailed findings, scores, comparison evidence, and
   available actions.
@@ -425,13 +440,26 @@ host website's established loading, empty, error, and success patterns.
 - The existing Domain and Application business logic, validation contracts,
   detailed report contract, scoring contract, and benchmark-comparison contract
   are authoritative; this feature exposes them rather than redefining them.
-- The website codebase and its runtime will be provided during planning or
-  implementation. Its established conventions are adopted where compatible;
-  the constitution and this feature's contracts take precedence when they
-  conflict.
+- The host website is the Certus web application (source at `D:\Certus`): a
+  Blazor Web App on .NET 10 with a MudBlazor component library that follows the
+  same hexagonal layering (Domain/Application/Infrastructure/Dashboard). It
+  consumes the validator in-process by referencing `Validator.Application` and
+  `Validator.Infrastructure` directly; no HTTP/JSON serialization boundary sits
+  between the website and the business logic. Because the website lives in a
+  separate repository, that reference is delivered as a versioned local/private
+  NuGet package produced from this repository; the package boundary is the
+  explicit, versioned contract between the two codebases. Its established
+  conventions are adopted where compatible; the constitution and this feature's
+  contracts take precedence when they conflict.
 - The first web integration targets the same primary users and supported OHLCV
   data workflows as the current validator. It does not introduce new financial
   analysis rules.
+- This feature's implementation spans both repositories as one deliverable: the
+  validator repository provides the application-facing web boundary, the
+  versioned package, and the CLI↔web parity tests; the Certus repository
+  (`D:\Certus`) gains the Blazor pages and workflows that render the web result
+  view. The feature is complete only when the host-dependent scenarios are
+  executed against the real Certus website.
 - The host website supplies its established identity, session, authorization,
   retention, and deployment policies. The integration must honor those policies
   and must not invent a conflicting account model.
@@ -439,9 +467,24 @@ host website's established loading, empty, error, and success patterns.
   trusted internal deployment for this feature; public exposure, user roles, and
   multi-tenant isolation require explicit host-website requirements before
   release.
+- Web runs, uploaded dataset bytes, and result artifacts are stored by the
+  validator's content-addressed file stores (shipped in the package) under a
+  configurable storage root, because no host database backing is required for
+  the first integration. All storage is accessed exclusively through the
+  Application-declared storage ports so that a planned future data/file
+  management system can replace the concrete stores without contract or
+  business-logic changes.
+- Retention policy for web runs, uploaded bytes, and result artifacts is
+  retain-until-explicitly-deleted with no automatic expiry: completed runs stay
+  retrievable for as long as the user needs them, and cleanup becomes the
+  responsibility of the planned future data/file management system rather than
+  an invented automatic expiry. A run that no longer exists is reported as an
+  explicit unavailable outcome, never an empty success. This policy is the one
+  documented in `README.md` for the integration (FR-034).
 - Uploaded data and generated results are retained only as long as required by
-  the host website's approved policy; retention and deletion behavior must be
-  documented during planning rather than silently assumed.
+  the host website's approved policy; if the host later supplies a stricter
+  policy, it supersedes the retain-until-deleted default and is documented at
+  that time.
 - Progress is user-facing status information and does not change the underlying
   deterministic business result.
 - Human-readable web labels may be arranged differently from CLI text, but the
