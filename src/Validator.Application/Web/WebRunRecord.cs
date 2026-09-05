@@ -21,7 +21,10 @@ namespace Validator.Application.Web
         /// <summary>Utc timestamp applied by the store at transition time; terminal states only.</summary>
         public DateTimeOffset? TerminalAtUtc { get; }
 
-        private WebRunTransitionData(string? resultReference, FatalDiagnostic? fatalDiagnostic, DateTimeOffset? terminalAtUtc)
+        /// <summary>True for the explicit Failed to Pending retry transition.</summary>
+        public bool IsRetry { get; }
+
+        private WebRunTransitionData(string? resultReference, FatalDiagnostic? fatalDiagnostic, DateTimeOffset? terminalAtUtc, bool isRetry = false)
         {
             if (resultReference is not null && fatalDiagnostic is not null)
             {
@@ -29,7 +32,7 @@ namespace Validator.Application.Web
                     "A transition may carry a result reference or a fatal diagnostic, never both.");
             }
 
-            if (resultReference is null && fatalDiagnostic is null && terminalAtUtc is null)
+            if (resultReference is null && fatalDiagnostic is null && !isRetry)
             {
                 throw new ArgumentException(
                     "A transition must carry a result reference, a fatal diagnostic, or retry semantics.");
@@ -38,10 +41,11 @@ namespace Validator.Application.Web
             ResultReference = resultReference;
             FatalDiagnostic = fatalDiagnostic;
             TerminalAtUtc = terminalAtUtc;
+            IsRetry = isRetry;
         }
 
         /// <summary>The payload for a Pending to Running transition.</summary>
-        public static WebRunTransitionData ForRunning() => new(null, null, DateTimeOffset.UnixEpoch);
+        public static WebRunTransitionData ForRunning() => new(null, null, null, isRetry: true);
 
         /// <summary>The payload for a terminal success.</summary>
         public static WebRunTransitionData ForSuccess(string resultReference, DateTimeOffset terminalAtUtc) =>
@@ -52,7 +56,7 @@ namespace Validator.Application.Web
             new(null, diagnostic, terminalAtUtc == default ? DateTimeOffset.UnixEpoch : terminalAtUtc);
 
         /// <summary>The payload for the explicit Failed to Pending retry transition.</summary>
-        public static WebRunTransitionData ForRetry() => new(null, null, null);
+        public static WebRunTransitionData ForRetry() => new(null, null, null, isRetry: true);
     }
 
     /// <summary>
@@ -89,6 +93,9 @@ namespace Validator.Application.Web
 
         /// <summary>Set once on reaching a terminal state.</summary>
         public DateTimeOffset? TerminalAtUtc { get; }
+
+        /// <summary>True for the explicit Failed to Pending retry transition.</summary>
+        public bool IsRetry { get; }
 
         /// <summary>Opaque host correlation; never interpreted, never authorization (research R6).</summary>
         public string? SubmittedBy { get; }

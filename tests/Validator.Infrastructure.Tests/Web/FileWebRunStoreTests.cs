@@ -33,11 +33,11 @@ public class FileWebRunStoreTests : IDisposable
         ToleranceOverrides: null);
 
     private WebRunRecord NewPendingRecord() => new(
-        WebRunId.Derive(Source(), Options()),
+        WebRunId.Derive(Source(), Options(), WebRunOperation.Validate),
         WebRunOperation.Validate,
         Source(),
         Options(),
-        SubmittedAtUtc: new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        submittedAtUtc: new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
     private FileWebRunStore NewStore() => new(_root);
 
@@ -48,7 +48,7 @@ public class FileWebRunStoreTests : IDisposable
         var record = NewPendingRecord();
 
         (await store.TryCreateAsync(record)).Should().BeTrue();
-        _root.Should().EndWith(Path.DirectorySeparatorChar.ToString()).And.NotBe(Path.GetTempPath());
+        Directory.Exists(Path.Combine(_root, "runs")).Should().BeTrue("the store creates its durable directory");
 
         var loaded = await store.FindAsync(record.Id);
         loaded.Should().NotBeNull();
@@ -96,8 +96,8 @@ public class FileWebRunStoreTests : IDisposable
         await store.TransitionAsync(
             record.Id,
             WebRunStatus.CompletedWithFindings,
-            WebRunTransitionData.ForSuccess("runs/" + record.Id.Value + ".json"),
-            terminalTime);
+            WebRunTransitionData.ForSuccess("runs/" + record.Id.Value + ".json", terminalTime),
+            default);
 
         var completed = await store.FindAsync(record.Id);
         completed!.Status.Should().Be(WebRunStatus.CompletedWithFindings);
@@ -114,10 +114,10 @@ public class FileWebRunStoreTests : IDisposable
 
         // Pending -> CompletedClean is forbidden: a run that never executed
         // cannot be clean (SC-003).
-        var act = () => store.TransitionAsync(
+        var act = async () => await store.TransitionAsync(
             record.Id,
             WebRunStatus.CompletedClean,
-            WebRunTransitionData.ForSuccess("result.json"));
+            WebRunTransitionData.ForSuccess("result.json", new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero)));
         await act.Should().ThrowAsync<InvalidOperationException>();
 
         // The stored record is untouched by the rejected transition.
@@ -136,12 +136,12 @@ public class FileWebRunStoreTests : IDisposable
         await store.TransitionAsync(
             record.Id,
             WebRunStatus.CompletedClean,
-            WebRunTransitionData.ForSuccess("result.json"));
+            WebRunTransitionData.ForSuccess("result.json", new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero)));
 
-        var act = () => store.TransitionAsync(record.Id, WebRunStatus.Running, WebRunTransitionData.ForRunning());
+        var act = async () => await store.TransitionAsync(record.Id, WebRunStatus.Running, WebRunTransitionData.ForRunning());
         await act.Should().ThrowAsync<InvalidOperationException>();
 
-        var act2 = () => store.TransitionAsync(
+        var act2 = async () => await store.TransitionAsync(
             record.Id,
             WebRunStatus.Failed,
             WebRunTransitionData.ForFailure(new FatalDiagnostic(
@@ -215,7 +215,7 @@ public class FileWebRunStoreTests : IDisposable
         var second = Task.Run(() => store.TryCreateAsync(record));
         var results = await Task.WhenAll(first, second);
 
-        results.Should().ContainSingle(success => success);
+        results.Should().ContainSingle(success => success.Result);
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class FileWebRunStoreTests : IDisposable
             await store.TransitionAsync(
                 record.Id,
                 WebRunStatus.CompletedClean,
-                WebRunTransitionData.ForSuccess("result.json"));
+                WebRunTransitionData.ForSuccess("result.json", new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero)));
         });
 
         while (!transition.IsCompleted)

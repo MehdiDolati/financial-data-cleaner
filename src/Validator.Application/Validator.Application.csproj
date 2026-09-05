@@ -1,4 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Validator.Application</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Financial Data Cleaner</Authors>
+    <Description>Transport-neutral web integration boundary for the OHLCV data quality validator.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Validator.Domain\Validator.Domain.csproj" />
@@ -12,6 +20,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Validator.Application.Tests" />
+    <InternalsVisibleTo Include="Validator.Infrastructure" />
+    <InternalsVisibleTo Include="Validator.Parity.Tests" />
   </ItemGroup>
 
 </Project>

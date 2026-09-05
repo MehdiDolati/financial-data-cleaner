@@ -1,5 +1,6 @@
 using System;
 using Validator.Application.Ingestion;
+using Validator.Application.Reporting;
 using Validator.Application.Web;
 using DomainTimeframes = Validator.Domain.Timeframes;
 
@@ -69,7 +70,7 @@ public class WebRunOptionsValidatorTests
 
         diagnostic.Should().NotBeNull();
         diagnostic!.Code.Should().Be("INVALID_ARGUMENT");
-        diagnostic.Guidance.Should().Contain("v2").And.Contain("score");
+        diagnostic.Guidance.Should().Contain("version 2").And.Contain("score");
     }
 
     [Fact]
@@ -169,7 +170,7 @@ public class WebRunOptionsValidatorTests
 
         diagnostic.Should().NotBeNull();
         diagnostic!.Code.Should().Be("INVALID_ARGUMENT");
-        diagnostic.Guidance.Should().Contain("compar", StringComparison.OrdinalIgnoreCase);
+        diagnostic.Guidance.Should().Contain("Compare");
 
         // Under Compare the same override is syntactically acceptable.
         Validate(
@@ -252,7 +253,7 @@ public class WebRunOptionsValidatorTests
 
         diagnostic.Should().NotBeNull();
         diagnostic!.Code.Should().Be("INVALID_ARGUMENT");
-        diagnostic.Guidance.Should().Contain("metric", StringComparison.OrdinalIgnoreCase);
+        diagnostic.Guidance.Should().Contain("metric");
 
         // All six with one zero weight is valid (non-zero total).
         var allSix = fiveSixths + ",malformedRows=0";

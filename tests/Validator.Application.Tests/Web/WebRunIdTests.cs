@@ -29,7 +29,7 @@ public class WebRunIdTests
     [Fact]
     public void Id_is_exactly_64_lower_case_hex_characters()
     {
-        var id = WebRunId.Derive(Source(), Options());
+        var id = WebRunId.Derive(Source(), Options(), WebRunOperation.Validate);
 
         id.Value.Should().HaveLength(64);
         id.Value.Should().MatchRegex("^[0-9a-f]{64}$");
@@ -38,8 +38,8 @@ public class WebRunIdTests
     [Fact]
     public void Identical_source_and_equivalent_options_produce_equal_ids()
     {
-        var first = WebRunId.Derive(Source(), Options());
-        var second = WebRunId.Derive(Source(), Options());
+        var first = WebRunId.Derive(Source(), Options(), WebRunOperation.Validate);
+        var second = WebRunId.Derive(Source(), Options(), WebRunOperation.Validate);
 
         first.Should().Be(second);
         first.Value.Should().Be(second.Value);
@@ -48,21 +48,15 @@ public class WebRunIdTests
     [Fact]
     public void One_changed_material_option_produces_a_different_id()
     {
-        var baseline = WebRunId.Derive(Source(), Options());
-        var changedTimeframe = WebRunId.Derive(Source(), Options() with { Timeframe = "H1" });
-        var changedDelimiter = WebRunId.Derive(
-            Source(),
-            Options() with { Csv = new CsvInputOptions { HasHeader = true, Delimiter = "semicolon" } });
-        var changedHeader = WebRunId.Derive(
-            Source(),
-            Options() with { Csv = new CsvInputOptions { HasHeader = false, Delimiter = "comma" } });
-        var changedVersion = WebRunId.Derive(Source(), Options() with { ReportVersion = 1 });
-        var changedScore = WebRunId.Derive(Source(), Options() with { Score = true });
-        var changedBenchmark = WebRunId.Derive(Source(), Options() with { BenchmarkName = "audusd-d1" });
-        var changedTolerance = WebRunId.Derive(Source(), Options() with { ToleranceOverrides = "{}" });
-        var changedMarket = WebRunId.Derive(
-            Source(),
-            Options() with { Market = Domain.Calendars.MarketProfile.Equities });
+        var baseline = WebRunId.Derive(Source(), Options(), WebRunOperation.Validate);
+        var changedTimeframe = WebRunId.Derive(Source(), Options() with { Timeframe = "H1" }, WebRunOperation.Validate);
+        var changedDelimiter = WebRunId.Derive(Source(), Options() with { Csv = new CsvInputOptions { HasHeader = true, Delimiter = "semicolon" } }, WebRunOperation.Validate);
+        var changedHeader = WebRunId.Derive(Source(), Options() with { Csv = new CsvInputOptions { HasHeader = false, Delimiter = "comma" } }, WebRunOperation.Validate);
+        var changedVersion = WebRunId.Derive(Source(), Options() with { ReportVersion = 1 }, WebRunOperation.Validate);
+        var changedScore = WebRunId.Derive(Source(), Options() with { Score = true }, WebRunOperation.Validate);
+        var changedBenchmark = WebRunId.Derive(Source(), Options() with { BenchmarkName = "audusd-d1" }, WebRunOperation.Validate);
+        var changedTolerance = WebRunId.Derive(Source(), Options() with { ToleranceOverrides = "{}" }, WebRunOperation.Validate);
+        var changedMarket = WebRunId.Derive(Source(), Options() with { Market = Domain.Calendars.MarketProfile.Equities }, WebRunOperation.Validate);
 
         changedTimeframe.Should().NotBe(baseline);
         changedDelimiter.Should().NotBe(baseline);
@@ -77,8 +71,8 @@ public class WebRunIdTests
     [Fact]
     public void Different_source_bytes_produce_a_different_id()
     {
-        var first = WebRunId.Derive(Source(sha: new string('a', 64)), Options());
-        var second = WebRunId.Derive(Source(sha: new string('b', 64)), Options());
+        var first = WebRunId.Derive(Source(sha: new string('a', 64)), Options(), WebRunOperation.Validate);
+        var second = WebRunId.Derive(Source(sha: new string('b', 64)), Options(), WebRunOperation.Validate);
 
         first.Should().NotBe(second);
     }
@@ -88,8 +82,8 @@ public class WebRunIdTests
     {
         // SourceIdentity carries the upload name, but the id derivation uses
         // only its SHA-256; a rename leaves the id untouched.
-        var named = WebRunId.Derive(new SourceIdentity("upload-1.csv", 100, new string('a', 64)), Options());
-        var renamed = WebRunId.Derive(new SourceIdentity("upload-2.csv", 100, new string('a', 64)), Options());
+        var named = WebRunId.Derive(new SourceIdentity("upload-1.csv", 100, new string('a', 64)), Options(), WebRunOperation.Validate);
+        var renamed = WebRunId.Derive(new SourceIdentity("upload-2.csv", 100, new string('a', 64)), Options(), WebRunOperation.Validate);
 
         named.Should().Be(renamed);
     }
@@ -97,8 +91,8 @@ public class WebRunIdTests
     [Fact]
     public void ByteSize_alone_does_not_change_the_id()
     {
-        var first = WebRunId.Derive(new SourceIdentity("a.csv", 100, new string('a', 64)), Options());
-        var second = WebRunId.Derive(new SourceIdentity("b.csv", 999, new string('a', 64)), Options());
+        var first = WebRunId.Derive(new SourceIdentity("a.csv", 100, new string('a', 64)), Options(), WebRunOperation.Validate);
+        var second = WebRunId.Derive(new SourceIdentity("b.csv", 999, new string('a', 64)), Options(), WebRunOperation.Validate);
 
         first.Should().Be(second);
     }
@@ -106,11 +100,11 @@ public class WebRunIdTests
     [Fact]
     public void Null_option_values_are_canonicalized_consistently()
     {
-        var first = WebRunId.Derive(Source(), Options() with { Timeframe = null });
-        var second = WebRunId.Derive(Source(), Options() with { Timeframe = null });
+        var first = WebRunId.Derive(Source(), Options() with { Timeframe = null }, WebRunOperation.Validate);
+        var second = WebRunId.Derive(Source(), Options() with { Timeframe = null }, WebRunOperation.Validate);
 
         first.Should().Be(second);
-        first.Should().NotBe(WebRunId.Derive(Source(), Options()));
+        first.Should().NotBe(WebRunId.Derive(Source(), Options(), WebRunOperation.Validate));
     }
 
     [Fact]
@@ -118,21 +112,17 @@ public class WebRunIdTests
     {
         // Equivalent option sets built through different construction paths
         // (e.g. differing CsvInputOptions property order) serialize identically.
-        var first = WebRunId.Derive(Source(), Options());
-        var second = WebRunId.Derive(
-            Source(),
-            Options() with
+        var first = WebRunId.Derive(Source(), Options(), WebRunOperation.Validate);
+        var second = WebRunId.Derive(Source(), Options() with
             {
                 Csv = new CsvInputOptions
                 {
                     Delimiter = "comma",
                     HasHeader = true,
-                    DateFormat = null,
-                    TimeFormat = null,
+                    TimestampColumn = null,
                     TimestampFormat = null,
-                    TimestampColumn = null
                 }
-            });
+            }, WebRunOperation.Validate);
 
         first.Should().Be(second);
     }
@@ -140,7 +130,7 @@ public class WebRunIdTests
     [Fact]
     public void Parse_round_trips_a_valid_value()
     {
-        var id = WebRunId.Derive(Source(), Options());
+        var id = WebRunId.Derive(Source(), Options(), WebRunOperation.Validate);
 
         var parsed = WebRunId.Parse(id.Value);
 

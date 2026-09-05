@@ -113,6 +113,12 @@ namespace Validator.Infrastructure.Web
         /// written to the durable artifact, so the stored bytes are exactly
         /// the bytes that produced the identity.
         /// </summary>
+        public string ResolveContentPath(UploadedDataset dataset)
+        {
+            ArgumentNullException.ThrowIfNull(dataset);
+            return Path.Combine(_root, "uploads", dataset.ContentReference);
+        }
+
         private sealed class SplittingStream : Stream
         {
             private readonly Stream _source;

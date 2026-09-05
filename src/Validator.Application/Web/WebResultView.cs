@@ -26,7 +26,7 @@ namespace Validator.Application.Web
 
     /// <summary>
     /// Projects the six metric scores and the dataset average exactly as the
-    /// existing scoring pipeline computed them — nothing is recomputed
+    /// existing scoring pipeline computed them â€” nothing is recomputed
     /// (FR-015, FR-018).
     /// </summary>
     public sealed record WebScoringSection(DatasetScoreReport Score);
@@ -34,7 +34,7 @@ namespace Validator.Application.Web
     /// <summary>
     /// The immutable benchmark reference recorded at establishment: name,
     /// source identity, recorded context, and the benchmark's own recorded
-    /// scores — kept separate from the candidate's scores (FR-016).
+    /// scores â€” kept separate from the candidate's scores (FR-016).
     /// </summary>
     public sealed record WebBenchmarkSection(
         string Name,
@@ -47,7 +47,7 @@ namespace Validator.Application.Web
     /// <summary>
     /// The comparison evidence: matched/missing/extra reported separately,
     /// material discrepancies with resolved tolerances, tolerated aggregates
-    /// kept auditable, and the benchmark-agreement score as its own member —
+    /// kept auditable, and the benchmark-agreement score as its own member â€”
     /// never conflated with the candidate's quality score (FR-016, FR-017).
     /// </summary>
     public sealed record WebComparisonSection(ComparisonReport Comparison);
@@ -144,7 +144,7 @@ namespace Validator.Application.Web
         }
 
         /// <summary>
-        /// The view of a failed run: the diagnostic and nothing else — no
+        /// The view of a failed run: the diagnostic and nothing else â€” no
         /// category counts, no scores, no comparison evidence, no exports
         /// (FR-011, SC-003).
         /// </summary>
@@ -162,12 +162,12 @@ namespace Validator.Application.Web
                 record.Operation,
                 record.Status,
                 record.Source,
-                Validation: null,
-                Scoring: null,
-                Benchmark: null,
-                Comparison: null,
-                Diagnostic: record.Diagnostic,
-                AvailableExports: Array.Empty<ReportRepresentation>());
+                validation: null,
+                scoring: null,
+                benchmark: null,
+                comparison: null,
+                diagnostic: record.Diagnostic,
+                availableExports: Array.Empty<ReportRepresentation>());
         }
     }
 }

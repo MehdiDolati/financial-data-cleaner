@@ -76,7 +76,7 @@ namespace Validator.Infrastructure.Web
                     return false;
                 }
 
-                await WriteAtomicallyAsync(path, StoredRecord.From(record), ct).ConfigureAwait(false);
+                await WriteAtomicallyAsync(path, StoredRecord.From(record), overwrite: false, ct).ConfigureAwait(false);
                 return true;
             }
             finally
@@ -109,7 +109,7 @@ namespace Validator.Infrastructure.Web
                 // Apply enforces the lifecycle table and the record invariants;
                 // a rejected transition throws and the stored record is untouched.
                 var next = current.Apply(target, data);
-                await WriteAtomicallyAsync(path, StoredRecord.From(next), ct).ConfigureAwait(false);
+                await WriteAtomicallyAsync(path, StoredRecord.From(next), overwrite: true, ct).ConfigureAwait(false);
             }
             finally
             {
@@ -129,14 +129,14 @@ namespace Validator.Infrastructure.Web
                 : stored.ToDomain();
         }
 
-        private static async Task WriteAtomicallyAsync(string path, StoredRecord record, CancellationToken ct)
+        private static async Task WriteAtomicallyAsync(string path, StoredRecord record, bool overwrite, CancellationToken ct)
         {
             var json = JsonSerializer.Serialize(record, SerializerOptions);
             var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
                 await File.WriteAllTextAsync(temporary, json, ct).ConfigureAwait(false);
-                File.Move(temporary, path, overwrite: false);
+                File.Move(temporary, path, overwrite: overwrite);
             }
             finally
             {

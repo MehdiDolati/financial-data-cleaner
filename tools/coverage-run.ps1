@@ -52,7 +52,8 @@ $projects = @(
     'tests/Validator.Domain.Tests/Validator.Domain.Tests.csproj',
     'tests/Validator.Application.Tests/Validator.Application.Tests.csproj',
     'tests/Validator.Infrastructure.Tests/Validator.Infrastructure.Tests.csproj',
-    'tests/Validator.Cli.Tests/Validator.Cli.Tests.csproj'
+    'tests/Validator.Cli.Tests/Validator.Cli.Tests.csproj',
+    'tests/Validator.Parity.Tests/Validator.Parity.Tests.csproj'
 )
 
 for ($i = 0; $i -lt $projects.Count; $i++) {

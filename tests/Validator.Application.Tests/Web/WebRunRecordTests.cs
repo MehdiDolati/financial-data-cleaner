@@ -1,13 +1,13 @@
 using System;
 using Validator.Application.Ingestion;
-using Validator.Application.Web;
 using Validator.Application.Reporting;
+using Validator.Application.Web;
 
 namespace Validator.Application.Tests.Web;
 
-// Audit aggregate tests. The record-level invariants — Diagnostic non-null
+// Audit aggregate tests. The record-level invariants - Diagnostic non-null
 // exactly when Failed; ResultReference only for terminal success; timestamps
-// from IApplicationClock; completed states immutable — are enforced at
+// from IApplicationClock; completed states immutable - are enforced at
 // construction and transition (FR-026, FR-011, data-model.md).
 public class WebRunRecordTests
 {
@@ -32,12 +32,15 @@ public class WebRunRecordTests
         "The supplied options could not be applied to this run.",
         "Correct the reported option and resubmit.");
 
+    private static WebRunId NewId(WebRunOptions? options = null) =>
+        WebRunId.Derive(Source(), options ?? Options(), WebRunOperation.Validate);
+
     private static WebRunRecord PendingRecord() => new(
-        WebRunId.Derive(Source(), Options()),
+        NewId(),
         WebRunOperation.Validate,
         Source(),
         Options(),
-        SubmittedAtUtc: FixedTime);
+        submittedAtUtc: FixedTime);
 
     [Fact]
     public void Construction_of_a_pending_record_succeeds_with_defaults()
@@ -55,37 +58,36 @@ public class WebRunRecordTests
     [Fact]
     public void Diagnostic_is_non_null_exactly_when_status_is_failed()
     {
-        // Failed => Diagnostic non-null is enforced by the transition data
-        // carrier; non-Failed states must never carry one.
-        var failed = PendingRecord().ToFailed(Diagnostic(), FixedTime);
+        var failed = PendingRecord().ToRunning().ToFailed(Diagnostic(), FixedTime);
 
         failed.Status.Should().Be(WebRunStatus.Failed);
         failed.Diagnostic.Should().NotBeNull();
 
-        FluentActions.Invoking(() => PendingRecord().ToFailed(null!, FixedTime))
-            .Should().Throw<ArgumentException>();
+        var act = () => PendingRecord().ToFailed(null!, FixedTime);
+        act.Should().Throw<ArgumentException>();
 
-        FluentActions.Invoking(() => PendingRecord().ToRunning())
-            .Should().NotThrow();
         var running = PendingRecord().ToRunning();
         running.Diagnostic.Should().BeNull();
     }
 
     [Fact]
-    public void Transition_data_rejects_a_report_reference_and_no_diagnostic()
+    public void Transition_payloads_carry_exactly_one_terminal_fact()
     {
-        // A fatal transition carries the diagnostic and nothing else.
-        FluentActions.Invoking(() => new WebRunTransitionData(ResultReference: null, FatalDiagnostic: null))
-            .Should().Throw<ArgumentException>();
-
         // A success transition carries the reference and nothing else.
-        FluentActions.Invoking(() => new WebRunTransitionData(ResultReference: "result.json"))
-            .Should().NotThrow();
+        var success = WebRunTransitionData.ForSuccess("result.json", FixedTime);
+        success.ResultReference.Should().Be("result.json");
+        success.FatalDiagnostic.Should().BeNull();
 
-        // Both together is a partial-success representation — forbidden.
-        FluentActions.Invoking(() =>
-                new WebRunTransitionData(ResultReference: "result.json", FatalDiagnostic: Diagnostic()))
-            .Should().Throw<ArgumentException>();
+        // A failure transition carries the diagnostic and nothing else.
+        var failure = WebRunTransitionData.ForFailure(Diagnostic(), FixedTime);
+        failure.FatalDiagnostic.Should().NotBeNull();
+        failure.ResultReference.Should().BeNull();
+
+        // A running transition and a retry carry no terminal payload at all.
+        WebRunTransitionData.ForRunning().ResultReference.Should().BeNull();
+        WebRunTransitionData.ForRunning().FatalDiagnostic.Should().BeNull();
+        WebRunTransitionData.ForRetry().ResultReference.Should().BeNull();
+        WebRunTransitionData.ForRetry().FatalDiagnostic.Should().BeNull();
     }
 
     [Fact]
@@ -109,18 +111,20 @@ public class WebRunRecordTests
     {
         var completed = PendingRecord().ToRunning().ToCompleted("result.json", isClean: true, FixedTime);
 
-        FluentActions.Invoking(() => completed.ToRunning())
-            .Should().Throw<InvalidOperationException>();
-        FluentActions.Invoking(() => completed.ToFailed(Diagnostic(), FixedTime))
-            .Should().Throw<InvalidOperationException>();
-        FluentActions.Invoking(() => completed.ToCompleted("other.json", isClean: false, FixedTime))
-            .Should().Throw<InvalidOperationException>();
+        var act = () => completed.ToRunning();
+        act.Should().Throw<InvalidOperationException>();
+
+        var act2 = () => completed.ToFailed(Diagnostic(), FixedTime);
+        act2.Should().Throw<InvalidOperationException>();
+
+        var act3 = () => completed.ToCompleted("other.json", isClean: false, FixedTime);
+        act3.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
     public void Retry_transitions_failed_back_to_pending_and_clears_terminal_data()
     {
-        var failed = PendingRecord().ToFailed(Diagnostic(), FixedTime);
+        var failed = PendingRecord().ToFailed(Diagnostic(), FixedTime) is { } direct ? direct : PendingRecord().ToRunning().ToFailed(Diagnostic(), FixedTime);
 
         var retried = failed.ToPendingRetry();
 
@@ -135,19 +139,19 @@ public class WebRunRecordTests
     [Fact]
     public void Non_failed_states_reject_retry()
     {
-        FluentActions.Invoking(() => PendingRecord().ToPendingRetry())
-            .Should().Throw<InvalidOperationException>();
+        var act = () => PendingRecord().ToPendingRetry();
+        act.Should().Throw<InvalidOperationException>();
 
         var running = PendingRecord().ToRunning();
-        FluentActions.Invoking(() => running.ToPendingRetry())
-            .Should().Throw<InvalidOperationException>();
+        var act2 = () => running.ToPendingRetry();
+        act2.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
     public void Pending_record_cannot_complete_without_running_first()
     {
-        FluentActions.Invoking(() => PendingRecord().ToCompleted("result.json", isClean: true, FixedTime))
-            .Should().Throw<InvalidOperationException>();
+        var act = () => PendingRecord().ToCompleted("result.json", isClean: true, FixedTime);
+        act.Should().Throw<InvalidOperationException>();
     }
 
     [Theory]
@@ -155,35 +159,40 @@ public class WebRunRecordTests
     [InlineData(WebRunOperation.Compare)]
     public void Benchmark_operations_require_a_benchmark_name(WebRunOperation operation)
     {
-        FluentActions.Invoking(() => new WebRunRecord(
-                WebRunId.Derive(Source(), Options() with { BenchmarkName = "audusd-d1" }),
-                operation,
-                Source(),
-                Options() with { BenchmarkName = "audusd-d1" },
-                SubmittedAtUtc: FixedTime))
-            .Should().NotThrow();
+        var options = Options() with { BenchmarkName = "audusd-d1" };
 
-        FluentActions.Invoking(() => new WebRunRecord(
-                WebRunId.Derive(Source(), Options()),
-                operation,
-                Source(),
-                Options(),
-                SubmittedAtUtc: FixedTime))
-            .Should().Throw<ArgumentException>()
-            .WithMessage("*BenchmarkName*");
+        var act = () => new WebRunRecord(
+            WebRunId.Derive(Source(), options, operation),
+            operation,
+            Source(),
+            options,
+            submittedAtUtc: FixedTime,
+            benchmarkName: "audusd-d1");
+        act.Should().NotThrow();
+
+        var act2 = () => new WebRunRecord(
+            NewId(),
+            operation,
+            Source(),
+            Options(),
+            submittedAtUtc: FixedTime);
+        act2.Should().Throw<ArgumentException>()
+            .WithMessage("*benchmark name*");
     }
 
     [Fact]
     public void Validate_operation_rejects_a_benchmark_name()
     {
-        FluentActions.Invoking(() => new WebRunRecord(
-                WebRunId.Derive(Source(), Options() with { BenchmarkName = "audusd-d1" }),
-                WebRunOperation.Validate,
-                Source(),
-                Options() with { BenchmarkName = "audusd-d1" },
-                SubmittedAtUtc: FixedTime))
-            .Should().Throw<ArgumentException>()
-            .WithMessage("*BenchmarkName*");
+        var act = () => new WebRunRecord(
+            NewId(),
+            WebRunOperation.Validate,
+            Source(),
+            Options(),
+            submittedAtUtc: FixedTime,
+            benchmarkName: "audusd-d1");
+
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*benchmark name*");
     }
 
     [Fact]
@@ -191,25 +200,26 @@ public class WebRunRecordTests
     {
         var localTime = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.FromHours(3));
 
-        FluentActions.Invoking(() => new WebRunRecord(
-                WebRunId.Derive(Source(), Options()),
-                WebRunOperation.Validate,
-                Source(),
-                Options(),
-                SubmittedAtUtc: localTime))
-            .Should().Throw<ArgumentException>();
+        var act = () => new WebRunRecord(
+            NewId(),
+            WebRunOperation.Validate,
+            Source(),
+            Options(),
+            submittedAtUtc: localTime);
+
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
     public void SubmittedBy_is_opaque_and_optional()
     {
         var record = new WebRunRecord(
-            WebRunId.Derive(Source(), Options()),
+            NewId(),
             WebRunOperation.Validate,
             Source(),
             Options(),
-            SubmittedAtUtc: FixedTime,
-            SubmittedBy: "correlation-42");
+            submittedAtUtc: FixedTime,
+            submittedBy: "correlation-42");
 
         record.SubmittedBy.Should().Be("correlation-42");
     }
@@ -219,11 +229,11 @@ public class WebRunRecordTests
     {
         var options = Options() with { Timeframe = "H1" };
         var record = new WebRunRecord(
-            WebRunId.Derive(Source(), options),
+            WebRunId.Derive(Source(), options, WebRunOperation.Validate),
             WebRunOperation.Validate,
             Source(),
             options,
-            SubmittedAtUtc: FixedTime);
+            submittedAtUtc: FixedTime);
 
         record.ResolvedOptions.Timeframe.Should().Be("H1");
         record.ResolvedOptions.Should().Be(options);

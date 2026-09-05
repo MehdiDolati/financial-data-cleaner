@@ -41,5 +41,13 @@ namespace Validator.Application.Abstractions
             UploadedDataset dataset,
             CsvInputOptions options,
             CancellationToken ct = default);
+ 
+        /// <summary>
+        /// Resolves the durable path of the stored bytes. The reference is
+        /// content-addressed, so this is the same file the run validated.
+        /// Read-only: the bytes are never modified through this path
+        /// (FR-006, SC-008).
+        /// </summary>
+        string ResolveContentPath(UploadedDataset dataset);
     }
 }
