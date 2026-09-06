@@ -305,3 +305,14 @@ and
 [`specs/002-detailed-error-report/`](specs/002-detailed-error-report/),
 [`specs/003-dataset-quality-scoring/`](specs/003-dataset-quality-scoring/), and
 [`specs/004-benchmark-dataset-comparison/`](specs/004-benchmark-dataset-comparison/).
+
+## Web Application Integration
+
+The validator ships a transport-neutral web integration boundary so a host website can offer the same validation, scoring, and benchmark results as the CLI — with parity guaranteed by tests, not by promises.
+
+- **Boundary.** `Validator.Application/Web` defines the run envelope (`WebRunRequest`, deterministic `WebRunId`, lifecycle `WebRunRecord`), the ports (`IValidationWebService`, `IWebRunStore`, `IUploadedDatasetStore`, `IWebRunQueue`, `IWebResultStore`), and the typed result view (`WebResultView`). Nothing in the boundary speaks HTTP; any host transport can drive it.
+- **Adapters.** `Validator.Infrastructure/Web` provides the file-backed run store, the content-addressed write-once upload store, the inline run queue, the in-process result store, the report-export bridge to the existing writers, and `AddValidatorWebIntegration` for host composition roots.
+- **Packaging.** `scripts/pack-validator-packages.ps1` packs `Validator.Application`, `Validator.Infrastructure`, and `Validator.Domain` into a local NuGet feed; a host points a `nuget.config` at `artifacts/validator-packages` and consumes the boundary by package reference.
+- **Parity.** `tests/Validator.Parity.Tests` drives the same fixtures through the CLI and the web boundary and asserts the substantive surfaces agree — summary counts, checks, findings, scoring, and the detailed text export line for line. The boundary never recomputes or restates a rule; it composes the established use cases.
+
+The web boundary never modifies `Validator.Domain` or the CLI, and never publishes partial results: a run is `Pending`, `Running`, `CompletedClean`/`CompletedWithFindings`, or `Failed` with a diagnostic — never a partial report.

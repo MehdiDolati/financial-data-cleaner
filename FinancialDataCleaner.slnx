@@ -10,5 +10,6 @@
     <Project Path="tests/Validator.Cli.Tests/Validator.Cli.Tests.csproj" />
     <Project Path="tests/Validator.Domain.Tests/Validator.Domain.Tests.csproj" />
     <Project Path="tests/Validator.Infrastructure.Tests/Validator.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Validator.Parity.Tests/Validator.Parity.Tests.csproj" />
   </Folder>
 </Solution>
