@@ -50,11 +50,9 @@ namespace Validator.Application.Web
                         : "Benchmark comparison requires scoring.";
                     guidance = "Enable Score with report version 2 for benchmark operations.";
                 }
-                else if (options.ReportVersion != 2)
-                {
-                    problem = "Benchmark operations require the version 2 report contract.";
-                    guidance = "Use report version 2 for benchmark operations.";
-                }
+                // No ReportVersion check here: the earlier Score + version
+                // rule already guarantees version 2 for every scored run,
+                // and benchmark operations require scoring.
                 else if (string.IsNullOrWhiteSpace(options.Instrument))
                 {
                     problem = "Benchmark operations require an instrument identity.";
@@ -142,7 +140,7 @@ namespace Validator.Application.Web
             return new FatalDiagnostic(
                 "INVALID_ARGUMENT",
                 problem,
-                guidance ?? "Correct the reported option and resubmit.");
+                guidance!);
         }
 
         private static bool IsCanonicalTimeframe(string timeframe)

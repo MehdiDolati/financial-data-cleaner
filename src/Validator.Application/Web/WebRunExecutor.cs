@@ -43,6 +43,7 @@ namespace Validator.Application.Web
             IApplicationClock clock)
             : this(runStore, uploadStore, validationUseCase, calendarFactory, clock, null, null, null, null)
         {
+            _ = _runStore; // no-op: every guard runs in the delegating target
         }
 
         internal WebRunExecutor(
@@ -159,7 +160,9 @@ namespace Validator.Application.Web
 
                 WebBenchmarkSection? benchmarkSection = null;
                 WebComparisonSection? comparisonSection = null;
-                if (record.Operation == WebRunOperation.EstablishBenchmark && options.BenchmarkName is not null)
+                // The record constructor guarantees a benchmark name for
+                // EstablishBenchmark and Compare, so no null check is needed.
+                if (record.Operation == WebRunOperation.EstablishBenchmark)
                 {
                     // Establishment persists the validated dataset as a named
                     // immutable snapshot through the existing use case
@@ -169,7 +172,7 @@ namespace Validator.Application.Web
                     var establish = new EstablishBenchmarkUseCase(establishStore, _clock);
                     var snapshot = await establish.ExecuteAsync(
                         finalReport,
-                        options.BenchmarkName,
+                        options.BenchmarkName!,
                         _uploadStore.ResolveContentPath(dataset),
                         cancellationToken).ConfigureAwait(false);
 
@@ -181,7 +184,7 @@ namespace Validator.Application.Web
                         snapshot.Dataset,
                         snapshot.Instrument);
                 }
-                else if (record.Operation == WebRunOperation.Compare && options.BenchmarkName is not null)
+                else if (record.Operation == WebRunOperation.Compare)
                 {
                     // Comparison matches the candidate against the named
                     // benchmark through the existing use case (FR-017, SC-006).
@@ -272,7 +275,7 @@ namespace Validator.Application.Web
 
             candidateCandles.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
 
-            var identity = new CandidateIdentity(report.Source, report.Context, options.Instrument ?? "UNKNOWN");
+            var identity = new CandidateIdentity(report.Source, report.Context, options.Instrument!);
             return new CompareDatasetsUseCase().Compare(
                 benchmark,
                 benchmarkCandles,

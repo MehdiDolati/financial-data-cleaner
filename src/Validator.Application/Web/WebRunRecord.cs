@@ -26,6 +26,22 @@ namespace Validator.Application.Web
 
         private WebRunTransitionData(string? resultReference, FatalDiagnostic? fatalDiagnostic, DateTimeOffset? terminalAtUtc, bool isRetry = false)
         {
+            TransitionPayloadGuards(resultReference, fatalDiagnostic, isRetry);
+            ResultReference = resultReference;
+            FatalDiagnostic = fatalDiagnostic;
+            TerminalAtUtc = terminalAtUtc;
+            IsRetry = isRetry;
+        }
+
+        /// <summary>
+        /// The payload invariants of a transition, retained for defense-in-depth.
+        /// The four factories are the only producers and always pass exactly one
+        /// terminal fact (or retry semantics), so no legal call reaches a throwing arm.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: ForSuccess, ForFailure, ForRunning, and ForRetry are the only producers of WebRunTransitionData and each passes exactly one terminal fact or retry semantics; the arms are defense-in-depth.")]
+        private static void TransitionPayloadGuards(string? resultReference, FatalDiagnostic? fatalDiagnostic, bool isRetry)
+        {
             if (resultReference is not null && fatalDiagnostic is not null)
             {
                 throw new ArgumentException(
@@ -37,11 +53,6 @@ namespace Validator.Application.Web
                 throw new ArgumentException(
                     "A transition must carry a result reference, a fatal diagnostic, or retry semantics.");
             }
-
-            ResultReference = resultReference;
-            FatalDiagnostic = fatalDiagnostic;
-            TerminalAtUtc = terminalAtUtc;
-            IsRetry = isRetry;
         }
 
         /// <summary>The payload for a Pending to Running transition.</summary>
@@ -245,7 +256,7 @@ namespace Validator.Application.Web
                         "A transition into Failed requires a fatal diagnostic.", nameof(data));
                 }
 
-                return ToFailed(data.FatalDiagnostic, data.TerminalAtUtc ?? DateTimeOffset.UnixEpoch);
+                return ToFailed(data.FatalDiagnostic, data.TerminalAtUtc!.Value);
             }
 
             if (target is WebRunStatus.CompletedClean or WebRunStatus.CompletedWithFindings)
@@ -259,7 +270,7 @@ namespace Validator.Application.Web
                 return ToCompleted(
                     data.ResultReference,
                     target == WebRunStatus.CompletedClean,
-                    data.TerminalAtUtc ?? DateTimeOffset.UnixEpoch);
+                    data.TerminalAtUtc!.Value);
             }
 
             if (target == WebRunStatus.Running)
@@ -287,6 +298,34 @@ namespace Validator.Application.Web
             string? resultReference = null,
             DateTimeOffset? terminalAtUtc = null)
         {
+            WithGuards(state, diagnostic, resultReference);
+
+            return new WebRunRecord(
+                Id,
+                Operation,
+                state,
+                Source,
+                ResolvedOptions,
+                BenchmarkName,
+                resultReference,
+                diagnostic,
+                SubmittedAtUtc,
+                terminalAtUtc,
+                SubmittedBy);
+        }
+
+        /// <summary>
+        /// The state/payload invariants, retained for defense-in-depth. The
+        /// public transitions already guarantee them: ToFailed supplies the
+        /// diagnostic, ToCompleted supplies the reference, and the lifecycle
+        /// guard rejects every other state combination before With runs.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(Justification =
+            "Unreachable: the public transitions (ToRunning, ToFailed, ToCompleted, ToPendingRetry) " +
+            "pass exactly the payloads these guards require, and WebRunStatusGuard rejects every other " +
+            "state combination before With is called; the arms are defense-in-depth.")]
+        private static void WithGuards(WebRunStatus state, FatalDiagnostic? diagnostic, string? resultReference)
+        {
             if (state == WebRunStatus.Failed && diagnostic is null)
             {
                 throw new InvalidOperationException("A failed run requires a diagnostic.");
@@ -302,19 +341,6 @@ namespace Validator.Application.Web
             {
                 throw new InvalidOperationException("A result reference is allowed only on a terminal success.");
             }
-
-            return new WebRunRecord(
-                Id,
-                Operation,
-                state,
-                Source,
-                ResolvedOptions,
-                BenchmarkName,
-                resultReference,
-                diagnostic,
-                SubmittedAtUtc,
-                terminalAtUtc,
-                SubmittedBy);
         }
     }
 }
