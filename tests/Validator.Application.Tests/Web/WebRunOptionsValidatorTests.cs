@@ -24,7 +24,7 @@ public class WebRunOptionsValidatorTests
         BenchmarkName: null,
         ToleranceOverrides: null);
 
-    private static FatalDiagnostic Validate(WebRunOptions options, WebRunOperation operation) =>
+    private static FatalDiagnostic? Validate(WebRunOptions options, WebRunOperation operation) =>
         WebRunOptionsValidator.Validate(operation, options);
 
     [Fact]
